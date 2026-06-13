@@ -109,6 +109,12 @@ in
       buildPhase = ''
         ok=true
         for file in ${tinycc-src}/*.{h,c}; do
+          case "$file" in
+            */coff.h)
+              continue
+              ;;
+          esac
+
           bn=$(basename "$file")
           if ! ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
             ok=false

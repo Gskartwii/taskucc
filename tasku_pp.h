@@ -63,6 +63,66 @@ enum pp_tok_kind {
 
 typedef enum pp_tok_kind pp_tok_kind_e;
 
+enum pp_ident_kind {
+    ID_OTHER,
+
+    ID_AUTO,
+    ID_BREAK,
+    ID_CASE,
+    ID_CHAR,
+    ID_CONST,
+    ID_CONTINUE,
+    ID_DEFAULT,
+    ID_DO,
+    ID_DOUBLE,
+    ID_ENUM,
+    ID_EXTERN,
+    ID_FLOAT,
+    ID_FOR,
+    ID_GOTO,
+    ID_INLINE,
+    ID_INT,
+    ID_LONG,
+    ID_REGISTER,
+    ID_RESTRICT,
+    ID_RETURN,
+    ID_SHORT,
+    ID_SIGNED,
+    ID_SIZEOF,
+    ID_STATIC,
+    ID_STRUCT,
+    ID_SWITCH,
+    ID_TYPEDEF,
+    ID_UNION,
+    ID_UNSIGNED,
+    ID_VOID,
+    ID_VOLATILE,
+    ID_WHILE,
+    ID__BOOL,
+    ID__COMPLEX,
+    ID__IMAGINARY,
+
+    ID_ALWAYS_SPECIAL,
+
+    ID_IF,
+    ID_ELSE,
+
+    ID_DIRECTIVE_SPECIALS,
+
+    ID_IFDEF,
+    ID_IFNDEF,
+    ID_ELIF,
+    ID_ENDIF,
+    ID_INCLUDE,
+    ID_DEFINE,
+    ID_UNDEF,
+    ID_LINE,
+    ID_ERROR,
+    ID_PRAGMA
+};
+
+typedef enum pp_ident_kind pp_ident_kind_e;
+
 struct tacc_file_iter {
     char *tacc_file_iter_src;
     char *tacc_file_iter_end;
@@ -76,6 +136,7 @@ void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file);
 
 struct pp_tok {
     pp_tok_kind_e pp_tok__kind;
+    pp_ident_kind_e pp_tok_ident_kind;
     char *pp_tok_str;
     /* points at final null byte, does not include any possible intermediate null bytes */
     char *pp_tok_end;

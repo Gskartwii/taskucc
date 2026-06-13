@@ -245,8 +245,11 @@ static void tacc_file_iter_eat_ws_no_newlines(tacc_file_iter_p iter) {
                     tacc_file_iter_eat_comment(iter);
                     continue;
                 }
+                if (ch == '/') {
+                    tacc_file_iter_eat_new_comment(iter);
+                    continue;
+                }
             }
-            /* do not eat double-slash comments; the newline is not part of them */
         }
         break;
     }
@@ -277,7 +280,6 @@ static void tacc_file_iter_eat_all_ws(tacc_file_iter_p iter) {
                     continue;
                 }
             }
-            /* do not eat double-slash comments; the newline is not part of them */
         }
         break;
     }
@@ -489,6 +491,121 @@ static pp_tok_p tacc_tok_iter_lex_ppnum(tacc_file_iter_p iter, pp_tok_p tok_out,
     return ret;
 }
 
+pp_ident_kind_e tacc_recognize_ident_kind(char *ident) {
+    if (!strcmp(ident, "auto")) {
+        return ID_AUTO;
+    }
+    if (!strcmp(ident, "break")) {
+        return ID_BREAK;
+    }
+    if (!strcmp(ident, "case")) {
+        return ID_CASE;
+    }
+    if (!strcmp(ident, "char")) {
+        return ID_CHAR;
+    }
+    if (!strcmp(ident, "const")) {
+        return ID_CONST;
+    }
+    if (!strcmp(ident, "continue")) {
+        return ID_CONTINUE;
+    }
+    if (!strcmp(ident, "default")) {
+        return ID_DEFAULT;
+    }
+    if (!strcmp(ident, "do")) {
+        return ID_DO;
+    }
+    if (!strcmp(ident, "double")) {
+        return ID_DOUBLE;
+    }
+    if (!strcmp(ident, "enum")) {
+        return ID_ENUM;
+    }
+    if (!strcmp(ident, "extern")) {
+        return ID_EXTERN;
+    }
+    if (!strcmp(ident, "float")) {
+        return ID_FLOAT;
+    }
+    if (!strcmp(ident, "for")) {
+        return ID_FOR;
+    }
+    if (!strcmp(ident, "goto")) {
+        return ID_GOTO;
+    }
+    if (!strcmp(ident, "inline")) {
+        return ID_INLINE;
+    }
+    if (!strcmp(ident, "int")) {
+        return ID_INT;
+    }
+    if (!strcmp(ident, "long")) {
+        return ID_LONG;
+    }
+    if (!strcmp(ident, "register")) {
+        return ID_REGISTER;
+    }
+    if (!strcmp(ident, "restrict")) {
+        return ID_RESTRICT;
+    }
+    if (!strcmp(ident, "return")) {
+        return ID_RETURN;
+    }
+    if (!strcmp(ident, "short")) {
+        return ID_SHORT;
+    }
+    if (!strcmp(ident, "signed")) {
+        return ID_SIGNED;
+    }
+    if (!strcmp(ident, "sizeof")) {
+        return ID_SIZEOF;
+    }
+    if (!strcmp(ident, "static")) {
+        return ID_STATIC;
+    }
+    if (!strcmp(ident, "struct")) {
+        return ID_STRUCT;
+    }
+    if (!strcmp(ident, "switch")) {
+        return ID_SWITCH;
+    }
+    if (!strcmp(ident, "typedef")) {
+        return ID_TYPEDEF;
+    }
+    if (!strcmp(ident, "union")) {
+        return ID_UNION;
+    }
+    if (!strcmp(ident, "unsigned")) {
+        return ID_UNSIGNED;
+    }
+    if (!strcmp(ident, "void")) {
+        return ID_VOID;
+    }
+    if (!strcmp(ident, "volatile")) {
+        return ID_VOLATILE;
+    }
+    if (!strcmp(ident, "while")) {
+        return ID_WHILE;
+    }
+    if (!strcmp(ident, "_Bool")) {
+        return ID__BOOL;
+    }
+    if (!strcmp(ident, "_Complex")) {
+        return ID__COMPLEX;
+    }
+    if (!strcmp(ident, "_Imaginary")) {
+        return ID__IMAGINARY;
+    }
+    if (!strcmp(ident, "if")) {
+        return ID_IF;
+    }
+    if (!strcmp(ident, "else")) {
+        return ID_ELSE;
+    }
+    return ID_OTHER;
+}
+
 static pp_tok_p tacc_tok_iter_lex_ident(tacc_file_iter_p iter, pp_tok_p tok_out, char first) {
     pp_tok_p ret = tok_out;
     char *out_str;
@@ -533,6 +650,8 @@ static pp_tok_p tacc_tok_iter_lex_ident(tacc_file_iter_p iter, pp_tok_p tok_out,
     }
     *out_str = 0;
     ret->pp_tok_end = out_str;
+
+    ret->pp_tok_ident_kind = tacc_recognize_ident_kind(ret->pp_tok_str);
 
     return ret;
 }
@@ -744,6 +863,7 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         if (first == '_') {
             return tacc_tok_iter_lex_ident(iter->tacc_tok_iter_file, ret, first);
         }
+        tacc_assert(0, "unrecognized char: %x", first);
         kind = TOK_OTHER;
     }
 
