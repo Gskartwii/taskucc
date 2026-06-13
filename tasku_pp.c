@@ -224,6 +224,7 @@ static void tacc_file_iter_eat_new_comment(tacc_file_iter_p iter) {
     ch = tacc_file_iter_peek_ch(iter);
     while (ch != '\n') {
         tacc_file_iter_consume_ch(iter);
+        ch = tacc_file_iter_peek_ch(iter);
     }
 }
 
