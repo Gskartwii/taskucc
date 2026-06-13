@@ -130,9 +130,13 @@ char *tacc_pp_to_string(pp_tok_p tok) {
 }
 
 static void tacc_file_iter_eat_splices(tacc_file_iter_p iter) {
-    if (*iter->tacc_file_iter_src == '\\') {
+    char ch;
+    ch = *iter->tacc_file_iter_src;
+
+    if (ch == '\\') {
         /* c99 5.1.1.2.2: a physical source file cannot end with a backslash */
-        if (iter->tacc_file_iter_src[1] == '\n') {
+        ch = iter->tacc_file_iter_src[1];
+        if (ch == '\n') {
             iter->tacc_file_iter_src = iter->tacc_file_iter_src + 1;
             iter->tacc_file_iter_src = iter->tacc_file_iter_src + 1;
         }
@@ -212,10 +216,13 @@ static void tacc_file_iter_eat_comment(tacc_file_iter_p iter) {
 }
 
 static void tacc_file_iter_eat_new_comment(tacc_file_iter_p iter) {
+    char ch;
+
     tacc_assert(tacc_file_iter_accept_ch(iter, '/'), "error while scanning new comment");
     tacc_assert(tacc_file_iter_accept_ch(iter, '/'), "error while scanning new comment");
 
-    while (tacc_file_iter_peek_ch(iter) != '\n') {
+    ch = tacc_file_iter_peek_ch(iter);
+    while (ch != '\n') {
         tacc_file_iter_consume_ch(iter);
     }
 }
@@ -336,9 +343,7 @@ static int tacc_tok_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) 
     if (!was_bol && !tacc_file_iter_accept_ch(iter, '\n')) {
         return 0;
     }
-    while (tacc_file_iter_accept_ch(iter, '\n')) {
-        tacc_file_iter_eat_ws_no_newlines(iter);
-    }
+    tacc_file_iter_eat_all_ws(iter);
     if (!tacc_file_iter_accept_ch(iter, '#')) {
         return 0;
     }
