@@ -33,8 +33,14 @@ let
   ];
 
   m2-all = includes ++ local_hdrs ++ src;
+
+  tinycc-src = pkgs.fetchgit {
+    url = "https://repo.or.cz/tinycc.git";
+    rev = "a338258d309c888bde96b2d1f206299231a54ddf";
+    hash = "sha256-R1Kyycihw5rKu+vv/GzEMPAdaApW0lrIESjrbnEa2Dg=";
+  };
 in
-  {
+  rec {
     tasku-gcc = pkgs.stdenv.mkDerivation {
       pname = "tasku-cc-gcc";
       version = "0.1.0";
@@ -45,9 +51,10 @@ in
       '';
       installPhase = ''
         mkdir -p $out/bin
-        cp tasku $out/bin/tasku
+        cp tasku $out/bin/tasku-gcc
       '';
       dontStrip = true;
+      meta.mainProgram = "tasku-gcc";
     };
     tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
       pname = "tasku-cc";
@@ -75,8 +82,6 @@ in
           -f tasku-footer.M1 \
           -o tasku.hex2
 
-        cat tasku.hex2
-
         hex2 --architecture amd64 \
           --little-endian \
           --base-address 0x00600000 \
@@ -87,7 +92,44 @@ in
 
       installPhase = ''
         mkdir -p $out/bin/
-        cp tasku $out/bin/tasku
+        cp tasku $out/bin/tasku-m2
+      '';
+      meta.mainProgram = "tasku-m2";
+    };
+    tasku-both = pkgs.symlinkJoin {
+      name = "tasku";
+      paths = [tasku-m2 tasku-gcc];
+    };
+
+    compare-m2-gcc = pkgs.stdenvNoCC.mkDerivation {
+      pname = "compare-taskucc-across-m2-gcc";
+      version = "0.1.0";
+      dontUnpack = true;
+
+      buildPhase = ''
+        ok=true
+        for file in ${tinycc-src}/*.{h,c}; do
+          bn=$(basename "$file")
+          if ! ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
+            ok=false
+            echo "tasku-m2 failed on $file"
+            continue
+          fi
+          if ! ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
+            ok=false
+            echo "tasku-gcc failed on $file"
+            continue
+          fi
+          if ! diff -q tasku-gcc-test tasku-m2-test; then
+            ok=false
+            echo "mismatch found on $file"
+            continue
+          fi
+          echo "$bn: ok"
+        done
+        if $ok; then
+          touch "$out"
+        fi
       '';
     };
   }
