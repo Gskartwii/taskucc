@@ -327,11 +327,16 @@ static char tacc_file_iter_parse_escape(tacc_file_iter_p iter) {
 static int tacc_tok_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) {
     char *directive_str;
     char *directive_str_end;
+    int was_bol;
 
-    if (!iter->tacc_file_iter_is_bol) {
+    was_bol = iter->tacc_file_iter_is_bol;
+    tacc_file_iter_eat_ws_no_newlines(iter);
+    if (!was_bol && !tacc_file_iter_accept_ch(iter, '\n')) {
         return 0;
     }
-    tacc_file_iter_eat_ws_no_newlines(iter);
+    while (tacc_file_iter_accept_ch(iter, '\n')) {
+        tacc_file_iter_eat_ws_no_newlines(iter);
+    }
     if (!tacc_file_iter_accept_ch(iter, '#')) {
         return 0;
     }
