@@ -2,7 +2,7 @@ let
   pkgs = import (builtins.getFlake "nixpkgs") {};
   lib = pkgs.lib;
   m2libc = pkgs.minimal-bootstrap.m2libc;
-  includes = [
+  includes-m2 = [
     "sys/types.h"
     "stddef.h"
     "amd64/linux/fcntl.c"
@@ -18,6 +18,21 @@ let
     "string.c"
     "bootstrappable.c"
   ];
+  includes = map (file: "${m2libc}/${file}") includes-m2;
+  local_hdrs = [
+    "m2_shim.h"
+    "util.h"
+    "tasku_file.h"
+    "tasku_pp.h"
+  ];
+  src = [
+    "util.c"
+    "tasku_file.c"
+    "tasku_pp.c"
+    "tasku.c"
+  ];
+
+  m2-all = includes ++ local_hdrs ++ src;
 in
   {
     tasku-gcc = pkgs.stdenv.mkDerivation {
@@ -25,14 +40,14 @@ in
       version = "0.1.0";
       src = ./.;
       buildPhase = ''
-        $CC -c util.c
-        $CC -c tasku.c
-        $CC -o tasku tasku.o util.o
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC -std=c90 -g -Wall -Wextra -Wpedantic -Werror -c ${file}") src}
+        $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
       '';
       installPhase = ''
         mkdir -p $out/bin
         cp tasku $out/bin/tasku
       '';
+      dontStrip = true;
     };
     tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
       pname = "tasku-cc";
@@ -43,7 +58,7 @@ in
       ];
       buildPhase = ''
         M2-Planet --architecture amd64 \
-          -f ${lib.strings.concatMapStringsSep " -f " (file: "${m2libc}/${file}") includes} \
+          -f ${lib.strings.concatStringsSep " -f " m2-all} \
           -f m2_shim.h \
           -f util.c \
           -f tasku.c \
@@ -59,6 +74,8 @@ in
           -f tasku.M1 \
           -f tasku-footer.M1 \
           -o tasku.hex2
+
+        cat tasku.hex2
 
         hex2 --architecture amd64 \
           --little-endian \

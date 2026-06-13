@@ -4,12 +4,7 @@
 #include <stdio.h>
 
 #define PRIsz "zu"
-
-static inline void init_io(void) { }
-
-static inline void kill_io(void) {
-    fflush(stderr);
-    fflush(stdout);
-}
+#define init_io()
+#define kill_io() fflush(stderr); fflush(stdout);
 
 #endif
