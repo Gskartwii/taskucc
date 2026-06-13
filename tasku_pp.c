@@ -316,8 +316,10 @@ static char tacc_file_iter_parse_escape(tacc_file_iter_p iter) {
         } else {
             return ret;
         }
+        tacc_file_iter_consume_ch(iter);
         ch = tacc_file_iter_peek_ch(iter);
         if (ch >= '0' && ch <= '7') {
+            tacc_file_iter_consume_ch(iter);
             ret = ret * 8 + (ch - '0');
         }
         return ret;
@@ -341,9 +343,9 @@ static int tacc_tok_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) 
         return 0;
     }
 
-    directive_str = tacc_malloc(1024);
-    directive_str[1023] = 0;
-    directive_str_end = directive_str + 1023;
+    directive_str = tacc_malloc(4096);
+    directive_str[4095] = 0;
+    directive_str_end = directive_str + 4095;
     tok_out->pp_tok_str = directive_str;
 
     /* file must end in newline, no need to check for eof */
