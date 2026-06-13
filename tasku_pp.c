@@ -375,6 +375,8 @@ static pp_tok_p tacc_tok_iter_lex_char(tacc_file_iter_p iter, pp_tok_p tok_out) 
         *out_str = (char) contained;
         return ret;
     }
+    *out_str = tacc_file_iter_parse_escape(iter);
+    tacc_assert(tacc_file_iter_accept_ch(iter, '\''), "overlong character literal");
 
     return ret;
 }
