@@ -116,12 +116,12 @@ in
           esac
 
           bn=$(basename "$file")
-          if ! ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
+          if ! timeout 1 ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
             ok=false
             echo "tasku-m2 failed on $file"
             continue
           fi
-          if ! ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
+          if ! timeout 1 ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
             ok=false
             echo "tasku-gcc failed on $file"
             continue
