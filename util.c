@@ -48,3 +48,12 @@ int tacc_hex_to_dec(char hex) {
     tacc_assert(0, "invalid hex character %x", (int) hex);
     return 0;
 }
+
+int tacc_sizeadj(int count, int size) {
+#ifdef __M2__
+    return count * size;
+#else
+    (void) size;
+    return count;
+#endif
+}
