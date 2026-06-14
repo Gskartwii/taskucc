@@ -336,7 +336,7 @@ static char tacc_file_iter_parse_escape(tacc_file_iter_p iter) {
     }
 }
 
-static int tacc_tok_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) {
+static int tacc_file_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) {
     char *directive_str;
     char *directive_str_end;
     int was_bol;
@@ -370,7 +370,7 @@ static int tacc_tok_iter_lex_directive(tacc_file_iter_p iter, pp_tok_p tok_out) 
     return 1;
 }
 
-static pp_tok_p tacc_tok_iter_lex_char(tacc_file_iter_p iter, pp_tok_p tok_out) {
+static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter, pp_tok_p tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     int contained;
@@ -396,7 +396,7 @@ static pp_tok_p tacc_tok_iter_lex_char(tacc_file_iter_p iter, pp_tok_p tok_out) 
     return ret;
 }
 
-static pp_tok_p tacc_tok_iter_lex_string(tacc_file_iter_p iter, pp_tok_p tok_out) {
+static pp_tok_p tacc_file_iter_lex_string(tacc_file_iter_p iter, pp_tok_p tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     char *out_str;
@@ -427,7 +427,7 @@ static pp_tok_p tacc_tok_iter_lex_string(tacc_file_iter_p iter, pp_tok_p tok_out
     return ret;
 }
 
-static pp_tok_p tacc_tok_iter_lex_ppnum(tacc_file_iter_p iter, pp_tok_p tok_out, char first) {
+static pp_tok_p tacc_file_iter_lex_ppnum(tacc_file_iter_p iter, pp_tok_p tok_out, char first) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     char *out_str;
@@ -606,7 +606,7 @@ pp_ident_kind_e tacc_recognize_ident_kind(char *ident) {
     return ID_OTHER;
 }
 
-static pp_tok_p tacc_tok_iter_lex_ident(tacc_file_iter_p iter, pp_tok_p tok_out, char first) {
+static pp_tok_p tacc_file_iter_lex_ident(tacc_file_iter_p iter, pp_tok_p tok_out, char first) {
     pp_tok_p ret = tok_out;
     char *out_str;
     char ch;
@@ -661,8 +661,8 @@ static void tacc_pp_tok_assign_str(pp_tok_p tok, char *str) {
     tok->pp_tok_end = str + strlen(str);
 }
 
-static int tacc_tok_iter_maybe_special(tacc_tok_iter_p iter, pp_tok_p tok_out, pp_tok_kind_e special_tok, char *special_match) {
-    if (!tacc_file_iter_accept_ch(iter->tacc_tok_iter_file, special_match[1])) {
+static int tacc_file_iter_maybe_special(tacc_file_iter_p iter, pp_tok_p tok_out, pp_tok_kind_e special_tok, char *special_match) {
+    if (!tacc_file_iter_accept_ch(iter, special_match[1])) {
         tok_out->pp_tok_str = tacc_malloc(2);
         tok_out->pp_tok_str[0] = special_match[0];
         tok_out->pp_tok_str[1] = 0;
@@ -674,26 +674,26 @@ static int tacc_tok_iter_maybe_special(tacc_tok_iter_p iter, pp_tok_p tok_out, p
     return 1;
 }
 
-static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
+static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter) {
     int first, was_ws;
     pp_tok_p ret;
     pp_tok_kind_e kind;
 
     ret = tacc_malloc(sizeof(struct pp_tok));
 
-    if (tacc_file_is_eof(iter->tacc_tok_iter_file)) {
+    if (tacc_file_is_eof(iter)) {
         ret->pp_tok__kind = TOK_EOF;
         tacc_pp_tok_assign_str(ret, "");
         return ret;
     }
 
-    if (tacc_tok_iter_lex_directive(iter->tacc_tok_iter_file, ret)) {
+    if (tacc_file_iter_lex_directive(iter, ret)) {
         return ret;
     }
-    tacc_file_iter_eat_all_ws(iter->tacc_tok_iter_file);
-    was_ws = iter->tacc_tok_iter_file->tacc_file_iter_is_ws;
+    tacc_file_iter_eat_all_ws(iter);
+    was_ws = iter->tacc_file_iter_is_ws;
 
-    if (tacc_file_is_eof(iter->tacc_tok_iter_file)) {
+    if (tacc_file_is_eof(iter)) {
         ret->pp_tok__kind = TOK_EOF;
         tacc_pp_tok_assign_str(ret, "");
         return ret;
@@ -701,16 +701,16 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
 
     kind = TOK_UNRECOGNIZED;
 
-    first = tacc_file_iter_consume_ch(iter->tacc_tok_iter_file);
+    first = tacc_file_iter_consume_ch(iter);
     if (!first) {
         return NULL;
     }
 
     switch (first) {
     case '\'':
-        return tacc_tok_iter_lex_char(iter->tacc_tok_iter_file, ret);
+        return tacc_file_iter_lex_char(iter, ret);
     case '"':
-        return tacc_tok_iter_lex_string(iter->tacc_tok_iter_file, ret);
+        return tacc_file_iter_lex_string(iter, ret);
     case '[':
         kind = TOK_LBRACE;
         break;
@@ -735,11 +735,11 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         break;
     case '.':
         kind = TOK_DOT;
-        first = tacc_file_iter_peek_ch(iter->tacc_tok_iter_file);
+        first = tacc_file_iter_peek_ch(iter);
         if (first >= '0' && first <= '9') {
-            return tacc_tok_iter_lex_ppnum(iter->tacc_tok_iter_file, ret, '.');
+            return tacc_file_iter_lex_ppnum(iter, ret, '.');
         }
-        if (first == '.' && ((iter->tacc_tok_iter_file->tacc_file_iter_end - iter->tacc_tok_iter_file->tacc_file_iter_src) >= 2) && iter->tacc_tok_iter_file->tacc_file_iter_src[1] == '.') {
+        if (first == '.' && ((iter->tacc_file_iter_end - iter->tacc_file_iter_src) >= 2) && iter->tacc_file_iter_src[1] == '.') {
             ret->pp_tok__kind = TOK_DOT_3;
             tacc_pp_tok_assign_str(ret, "...");
             return ret;
@@ -747,66 +747,66 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         first = '.';
         break;
     case '-':
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_ARROW, "->")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_ARROW, "->")) {
             return ret;
         }
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_MINUS_2, "--")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_MINUS_2, "--")) {
             return ret;
         }
         ret->pp_tok__kind = TOK_MINUS;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_MINUS_EQ, "-=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_MINUS_EQ, "-=");
         return ret;
     case '&':
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_AMPERSAND_2, "&&")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_AMPERSAND_2, "&&")) {
             return ret;
         }
         ret->pp_tok__kind = TOK_AMPERSAND;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_AMPERSAND_EQ, "&=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_AMPERSAND_EQ, "&=");
         return ret;
     case '*':
         ret->pp_tok__kind = TOK_ASTERISK;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_ASTERISK_EQ, "*=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_ASTERISK_EQ, "*=");
         return ret;
     case '+':
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_PLUS_2, "++")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_PLUS_2, "++")) {
             return ret;
         }
         ret->pp_tok__kind = TOK_PLUS;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_PLUS_EQ, "+=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_PLUS_EQ, "+=");
         return ret;
     case '~':
         kind = TOK_TILDE;
         break;
     case '!':
         ret->pp_tok__kind = TOK_EXCLAMATION;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_EXCLAMATION_EQ, "!=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_EXCLAMATION_EQ, "!=");
         return ret;
     case '^':
         ret->pp_tok__kind = TOK_CIRCUMFLEX;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_CIRCUMFLEX_EQ, "^=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_CIRCUMFLEX_EQ, "^=");
         return ret;
     case '|':
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_PIPE_EQ, "|=")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_PIPE_EQ, "|=")) {
             return ret;
         }
         ret->pp_tok__kind = TOK_PIPE;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_PIPE_2, "||");
+        tacc_file_iter_maybe_special(iter, ret, TOK_PIPE_2, "||");
         return ret;
     case '/':
         ret->pp_tok__kind = TOK_SLASH;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_SLASH_EQ, "/=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_SLASH_EQ, "/=");
         return ret;
     case '%':
         ret->pp_tok__kind = TOK_PERCENT;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_PERCENT_EQ, "%=");
+        tacc_file_iter_maybe_special(iter, ret, TOK_PERCENT_EQ, "%=");
         return ret;
     case '<':
         kind = TOK_LT;
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_LT_EQ, "<=")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_LT_EQ, "<=")) {
             return ret;
         }
-        if (tacc_file_iter_accept_ch(iter->tacc_tok_iter_file, '<')) {
-            if (tacc_file_iter_accept_ch(iter->tacc_tok_iter_file, '=')) {
+        if (tacc_file_iter_accept_ch(iter, '<')) {
+            if (tacc_file_iter_accept_ch(iter, '=')) {
                 ret->pp_tok__kind = TOK_LT_2_EQ;
                 tacc_pp_tok_assign_str(ret, "<<=");
                 return ret;
@@ -819,11 +819,11 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         break;
     case '>':
         kind = TOK_GT;
-        if (tacc_tok_iter_maybe_special(iter, ret, TOK_GT_EQ, "<=")) {
+        if (tacc_file_iter_maybe_special(iter, ret, TOK_GT_EQ, "<=")) {
             return ret;
         }
-        if (tacc_file_iter_accept_ch(iter->tacc_tok_iter_file, '>')) {
-            if (tacc_file_iter_accept_ch(iter->tacc_tok_iter_file, '=')) {
+        if (tacc_file_iter_accept_ch(iter, '>')) {
+            if (tacc_file_iter_accept_ch(iter, '=')) {
                 ret->pp_tok__kind = TOK_GT_2_EQ;
                 tacc_pp_tok_assign_str(ret, ">>=");
                 return ret;
@@ -836,7 +836,7 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         break;
     case '=':
         ret->pp_tok__kind = TOK_EQ;
-        tacc_tok_iter_maybe_special(iter, ret, TOK_EQ_2, "==");
+        tacc_file_iter_maybe_special(iter, ret, TOK_EQ_2, "==");
         return ret;
     case '?':
         kind = TOK_QUESTION;
@@ -852,16 +852,16 @@ static pp_tok_p tacc_tok_iter_lex(tacc_tok_iter_p iter) {
         break;
     default:
         if (first >= '0' && first <= '9') {
-            return tacc_tok_iter_lex_ppnum(iter->tacc_tok_iter_file, ret, first);
+            return tacc_file_iter_lex_ppnum(iter, ret, first);
         }
         if (first >= 'A' && first <= 'Z') {
-            return tacc_tok_iter_lex_ident(iter->tacc_tok_iter_file, ret, first);
+            return tacc_file_iter_lex_ident(iter, ret, first);
         }
         if (first >= 'a' && first <= 'z') {
-            return tacc_tok_iter_lex_ident(iter->tacc_tok_iter_file, ret, first);
+            return tacc_file_iter_lex_ident(iter, ret, first);
         }
         if (first == '_') {
-            return tacc_tok_iter_lex_ident(iter->tacc_tok_iter_file, ret, first);
+            return tacc_file_iter_lex_ident(iter, ret, first);
         }
         tacc_assert(0, "unrecognized char: %x", first);
         kind = TOK_OTHER;
@@ -889,7 +889,7 @@ pp_tok_p tacc_tok_iter_peek(tacc_tok_iter_p iter) {
     if (iter->tacc_tok_iter_pending) {
         return iter->tacc_tok_iter_pending;
     }
-    iter->tacc_tok_iter_pending = tacc_tok_iter_lex(iter);
+    iter->tacc_tok_iter_pending = tacc_file_iter_lex(iter->tacc_tok_iter_file);
     return iter->tacc_tok_iter_pending;
 }
 
@@ -900,5 +900,5 @@ pp_tok_p tacc_tok_iter_next(tacc_tok_iter_p iter) {
         iter->tacc_tok_iter_pending = NULL;
         return ret;
     }
-    return tacc_tok_iter_lex(iter);
+    return tacc_file_iter_lex(iter->tacc_tok_iter_file);
 }
