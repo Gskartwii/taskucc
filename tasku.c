@@ -8,6 +8,7 @@ int main(int argc, char **argv) {
     tacc_file_p input_file;
     tacc_file_iter_p file_iter;
     tacc_tok_iter_p tok_iter;
+    tacc_pp_state_p pp_state;
     pp_tok_p token;
 
     init_io();
@@ -20,7 +21,9 @@ int main(int argc, char **argv) {
     file_iter = tacc_file_iter_new();
     tacc_file_iter_init(file_iter, input_file);
     tok_iter = tacc_tok_iter_new();
-    tacc_tok_iter_init(tok_iter, file_iter);
+    pp_state = tacc_pp_state_new();
+    tacc_pp_state_init(pp_state);
+    tacc_tok_iter_init(tok_iter, file_iter, pp_state);
 
     while (1) {
         token = tacc_tok_iter_next(tok_iter);

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 #include "util.h"
 #include "tasku_pp.h"
@@ -11,10 +12,12 @@ static void tacc_file_iter_init_str(tacc_file_iter_p iter, char *start, char *en
     iter->tacc_file_iter_is_ws = 1;
     iter->tacc_file_iter_src = start;
     iter->tacc_file_iter_end = end;
+    iter->tacc_file_iter_filename = NULL;
 }
 
 void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file) {
     tacc_file_iter_init_str(iter, file->tacc_file_src, file->tacc_file_src + file->tacc_file_len);
+    iter->tacc_file_iter_filename = file->tacc_file_name;
 }
 
 char *tacc_pp_to_string(pp_tok_p tok) {
@@ -939,14 +942,175 @@ static pp_tok_p tacc_file_iter_expect_ident(tacc_file_iter_p iter) {
     return tok;
 }
 
+tacc_pp_state_p tacc_pp_state_new(void) {
+    return tacc_malloc(sizeof(struct tacc_pp_state));
+}
+
+tacc_macro_def_entry_p tacc_pp_find_macro_or_first_empty(tacc_pp_state_p state, char *name) {
+    int i;
+    tacc_macro_def_entry_p entry;
+
+    entry = state->tacc_pp_macros;
+    for (i = 0; i < 1024; i = i + 1) {
+        if (!entry->tacc_macro_def_entry_content) {
+            /* first empty */
+            return entry;
+        }
+        if (!strcmp(entry->tacc_macro_def_entry_content->tacc_macro_def_name, name)) {
+            /* match, possibly tombstone */
+            return entry;
+        }
+        entry = entry + tacc_sizeadj(1, sizeof(struct tacc_macro_def_entry));
+    }
+    tacc_assert(0, "too many macros");
+    return NULL;
+}
+
+void tacc_pp_insert_macro(tacc_pp_state_p state, tacc_macro_def_p macro) {
+    tacc_macro_def_entry_p place;
+
+    place = tacc_pp_find_macro_or_first_empty(state, macro->tacc_macro_def_name);
+    if (place->tacc_macro_def_entry_content) {
+        tacc_assert(place->tacc_macro_def_entry_content->tacc_macro_def_is_tombstone, "macro defined twice: %s", macro->tacc_macro_def_name);
+    }
+    place->tacc_macro_def_entry_content = macro;
+}
+
+void tacc_pp_define(tacc_pp_state_p state, char *name, char *expansion) {
+    tacc_token_pp replacement_list;
+    tacc_macro_def_p macro;
+    tacc_file_iter_p iter;
+    pp_tok_p tok;
+    int replacement_list_len;
+
+    macro = tacc_malloc(sizeof(struct tacc_macro_def));
+    macro->tacc_macro_def_name = name;
+    macro->tacc_macro_def_is_va = 0;
+    macro->tacc_macro_def_is_tombstone = 0;
+    macro->tacc_macro_def_num_params = -1;
+    macro->tacc_macro_def_params = NULL;
+
+    replacement_list = tacc_malloc(sizeof(struct tacc_token_p) * 512);
+    macro->tacc_macro_def_replacement_list = replacement_list;
+    replacement_list_len = 0;
+
+    iter = tacc_file_iter_new();
+    tacc_file_iter_init_str(iter, expansion, expansion + strlen(expansion));
+
+    while (1) {
+        tacc_assert(replacement_list_len < 512, "overlong replacement list");
+        tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */);
+        if (tok->pp_tok__kind == TOK_EOF) {
+            break;
+        }
+        replacement_list->tacc_token_p_content = tok;
+        replacement_list_len = replacement_list_len + 1;
+        replacement_list = replacement_list + 1;
+    }
+    macro->tacc_macro_def_replacement_list_len = replacement_list_len;
+
+    tacc_pp_insert_macro(state, macro);
+}
+
+void tacc_pp_undef(tacc_pp_state_p state, char *name) {
+    tacc_macro_def_entry_p place;
+
+    place = tacc_pp_find_macro_or_first_empty(state, name);
+    if (place->tacc_macro_def_entry_content == NULL) {
+        return;
+    }
+    place->tacc_macro_def_entry_content->tacc_macro_def_is_tombstone = 1;
+}
+
+void tacc_pp_state_init(tacc_pp_state_p state) {
+    int i;
+    tacc_include_path_p incpath_entry;
+    tacc_macro_def_entry_p macro_entry;
+
+    state->tacc_pp_include_path = tacc_malloc(sizeof(struct tacc_include_path_entry) * 32);
+    state->tacc_pp_macros = tacc_malloc(sizeof(struct tacc_macro_def_entry) * 1024);
+
+    incpath_entry = state->tacc_pp_include_path;
+    for (i = 0; i < 32; i = i + 1) {
+        incpath_entry->tacc_include_path_entry_content = NULL;
+        incpath_entry = incpath_entry + tacc_sizeadj(1, sizeof(struct tacc_include_path_entry));
+    }
+    macro_entry = state->tacc_pp_macros;
+    for (i = 0; i < 1024; i = i + 1) {
+        macro_entry->tacc_macro_def_entry_content = NULL;
+        macro_entry = macro_entry + tacc_sizeadj(1, sizeof(struct tacc_macro_def_entry));
+    }
+
+    tacc_pp_define(state, "__STDC__", "1");
+}
+
 tacc_tok_iter_p tacc_tok_iter_new(void) {
     return tacc_malloc(sizeof(struct tacc_tok_iter));
 }
 
-void tacc_tok_iter_init(tacc_tok_iter_p iter, tacc_file_iter_p file) {
+void tacc_tok_iter_init(tacc_tok_iter_p iter, tacc_file_iter_p file, tacc_pp_state_p state) {
     iter->tacc_tok_iter_file = file;
     iter->tacc_tok_iter_pending = NULL;
     iter->tacc_tok_iter_override = NULL;
+    iter->tacc_tok_iter_state = state;
+}
+
+static tacc_file_p tacc_pp_try_file(char *base, char *subpath) {
+    char *path;
+    FILE *file;
+
+    if (strlen(base) + strlen(subpath) >= 254) {
+        return NULL;
+    }
+    path = tacc_malloc(256);
+    strcpy(path, base);
+    strcat(path, "/");
+    strcat(path, subpath);
+
+    file = fopen(path, "r");
+    if (!file) {
+        return NULL;
+    }
+    fclose(file);
+    return tacc_open(path);
+}
+
+static tacc_file_p tacc_pp_search_include_path(tacc_pp_state_p state, char *cur_file_path, char *subpath) {
+    char *cur_file_dirname;
+    char *cur_file_path_cur;
+    char *cur_file_path_end;
+    tacc_file_p try_file;
+    tacc_include_path_p entry;
+    int i;
+
+    tacc_assert(cur_file_path != NULL, "opened file without path");
+
+    cur_file_path_end = cur_file_path + strlen(cur_file_path);
+    cur_file_path_cur = cur_file_path_end;
+    cur_file_dirname = NULL;
+    while (cur_file_path_cur != cur_file_path) {
+        if (*cur_file_path_cur == '/') {
+            cur_file_dirname = tacc_malloc((cur_file_path_end - cur_file_path_cur) + 1);
+            strncpy(cur_file_dirname, cur_file_path, cur_file_path_cur - cur_file_path);
+            cur_file_dirname[cur_file_path_end - cur_file_path_cur] = 0;
+        }
+    }
+    if (cur_file_dirname) {
+        try_file = tacc_pp_try_file(cur_file_dirname, subpath);
+        if (try_file) {
+            return try_file;
+        }
+    }
+    entry = state->tacc_pp_include_path;
+    for (i = 0; i < 32; ++i) {
+        try_file = tacc_pp_try_file(entry->tacc_include_path_entry_content, subpath);
+        if (try_file) {
+            return try_file;
+        }
+        entry = entry + tacc_sizeadj(1, sizeof(struct tacc_include_path_entry));
+    }
+    tacc_assert(0, "unable to find suitable file for include: %s", subpath);
+    return NULL;
 }
 
 static void tacc_tok_iter_handle_include(tacc_tok_iter_p first, tacc_file_iter_p iter) {
@@ -994,11 +1158,11 @@ static void tacc_tok_iter_handle_include(tacc_tok_iter_p first, tacc_file_iter_p
         last_iter = last_iter->tacc_tok_iter_override;
     }
 
-    included_file = tacc_open(hdr_name);
+    included_file = tacc_pp_search_include_path(first->tacc_tok_iter_state, last_iter->tacc_tok_iter_file->tacc_file_iter_filename, hdr_name);
     included_file_iter = tacc_file_iter_new();
     tacc_file_iter_init(included_file_iter, included_file);
     included_file_tok_iter = tacc_tok_iter_new();
-    tacc_tok_iter_init(included_file_tok_iter, included_file_iter);
+    tacc_tok_iter_init(included_file_tok_iter, included_file_iter, first->tacc_tok_iter_state);
     last_iter->tacc_tok_iter_override = included_file_tok_iter;
 }
 
@@ -1017,6 +1181,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
     macro_name = tok->pp_tok_str;
     macro->tacc_macro_def_name = macro_name;
     macro->tacc_macro_def_is_va = 0;
+    macro->tacc_macro_def_is_tombstone = 0;
 
     /* don't eat whitespace before lparen */
     if (tacc_file_iter_accept_ch(iter, '(')) {
@@ -1045,6 +1210,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
                 params->tacc_ident_content = tok->pp_tok_str;
                 tacc_file_iter_eat_ws_no_newlines(iter);
                 if (tacc_file_iter_accept_ch(iter, ',')) {
+                    params = params + tacc_sizeadj(1, sizeof(tacc_ident_p));
                     continue;
                 }
                 tacc_assert(tacc_file_iter_accept_ch(iter, ')'), "expected , or )");
@@ -1066,6 +1232,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
     macro->tacc_macro_def_replacement_list = replacement_list;
     replacement_list_len = 0;
     while (1) {
+        tacc_assert(replacement_list_len < 512, "overlong replacement list");
         tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */);
         if (tok->pp_tok__kind == TOK_EOF) {
             break;
@@ -1076,21 +1243,14 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
     }
     macro->tacc_macro_def_replacement_list_len = replacement_list_len;
 
-    /* TODO: add macro definition to list */
-#ifdef __STDC__
-    (void) first;
-#endif
+    tacc_pp_insert_macro(first->tacc_tok_iter_state, macro);
 }
 
 static void tacc_tok_iter_handle_undef(tacc_tok_iter_p first, tacc_file_iter_p iter) {
     pp_tok_p tok;
 
     tok = tacc_file_iter_expect_ident(iter);
-    /* TODO: remove macro definition from list */
-#ifdef __STDC__
-    (void) first;
-    (void) tok;
-#endif
+    tacc_pp_undef(first->tacc_tok_iter_state, tok->pp_tok_str);
 }
 
 static void tacc_tok_iter_handle_ifndef(tacc_tok_iter_p first, tacc_file_iter_p iter) {
