@@ -717,13 +717,33 @@ static int tacc_file_iter_maybe_special(tacc_file_iter_p iter, pp_tok_p tok_out,
     return 1;
 }
 
-static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter, int have_directives) {
+static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter, int have_directives, int only_directives) {
     int first;
+    char ch;
     pp_tok_p ret;
     pp_tok_kind_e kind;
 
     ret = tacc_malloc(sizeof(struct pp_tok));
 
+    if (only_directives) {
+        while (1) {
+            if (tacc_file_is_eof(iter)) {
+                ret->pp_tok__kind = TOK_EOF;
+                tacc_pp_tok_assign_str(ret, "");
+                return ret;
+            }
+
+            ch = tacc_file_iter_peek_ch(iter);
+            if (ch != '\n' && ch != '#') {
+                tacc_file_iter_consume_ch(iter);
+                continue;
+            }
+
+            if (tacc_file_iter_lex_directive(iter, ret)) {
+                return ret;
+            }
+        }
+    }
     if (tacc_file_is_eof(iter)) {
         ret->pp_tok__kind = TOK_EOF;
         tacc_pp_tok_assign_str(ret, "");
@@ -999,7 +1019,7 @@ void tacc_pp_define(tacc_pp_state_p state, char *name, char *expansion) {
 
     while (1) {
         tacc_assert(replacement_list_len < 512, "overlong replacement list");
-        tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */);
+        tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */, 0);
         if (tok->pp_tok__kind == TOK_EOF) {
             break;
         }
@@ -1053,6 +1073,8 @@ void tacc_tok_iter_init(tacc_tok_iter_p iter, tacc_file_iter_p file, tacc_pp_sta
     iter->tacc_tok_iter_pending = NULL;
     iter->tacc_tok_iter_override = NULL;
     iter->tacc_tok_iter_state = state;
+    iter->tacc_tok_iter_inc_level = 0;
+    iter->tacc_tok_iter_skip_level = 0;
 }
 
 static tacc_file_p tacc_pp_try_file(char *base, char *subpath) {
@@ -1066,6 +1088,7 @@ static tacc_file_p tacc_pp_try_file(char *base, char *subpath) {
     strcpy(path, base);
     strcat(path, "/");
     strcat(path, subpath);
+    printf("trying %s\n", path);
 
     file = fopen(path, "r");
     if (!file) {
@@ -1090,10 +1113,12 @@ static tacc_file_p tacc_pp_search_include_path(tacc_pp_state_p state, char *cur_
     cur_file_dirname = NULL;
     while (cur_file_path_cur != cur_file_path) {
         if (*cur_file_path_cur == '/') {
-            cur_file_dirname = tacc_malloc((cur_file_path_end - cur_file_path_cur) + 1);
+            cur_file_dirname = tacc_malloc((cur_file_path_cur - cur_file_path) + 1);
             strncpy(cur_file_dirname, cur_file_path, cur_file_path_cur - cur_file_path);
-            cur_file_dirname[cur_file_path_end - cur_file_path_cur] = 0;
+            cur_file_dirname[cur_file_path_cur - cur_file_path] = 0;
+            break;
         }
+        cur_file_path_cur = cur_file_path_cur - 1;
     }
     if (cur_file_dirname) {
         try_file = tacc_pp_try_file(cur_file_dirname, subpath);
@@ -1103,6 +1128,9 @@ static tacc_file_p tacc_pp_search_include_path(tacc_pp_state_p state, char *cur_
     }
     entry = state->tacc_pp_include_path;
     for (i = 0; i < 32; ++i) {
+        if (entry->tacc_include_path_entry_content == NULL) {
+            break;
+        }
         try_file = tacc_pp_try_file(entry->tacc_include_path_entry_content, subpath);
         if (try_file) {
             return try_file;
@@ -1113,10 +1141,22 @@ static tacc_file_p tacc_pp_search_include_path(tacc_pp_state_p state, char *cur_
     return NULL;
 }
 
+static tacc_tok_iter_p tacc_tok_iter_cur_iter(tacc_tok_iter_p first) {
+    tacc_tok_iter_p last_iter;
+
+    last_iter = first;
+
+    while (last_iter->tacc_tok_iter_override) {
+        last_iter = last_iter->tacc_tok_iter_override;
+    }
+    return last_iter;
+}
+
 static void tacc_tok_iter_handle_include(tacc_tok_iter_p first, tacc_file_iter_p iter) {
     int is_angle;
     char ch;
     char *hdr_name;
+    char *hdr_name_start;
     char *hdr_name_end;
     tacc_tok_iter_p last_iter;
     tacc_file_p included_file;
@@ -1131,6 +1171,7 @@ static void tacc_tok_iter_handle_include(tacc_tok_iter_p first, tacc_file_iter_p
     }
 
     hdr_name = tacc_malloc(1024);
+    hdr_name_start = hdr_name;
     hdr_name_end = hdr_name + 1023;
     *hdr_name_end = 0;
 
@@ -1149,16 +1190,14 @@ static void tacc_tok_iter_handle_include(tacc_tok_iter_p first, tacc_file_iter_p
         *hdr_name = ch;
         hdr_name = hdr_name + 1;
     }
+    *hdr_name = 0;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #include");
 
-    last_iter = first;
-    while (last_iter->tacc_tok_iter_override) {
-        last_iter = last_iter->tacc_tok_iter_override;
-    }
+    last_iter = tacc_tok_iter_cur_iter(first);
 
-    included_file = tacc_pp_search_include_path(first->tacc_tok_iter_state, last_iter->tacc_tok_iter_file->tacc_file_iter_filename, hdr_name);
+    included_file = tacc_pp_search_include_path(first->tacc_tok_iter_state, last_iter->tacc_tok_iter_file->tacc_file_iter_filename, hdr_name_start);
     included_file_iter = tacc_file_iter_new();
     tacc_file_iter_init(included_file_iter, included_file);
     included_file_tok_iter = tacc_tok_iter_new();
@@ -1233,7 +1272,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
     replacement_list_len = 0;
     while (1) {
         tacc_assert(replacement_list_len < 512, "overlong replacement list");
-        tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */);
+        tok = tacc_file_iter_lex(iter, 0 /* no directives, but produce TOK_SHARP{,_2} */, 0);
         if (tok->pp_tok__kind == TOK_EOF) {
             break;
         }
@@ -1255,44 +1294,79 @@ static void tacc_tok_iter_handle_undef(tacc_tok_iter_p first, tacc_file_iter_p i
 
 static void tacc_tok_iter_handle_ifndef(tacc_tok_iter_p first, tacc_file_iter_p iter) {
     pp_tok_p tok;
+    tacc_tok_iter_p last_iter;
+    tacc_macro_def_entry_p macro_def;
 
     tok = tacc_file_iter_expect_ident(iter);
-    /* TODO: conditional inclusion */
-#ifdef __STDC__
-    (void) first;
-    (void) tok;
-#endif
+
+    tacc_file_iter_eat_ws_no_newlines(iter);
+    tacc_assert(tacc_file_is_eof(iter), "junk after #ifndef");
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    macro_def = tacc_pp_find_macro_or_first_empty(first->tacc_tok_iter_state, tok->pp_tok_str);
+    if (macro_def->tacc_macro_def_entry_content) {
+        last_iter->tacc_tok_iter_inc_level = last_iter->tacc_tok_iter_inc_level + 1;
+        return;
+    }
+    last_iter->tacc_tok_iter_skip_level = last_iter->tacc_tok_iter_skip_level + 1;
 }
 
 static void tacc_tok_iter_handle_ifdef(tacc_tok_iter_p first, tacc_file_iter_p iter) {
     pp_tok_p tok;
+    tacc_tok_iter_p last_iter;
+    tacc_macro_def_entry_p macro_def;
 
     tok = tacc_file_iter_expect_ident(iter);
-    /* TODO: conditional inclusion */
-#ifdef __STDC__
-    (void) first;
-    (void) tok;
-#endif
+
+    tacc_file_iter_eat_ws_no_newlines(iter);
+    tacc_assert(tacc_file_is_eof(iter), "junk after #ifdef");
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    macro_def = tacc_pp_find_macro_or_first_empty(first->tacc_tok_iter_state, tok->pp_tok_str);
+    if (!macro_def->tacc_macro_def_entry_content) {
+        last_iter->tacc_tok_iter_inc_level = last_iter->tacc_tok_iter_inc_level + 1;
+        return;
+    }
+    last_iter->tacc_tok_iter_skip_level = last_iter->tacc_tok_iter_skip_level + 1;
 }
 
 static void tacc_tok_iter_handle_endif(tacc_tok_iter_p first, tacc_file_iter_p iter) {
+    tacc_tok_iter_p last_iter;
+
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #endif");
 
-    /* TODO: conditional inclusion */
-#ifdef __STDC__
-    (void) first;
-#endif
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->tacc_tok_iter_skip_level > 0) {
+        last_iter->tacc_tok_iter_skip_level = last_iter->tacc_tok_iter_skip_level - 1;
+        return;
+    }
+    tacc_assert(last_iter->tacc_tok_iter_inc_level > 0, "stray #endif");
+    last_iter->tacc_tok_iter_inc_level = last_iter->tacc_tok_iter_inc_level - 1;
 }
 
 static void tacc_tok_iter_handle_else(tacc_tok_iter_p first, tacc_file_iter_p iter) {
+    tacc_tok_iter_p last_iter;
+
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #else");
 
-    /* TODO: conditional inclusion */
-#ifdef __STDC__
-    (void) first;
-#endif
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->tacc_tok_iter_skip_level == 1) {
+        last_iter->tacc_tok_iter_skip_level = 0;
+        last_iter->tacc_tok_iter_inc_level = last_iter->tacc_tok_iter_inc_level + 1;
+        return;
+    }
+    if (last_iter->tacc_tok_iter_skip_level > 1) {
+        return;
+    }
+    tacc_assert(last_iter->tacc_tok_iter_inc_level > 0, "stray #else");
+    last_iter->tacc_tok_iter_inc_level = last_iter->tacc_tok_iter_inc_level - 1;
+    last_iter->tacc_tok_iter_skip_level = last_iter->tacc_tok_iter_skip_level + 1;
 }
 
 static void tacc_tok_iter_handle_if(tacc_tok_iter_p first, tacc_file_iter_p iter) {
@@ -1379,10 +1453,16 @@ static pp_tok_p tacc_tok_iter_peek_handle_directives(tacc_tok_iter_p first) {
             peek_tok = last_iter->tacc_tok_iter_pending;
         } else {
             /* previous token consumed, save new */
-            peek_tok = tacc_file_iter_lex(last_iter->tacc_tok_iter_file, 1 /* look for directives */);
+            if (last_iter->tacc_tok_iter_skip_level > 0) {
+                peek_tok = tacc_file_iter_lex(last_iter->tacc_tok_iter_file, 1 /* look for directives */, 1 /* only directives */);
+            } else {
+                peek_tok = tacc_file_iter_lex(last_iter->tacc_tok_iter_file, 1 /* look for directives */, 0 /* but not exclusively */);
+            }
             last_iter->tacc_tok_iter_pending = peek_tok;
         }
         if (peek_tok->pp_tok__kind == TOK_EOF) {
+            tacc_assert(last_iter->tacc_tok_iter_inc_level == 0, "missing #endif, including at level %d", last_iter->tacc_tok_iter_inc_level);
+            tacc_assert(last_iter->tacc_tok_iter_skip_level == 0, "missing #endif, skipping at level %d", last_iter->tacc_tok_iter_skip_level);
             /* EOF of current file; consume */
             if (!prev_iter) {
                 /* base case: completely EOF, return EOF */

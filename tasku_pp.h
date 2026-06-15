@@ -192,6 +192,9 @@ struct tacc_tok_iter {
     pp_tok_p tacc_tok_iter_pending;
     tacc_pp_state_p tacc_tok_iter_state;
 
+    int tacc_tok_iter_skip_level;
+    int tacc_tok_iter_inc_level;
+
     struct tacc_tok_iter *tacc_tok_iter_override;
 };
 typedef struct tacc_tok_iter *tacc_tok_iter_p;
