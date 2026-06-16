@@ -1378,6 +1378,16 @@ static void tacc_tok_iter_handle_if(tacc_tok_iter_p first, tacc_file_iter_p iter
 #endif
 }
 
+static void tacc_tok_iter_handle_error_directive(tacc_tok_iter_p first, tacc_file_iter_p iter) {
+    tacc_file_iter_eat_ws_no_newlines(iter);
+
+    tacc_assert(0, "#error: %s", iter->tacc_file_iter_src);
+
+#ifdef __STDC__
+    (void) first;
+#endif
+}
+
 static void tacc_tok_iter_handle_directive(tacc_tok_iter_p first, char *directive, char *directive_end) {
     tacc_file_iter_p dir_scanner;
     pp_tok_p tok;
@@ -1428,6 +1438,10 @@ static void tacc_tok_iter_handle_directive(tacc_tok_iter_p first, char *directiv
     }
     if (!strcmp(tok->pp_tok_str, "else")) {
         tacc_tok_iter_handle_else(first, dir_scanner);
+        return;
+    }
+    if (!strcmp(tok->pp_tok_str, "error")) {
+        tacc_tok_iter_handle_error_directive(first, dir_scanner);
         return;
     }
     tacc_assert(0, "unknown directive: %s", tok->pp_tok_str);
