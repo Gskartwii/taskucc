@@ -44,7 +44,7 @@ in
     tasku-gcc = pkgs.stdenv.mkDerivation {
       pname = "tasku-cc-gcc";
       version = "0.1.0";
-      src = ./.;
+      src = ./src;
       buildPhase = ''
         ${lib.strings.concatMapStringsSep "\n" (file: "$CC -std=c90 -g -Wall -Wextra -Wpedantic -Werror -c ${file}") src}
         $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
@@ -59,7 +59,7 @@ in
     tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
       pname = "tasku-cc";
       version = "0.1.0";
-      src = ./.;
+      src = ./src;
       nativeBuildInputs = [
         pkgs.minimal-bootstrap.stage0-posix.mescc-tools
       ];
