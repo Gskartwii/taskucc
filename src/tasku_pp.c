@@ -134,6 +134,8 @@ char *tacc_pp_to_string(pp_tok_p tok) {
         return "TOK_COMMA";
     case TOK_OTHER:
         return "TOK_OTHER";
+    case TOK_FAKE_END_OF_MACRO:
+        return "TOK_FAKE_END_OF_MACRO";
     }
     return "UNRECOGNIZED";
 }
@@ -724,6 +726,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter, int have_directives, i
     pp_tok_kind_e kind;
 
     ret = tacc_malloc(sizeof(struct pp_tok));
+    ret->pp_tok_is_final = 0;
 
     if (only_directives) {
         while (1) {
@@ -955,6 +958,7 @@ static pp_tok_p tacc_file_iter_expect_ident(tacc_file_iter_p iter) {
     char ch;
 
     tok = tacc_malloc(sizeof(struct pp_tok));
+    tok->pp_tok_is_final = 0;
     ch = tacc_file_iter_consume_ch(iter);
     tacc_assert((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch == '_'), "expected identifier, got %x", ch);
     tacc_file_iter_lex_ident(iter, tok, ch);
@@ -1070,7 +1074,8 @@ tacc_tok_iter_p tacc_tok_iter_new(void) {
 
 void tacc_tok_iter_init(tacc_tok_iter_p iter, tacc_file_iter_p file, tacc_pp_state_p state) {
     iter->tacc_tok_iter_file = file;
-    iter->tacc_tok_iter_pending = NULL;
+    iter->tacc_tok_iter_pending_len = 0;
+    iter->tacc_tok_iter_pending = tacc_malloc(512 * sizeof(struct tacc_token_p));
     iter->tacc_tok_iter_override = NULL;
     iter->tacc_tok_iter_state = state;
     iter->tacc_tok_iter_inc_level = 0;
@@ -1447,6 +1452,163 @@ static void tacc_tok_iter_handle_directive(tacc_tok_iter_p first, char *directiv
     tacc_assert(0, "unknown directive: %s", tok->pp_tok_str);
 }
 
+static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
+    pp_tok_p tok;
+    tacc_token_pp entry;
+    if (iter->tacc_tok_iter_pending_len == 0) {
+        if (iter->tacc_tok_iter_skip_level > 0) {
+        	tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 1, 1);
+        } else {
+        	tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 1, 0);
+        }
+    	iter->tacc_tok_iter_pending->tacc_token_p_content = tok;
+    	iter->tacc_tok_iter_pending_len = 1;
+    	return tok;
+    }
+    entry = iter->tacc_tok_iter_pending + tacc_sizeadj((iter->tacc_tok_iter_pending_len - 1), sizeof(struct tacc_token_p));
+    return entry->tacc_token_p_content;
+}
+
+static pp_tok_p tacc_tok_iter_consume_nomacro(tacc_tok_iter_p iter) {
+    pp_tok_p tok = tacc_tok_iter_peek_nomacro(iter);
+    iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
+    return tok;
+}
+
+static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p iter) {
+    /*
+     * peek with macros - needs a double peek buffer - never goes across files:
+     * redo:
+     *  p := peek without macros()
+     *  if p != ident then
+     *    return p
+     *  if p is not defined as macro then
+     *    return p
+     *  if p defined as object-like then
+     *    consume()
+     *    add tokens of expand(p) to token queue. they can be expanded again
+     *    goto redo
+     *  if p = ident and p is not defined as function-like then
+     *    return p
+     *  if p = ident and p defined as function-like then
+     *    consume()
+     *    p' := peek, without macros (!!!), deeper()
+     *    if p' != lparen
+     *      unconsume(p)
+     *      return p
+     *    consume()
+     *    nest_level := 1
+     *    tokens := []
+     *    while true:
+     *      p' := consume()
+     *      if p' = lparen:
+     *        nest_level += 1
+     *      if p' = rparen:
+     *        nest_level -= 1
+     *      if nest_level = 0:
+     *        break
+     *      tokens += p'
+     *    add tokens of expand(p, token) to token queue. they can be expanded again
+     *    goto redo
+     *  return p
+     */
+    pp_tok_p tok;
+    pp_tok_p new_tok;
+    tacc_token_pp tok_entry;
+    tacc_token_pp src_tok_entry;
+    tacc_token_pp arg_list;
+    tacc_token_pp dst_tok_entry;
+    tacc_macro_def_entry_p macro_entry;
+    tacc_macro_def_p macro_def;
+    int i;
+    int nest_level;
+
+    while (1) {
+        tok = tacc_tok_iter_peek_nomacro(iter);
+        if (tok->pp_tok__kind == TOK_FAKE_END_OF_MACRO) {
+            iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
+            macro_entry = tacc_pp_find_macro_or_first_empty(iter->tacc_tok_iter_state, tok->pp_tok_str);
+            macro_def = macro_entry->tacc_macro_def_entry_content;
+            tacc_assert(macro_def != NULL, "failed to find macrodef for macro being expanded: %s", tok->pp_tok_str);
+            macro_def->tacc_macro_def_is_replacing = 0;
+            continue;
+        }
+        if (tok->pp_tok__kind != TOK_IDENT) {
+            return tok;
+        }
+        if (tok->pp_tok_is_final) {
+            return tok;
+        }
+
+        macro_entry = tacc_pp_find_macro_or_first_empty(iter->tacc_tok_iter_state, tok->pp_tok_str);
+        macro_def = macro_entry->tacc_macro_def_entry_content;
+        if (!macro_def) {
+            return tok;
+        }
+        if (macro_def->tacc_macro_def_is_tombstone) {
+            return tok;
+        }
+        if (macro_def->tacc_macro_def_is_replacing) {
+            new_tok = tacc_malloc(sizeof(struct pp_tok));
+            memcpy(new_tok, tok, sizeof(struct pp_tok));
+            new_tok->pp_tok_is_final = 1;
+            return new_tok;
+        }
+
+        iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
+
+        if (macro_def->tacc_macro_def_num_params < 0) {
+            macro_def->tacc_macro_def_is_replacing = 1;
+            tok = tacc_malloc(sizeof(struct pp_tok));
+            tok->pp_tok__kind = TOK_FAKE_END_OF_MACRO;
+            tok->pp_tok_str = macro_def->tacc_macro_def_name;
+            tok->pp_tok_end = macro_def->tacc_macro_def_name + strlen(macro_def->tacc_macro_def_name);
+            tok_entry = iter->tacc_tok_iter_pending + tacc_sizeadj(iter->tacc_tok_iter_pending_len, sizeof(struct tacc_token_p));
+            tok_entry->tacc_token_p_content = tok;
+            iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len + 1;
+
+			dst_tok_entry = tok_entry;
+			src_tok_entry = macro_def->tacc_macro_def_replacement_list + tacc_sizeadj(macro_def->tacc_macro_def_replacement_list_len - 1, sizeof(struct tacc_token_p));
+            for (i = 0; i < macro_def->tacc_macro_def_replacement_list_len; i = i + 1) {
+                dst_tok_entry = dst_tok_entry + tacc_sizeadj(1, sizeof(struct tacc_token_p));
+                dst_tok_entry->tacc_token_p_content = src_tok_entry->tacc_token_p_content;
+                src_tok_entry = src_tok_entry - tacc_sizeadj(1, sizeof(struct tacc_token_p));
+                iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len + 1;
+            }
+            continue;
+        }
+        new_tok = tacc_tok_iter_peek_nomacro(iter);
+        if (new_tok->pp_tok__kind != TOK_LPAREN) {
+            iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len + 2;
+            tok_entry = iter->tacc_tok_iter_pending + tacc_sizeadj(iter->tacc_tok_iter_pending_len - 2, sizeof(struct tacc_token_p));
+            tok_entry->tacc_token_p_content = new_tok;
+            tok_entry = tok_entry + tacc_sizeadj(1, sizeof(struct tacc_token_p));
+            tok_entry->tacc_token_p_content = tok;
+            continue;
+        }
+        macro_def->tacc_macro_def_is_replacing = 1;
+        arg_list = tacc_malloc(512 * sizeof(struct tacc_token_p));
+        nest_level = 1;
+        i = 0;
+        dst_tok_entry = arg_list;
+        while (nest_level > 0) {
+            dst_tok_entry = dst_tok_entry + tacc_sizeadj(1, sizeof(struct tacc_token_p));
+            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 0, 0);
+            if (tok->pp_tok__kind == TOK_LPAREN) {
+                nest_level = nest_level + 1;
+            }
+            if (tok->pp_tok__kind == TOK_RPAREN) {
+                nest_level = nest_level - 1;
+            }
+            if (nest_level != 0) {
+                dst_tok_entry->tacc_token_p_content = tok;
+                i = i + 1;
+            }
+        }
+        tacc_assert(0, "TODO: function-like macros");
+    }
+}
+
 static pp_tok_p tacc_tok_iter_peek_handle_directives(tacc_tok_iter_p first) {
     tacc_tok_iter_p last_iter;
     tacc_tok_iter_p prev_iter;
@@ -1462,18 +1624,7 @@ static pp_tok_p tacc_tok_iter_peek_handle_directives(tacc_tok_iter_p first) {
         }
 
         /* ensure there is a token saved in peek buffer */
-        if (last_iter->tacc_tok_iter_pending) {
-            /* already saved, don't unpeek */
-            peek_tok = last_iter->tacc_tok_iter_pending;
-        } else {
-            /* previous token consumed, save new */
-            if (last_iter->tacc_tok_iter_skip_level > 0) {
-                peek_tok = tacc_file_iter_lex(last_iter->tacc_tok_iter_file, 1 /* look for directives */, 1 /* only directives */);
-            } else {
-                peek_tok = tacc_file_iter_lex(last_iter->tacc_tok_iter_file, 1 /* look for directives */, 0 /* but not exclusively */);
-            }
-            last_iter->tacc_tok_iter_pending = peek_tok;
-        }
+        peek_tok = tacc_tok_iter_peek_handle_macros(last_iter);
         if (peek_tok->pp_tok__kind == TOK_EOF) {
             tacc_assert(last_iter->tacc_tok_iter_inc_level == 0, "missing #endif, including at level %d", last_iter->tacc_tok_iter_inc_level);
             tacc_assert(last_iter->tacc_tok_iter_skip_level == 0, "missing #endif, skipping at level %d", last_iter->tacc_tok_iter_skip_level);
@@ -1496,7 +1647,7 @@ static pp_tok_p tacc_tok_iter_peek_handle_directives(tacc_tok_iter_p first) {
         }
 
         /* going to handle a directive, so it's no longer pending */
-        last_iter->tacc_tok_iter_pending = NULL;
+        tacc_tok_iter_consume_nomacro(last_iter);
 
         /* Handle directive. This will never skip over any tokens. */
         tacc_tok_iter_handle_directive(first, peek_tok->pp_tok_str, peek_tok->pp_tok_end);
@@ -1513,12 +1664,8 @@ pp_tok_p tacc_tok_iter_next(tacc_tok_iter_p iter) {
 
     ret = tacc_tok_iter_peek(iter);
 
-    level = iter;
-    /* delete from pending */
-    while (iter->tacc_tok_iter_override) {
-        level = iter->tacc_tok_iter_override;
-    }
-    level->tacc_tok_iter_pending = NULL;
+    level = tacc_tok_iter_cur_iter(iter);
+    tacc_tok_iter_consume_nomacro(level);
 
     return ret;
 }

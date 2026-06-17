@@ -59,7 +59,9 @@ enum pp_tok_kind {
     TOK_COLON,
     TOK_SEMICOLON,
     TOK_COMMA,
-    TOK_OTHER
+    TOK_OTHER,
+
+    TOK_FAKE_END_OF_MACRO
 };
 
 typedef enum pp_tok_kind pp_tok_kind_e;
@@ -144,6 +146,7 @@ struct pp_tok {
     char *pp_tok_end;
 
     int pp_tok_preceded_by_ws;
+    int pp_tok_is_final;
 };
 typedef struct pp_tok *pp_tok_p;
 char *tacc_pp_to_string(pp_tok_p tok);
@@ -168,6 +171,8 @@ struct tacc_macro_def {
 
     tacc_ident_p tacc_macro_def_params;
     int tacc_macro_def_num_params;
+
+    int tacc_macro_def_is_replacing;
 };
 typedef struct tacc_macro_def *tacc_macro_def_p;
 
@@ -189,8 +194,10 @@ typedef struct tacc_pp_state *tacc_pp_state_p;
 
 struct tacc_tok_iter {
     tacc_file_iter_p tacc_tok_iter_file;
-    pp_tok_p tacc_tok_iter_pending;
     tacc_pp_state_p tacc_tok_iter_state;
+
+    tacc_token_pp tacc_tok_iter_pending;
+    int tacc_tok_iter_pending_len;
 
     int tacc_tok_iter_skip_level;
     int tacc_tok_iter_inc_level;
