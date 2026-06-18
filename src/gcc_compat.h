@@ -5,6 +5,8 @@
 
 #define PRIsz "zu"
 #define init_io()
-#define kill_io() fflush(stderr); fflush(stdout);
+#define kill_io()   \
+    fflush(stderr); \
+    fflush(stdout);
 
 #endif

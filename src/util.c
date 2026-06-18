@@ -1,8 +1,8 @@
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "gcc_compat.h"
 #include "util.h"
+#include "gcc_compat.h"
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 void tacc_die(char *err, ...) {
     va_list args;

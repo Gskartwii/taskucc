@@ -135,7 +135,7 @@ struct tacc_file_iter {
     int tacc_file_iter_is_ws;
 };
 
-typedef struct tacc_file_iter *tacc_file_iter_p; 
+typedef struct tacc_file_iter *tacc_file_iter_p;
 tacc_file_iter_p tacc_file_iter_new(void);
 void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file);
 
@@ -216,14 +216,17 @@ struct tacc_tok_iter {
 typedef struct tacc_tok_iter *tacc_tok_iter_p;
 
 tacc_tok_iter_p tacc_tok_iter_new(void);
-void tacc_tok_iter_init(tacc_tok_iter_p iter, tacc_file_iter_p file, tacc_pp_state_p state);
+void tacc_tok_iter_init(tacc_tok_iter_p iter,
+                        tacc_file_iter_p file,
+                        tacc_pp_state_p state);
 pp_tok_p tacc_tok_iter_peek(tacc_tok_iter_p iter);
 pp_tok_p tacc_tok_iter_next(tacc_tok_iter_p iter);
 tacc_pp_state_p tacc_pp_state_new(void);
 void tacc_pp_state_init(tacc_pp_state_p state);
 void tacc_pp_define(tacc_pp_state_p state, char *name, char *expansion);
 void tacc_pp_undef(tacc_pp_state_p state, char *name);
-tacc_macro_def_entry_p tacc_pp_find_macro_or_first_empty(tacc_pp_state_p state, char *name);
+tacc_macro_def_entry_p tacc_pp_find_macro_or_first_empty(tacc_pp_state_p state,
+                                                         char *name);
 void tacc_pp_insert_macro(tacc_pp_state_p state, tacc_macro_def_p macro);
 void tacc_pp_add_include_dir(tacc_pp_state_p state, char *dir);
 

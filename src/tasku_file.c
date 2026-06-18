@@ -1,8 +1,8 @@
-#include <errno.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "tasku_file.h"
 #include "util.h"
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 tacc_file_p tacc_open(char *name) {
     FILE *f;
@@ -31,7 +31,9 @@ tacc_file_p tacc_open(char *name) {
     read_sz = fread(src, sizeof(char), file_sz, f);
     tacc_assert(read_sz == (size_t) file_sz,
                 "failed to read file %s: got %zu bytes with errno %d",
-                name, read_sz, errno);
+                name,
+                read_sz,
+                errno);
     tacc_assert(fclose(f) == 0, "failed to close file %s: %d", name, errno);
 
     src[file_sz] = 0;
