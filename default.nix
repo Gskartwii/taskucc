@@ -46,7 +46,7 @@ in
       version = "0.1.0";
       src = ./src;
       buildPhase = ''
-        ${lib.strings.concatMapStringsSep "\n" (file: "$CC -std=c90 -g -Wall -Wextra -Wpedantic -Werror -c ${file}") src}
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC -std=c90 -g -Og -Wall -Wextra -Wpedantic -Werror -c ${file}") src}
         $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
       '';
       installPhase = ''
