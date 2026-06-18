@@ -1031,7 +1031,7 @@ void tacc_pp_define(tacc_pp_state_p state, char *name, char *expansion) {
         }
         replacement_list->tacc_token_p_content = tok;
         replacement_list_len = replacement_list_len + 1;
-        replacement_list = replacement_list + 1;
+        replacement_list = replacement_list + tacc_sizeadj(1, sizeof(struct tacc_token_p));
     }
     macro->tacc_macro_def_replacement_list_len = replacement_list_len;
 
@@ -1286,7 +1286,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first, tacc_file_iter_p 
         }
         replacement_list->tacc_token_p_content = tok;
         replacement_list_len = replacement_list_len + 1;
-        replacement_list = replacement_list + 1;
+        replacement_list = replacement_list + tacc_sizeadj(1, sizeof(struct tacc_token_p));
     }
     macro->tacc_macro_def_replacement_list_len = replacement_list_len;
 
