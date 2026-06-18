@@ -1661,7 +1661,7 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, int num_tokens) {
     return ret;
 }
 
-static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter, tacc_token_pp tokens, int num_tokens, int first_preceded_by_ws) {
+static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter, tacc_token_pp tokens, int num_tokens, int first_preceded_by_ws, tacc_macro_def_p macro_def) {
     tacc_tok_iter_p helper_iter;
     pp_tok_p helper_eof;
     pp_tok_p new_tok;
@@ -1696,6 +1696,7 @@ static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter, tacc_token_pp
     }
 
     /* Squeeze the sponge */
+    macro_def->tacc_macro_def_is_replacing = 0;
     reverse_toks = tacc_malloc(512 * sizeof(struct tacc_token_p));
     tok_count = 0;
     while (1) {
@@ -1718,6 +1719,7 @@ static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter, tacc_token_pp
         reverse_toks = reverse_toks - tacc_sizeadj(1, sizeof(struct tacc_token_p));
         tacc_tok_iter_push_pending(iter, reverse_toks->tacc_token_p_content);
     }
+    macro_def->tacc_macro_def_is_replacing = 1;
 }
 
 static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macro_def_p macro_def, tacc_token_pp arg_list, int arg_list_size) {
@@ -1808,7 +1810,7 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
             }
             arg_last_tok = arg + tacc_sizeadj(arg_entry->tacc_token_p_list_len - 1, sizeof(struct tacc_token_p));
             tacc_tok_iter_join_pending(iter_within, arg_last_tok->tacc_token_p_content);
-            tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len - 2, next_tok->pp_tok_preceded_by_ws);
+            tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len - 2, next_tok->pp_tok_preceded_by_ws, macro_def);
             continue;
         }
         if (replacing_tok->pp_tok__kind != TOK_IDENT) {
@@ -1823,7 +1825,7 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
         arg_entry = split_args + tacc_sizeadj(par_position, sizeof(struct tacc_token_p_list));
         arg = arg_entry->tacc_token_p_list_content;
         if (i == macro_def->tacc_macro_def_replacement_list_len - 1) {
-            tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, 0);
+            tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, 0, macro_def);
             continue;
         }
         next_tok_entry = replacing_tok_entry - tacc_sizeadj(1, sizeof(struct tacc_token_p));
@@ -1837,7 +1839,8 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
             tacc_tok_iter_push_all_expanding(iter_within,
                                              arg + tacc_sizeadj(1, sizeof(struct tacc_token_p)),
                                              arg_entry->tacc_token_p_list_len - 1,
-                                             replacing_tok->pp_tok_preceded_by_ws);
+                                             replacing_tok->pp_tok_preceded_by_ws,
+                                             macro_def);
             tacc_tok_iter_push_pending(iter_within, arg->tacc_token_p_content);
             continue;
         }
@@ -1850,7 +1853,7 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
 
             continue;
         }
-        tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, replacing_tok->pp_tok_preceded_by_ws);
+        tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, replacing_tok->pp_tok_preceded_by_ws, macro_def);
     }
 }
 
@@ -1994,7 +1997,10 @@ static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p iter) {
             }
             arg_list_cur = arg_list_cur + tacc_sizeadj(1, sizeof(struct tacc_token_p));
         }
+
+        tacc_tok_iter_insert_macro_replacing_stop(iter, macro_def->tacc_macro_def_name);
         macro_def->tacc_macro_def_is_replacing = 1;
+
         tacc_pp_macro_def_func_expand(iter, macro_def, arg_list, i);
     }
 }
