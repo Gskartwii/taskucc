@@ -161,6 +161,12 @@ struct tacc_token_p {
 };
 typedef struct tacc_token_p *tacc_token_pp;
 
+struct tacc_token_p_list {
+    tacc_token_pp tacc_token_p_list_content;
+    int tacc_token_p_list_len;
+};
+typedef struct tacc_token_p_list *tacc_token_p_list_p;
+
 struct tacc_macro_def {
     char *tacc_macro_def_name;
 
@@ -201,6 +207,8 @@ struct tacc_tok_iter {
 
     int tacc_tok_iter_skip_level;
     int tacc_tok_iter_inc_level;
+
+    int tacc_tok_iter_in_macro_args;
 
     struct tacc_tok_iter *tacc_tok_iter_override;
 };
