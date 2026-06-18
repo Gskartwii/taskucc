@@ -61,7 +61,8 @@ enum pp_tok_kind {
     TOK_COMMA,
     TOK_OTHER,
 
-    TOK_FAKE_END_OF_MACRO
+    TOK_FAKE_END_OF_MACRO,
+    TOK_FAKE_PMARK
 };
 
 typedef enum pp_tok_kind pp_tok_kind_e;

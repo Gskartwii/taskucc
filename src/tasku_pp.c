@@ -136,6 +136,8 @@ char *tacc_pp_to_string(pp_tok_p tok) {
         return "TOK_OTHER";
     case TOK_FAKE_END_OF_MACRO:
         return "TOK_FAKE_END_OF_MACRO";
+    case TOK_FAKE_PMARK:
+        return "TOK_FAKE_PMARK";
     }
     return "UNRECOGNIZED";
 }
@@ -1455,7 +1457,10 @@ static void tacc_tok_iter_handle_directive(tacc_tok_iter_p first, char *directiv
 
 static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
     pp_tok_p tok;
+    tacc_macro_def_entry_p macro_entry;
+    tacc_macro_def_p macro_def;
     tacc_token_pp entry;
+
     if (iter->tacc_tok_iter_pending_len == 0) {
         if (iter->tacc_tok_iter_in_macro_args) {
             tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 0, 0);
@@ -1469,7 +1474,22 @@ static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
         return tok;
     }
     entry = iter->tacc_tok_iter_pending + tacc_sizeadj((iter->tacc_tok_iter_pending_len - 1), sizeof(struct tacc_token_p));
-    return entry->tacc_token_p_content;
+    tok = entry->tacc_token_p_content;
+    if (tok->pp_tok__kind == TOK_FAKE_END_OF_MACRO) {
+        iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
+        macro_entry = tacc_pp_find_macro_or_first_empty(iter->tacc_tok_iter_state, tok->pp_tok_str);
+        macro_def = macro_entry->tacc_macro_def_entry_content;
+        tacc_assert(macro_def != NULL, "failed to find macrodef for macro being expanded: %s", tok->pp_tok_str);
+        macro_def->tacc_macro_def_is_replacing = 0;
+        /* simple recursion, this shouldn't go too deep */
+        return tacc_tok_iter_peek_nomacro(iter);
+    }
+    if (tok->pp_tok__kind == TOK_FAKE_PMARK) {
+        iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
+        /* simple recursion, this shouldn't go too deep */
+        return tacc_tok_iter_peek_nomacro(iter);
+    }
+    return tok;
 }
 
 static pp_tok_p tacc_tok_iter_consume_nomacro(tacc_tok_iter_p iter) {
@@ -1523,6 +1543,16 @@ static void tacc_tok_iter_insert_macro_replacing_stop(tacc_tok_iter_p iter, char
     tok->pp_tok__kind = TOK_FAKE_END_OF_MACRO;
     tok->pp_tok_str = macro_name;
     tok->pp_tok_end = macro_name + strlen(macro_name);
+    tacc_tok_iter_push_pending(iter, tok);
+}
+
+static void tacc_tok_iter_push_placemarker(tacc_tok_iter_p iter) {
+    pp_tok_p tok;
+
+    tok = tacc_malloc(sizeof(struct pp_tok));
+    tok->pp_tok__kind = TOK_FAKE_PMARK;
+    tok->pp_tok_str = "";
+    tok->pp_tok_end = tok->pp_tok_str;
     tacc_tok_iter_push_pending(iter, tok);
 }
 
@@ -1804,8 +1834,7 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
             arg_entry = split_args + tacc_sizeadj(par_position, sizeof(struct tacc_token_p_list));
             arg = arg_entry->tacc_token_p_list_content;
             if (arg_entry->tacc_token_p_list_len == 0) {
-                /* nothing to do */
-                /* TODO: are placemarkers supposed to be more special? */
+                tacc_tok_iter_push_placemarker(iter_within);
                 continue;
             }
             arg_last_tok = arg + tacc_sizeadj(arg_entry->tacc_token_p_list_len - 1, sizeof(struct tacc_token_p));
@@ -1825,6 +1854,10 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
         arg_entry = split_args + tacc_sizeadj(par_position, sizeof(struct tacc_token_p_list));
         arg = arg_entry->tacc_token_p_list_content;
         if (i == macro_def->tacc_macro_def_replacement_list_len - 1) {
+            if (arg_entry->tacc_token_p_list_len == 0) {
+                /* nothing to do */
+                continue;
+            }
             tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, 0, macro_def);
             continue;
         }
@@ -1832,8 +1865,7 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
         next_tok = next_tok_entry->tacc_token_p_content;
         if (next_tok->pp_tok__kind == TOK_SHARP_2) {
             if (arg_entry->tacc_token_p_list_len == 0) {
-                /* nothing to do */
-                /* TODO: are placemarkers supposed to be more special? */
+                tacc_tok_iter_push_placemarker(iter_within);
                 continue;
             }
             tacc_tok_iter_push_all_expanding(iter_within,
@@ -1851,6 +1883,10 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within, tacc_macr
             i = i + 1;
             replacing_tok_entry = replacing_tok_entry - tacc_sizeadj(1, sizeof(struct tacc_token_p));
 
+            continue;
+        }
+        if (arg_entry->tacc_token_p_list_len == 0) {
+            /* nothing to do */
             continue;
         }
         tacc_tok_iter_push_all_expanding(iter_within, arg, arg_entry->tacc_token_p_list_len, replacing_tok->pp_tok_preceded_by_ws, macro_def);
@@ -1906,14 +1942,6 @@ static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p iter) {
 
     while (1) {
         tok = tacc_tok_iter_peek_nomacro(iter);
-        if (tok->pp_tok__kind == TOK_FAKE_END_OF_MACRO) {
-            iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
-            macro_entry = tacc_pp_find_macro_or_first_empty(iter->tacc_tok_iter_state, tok->pp_tok_str);
-            macro_def = macro_entry->tacc_macro_def_entry_content;
-            tacc_assert(macro_def != NULL, "failed to find macrodef for macro being expanded: %s", tok->pp_tok_str);
-            macro_def->tacc_macro_def_is_replacing = 0;
-            continue;
-        }
         if (tok->pp_tok__kind != TOK_IDENT) {
             return tok;
         }
