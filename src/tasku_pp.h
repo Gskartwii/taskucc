@@ -147,8 +147,6 @@ struct pp_tok {
     pp_tok_kind_e pp_tok__kind;
     pp_ident_kind_e pp_tok_ident_kind;
     char *pp_tok_str;
-    /* points at final null byte, past any possible intermediate null bytes */
-    char *pp_tok_end;
 
     tacc_bool pp_tok_preceded_by_ws;
     tacc_bool pp_tok_is_final;

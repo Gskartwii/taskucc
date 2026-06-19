@@ -419,7 +419,6 @@ static tacc_bool tacc_file_iter_lex_directive(tacc_file_iter_p iter,
 
     tok_out->pp_tok__kind = TOK_DIRECTIVE;
     *directive_str = 0;
-    tok_out->pp_tok_end = directive_str;
 
     return 1;
 }
@@ -435,7 +434,6 @@ static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter,
     out_str = tacc_malloc(8);
     out_str[0] = '\'';
     ret->pp_tok_str = out_str;
-    ret->pp_tok_end = out_str + 7;
 
     out_str = out_str + 1;
     tacc_assert(!tacc_file_iter_accept_ch(iter, '\''),
@@ -450,16 +448,14 @@ static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter,
         *out_str = '\'';
         out_str = out_str + 1;
         *out_str = 0;
-        ret->pp_tok_end = out_str;
         return ret;
     }
-    out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
+    out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_str + 7);
     tacc_assert(tacc_file_iter_accept_ch(iter, '\''),
                 "overlong character literal");
     *out_str = '\'';
     out_str = out_str + 1;
     *out_str = 0;
-    ret->pp_tok_end = out_str;
 
     return ret;
 }
@@ -469,6 +465,7 @@ static pp_tok_p tacc_file_iter_lex_string(tacc_file_iter_p iter,
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     char *out_str;
+    char *end;
 
     ret->pp_tok__kind = TOK_STRING;
 
@@ -477,7 +474,7 @@ static pp_tok_p tacc_file_iter_lex_string(tacc_file_iter_p iter,
     out_str[4095] = 0;
 
     ret->pp_tok_str = out_str;
-    ret->pp_tok_end = out_str + 4095;
+    end = out_str + 4095;
 
     *out_str = '"';
     out_str = out_str + 1;
@@ -485,21 +482,20 @@ static pp_tok_p tacc_file_iter_lex_string(tacc_file_iter_p iter,
     while (!tacc_file_iter_accept_ch(iter, '"')) {
         tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
-        tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+        tacc_assert(out_str != end, "overlong string literal");
         if (!tacc_file_iter_accept_ch(iter, '\\')) {
             *out_str = tacc_file_iter_consume_ch(iter);
             out_str = out_str + 1;
             continue;
         }
-        out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
+        out_str = tacc_file_iter_lex_escape(iter, out_str, end);
     }
-    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+    tacc_assert(out_str != end, "overlong string literal");
     *out_str = '"';
     out_str = out_str + 1;
-    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+    tacc_assert(out_str != end, "overlong string literal");
 
     *out_str = 0;
-    ret->pp_tok_end = out_str;
 
     return ret;
 }
@@ -510,6 +506,7 @@ static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     char *out_str;
+    char *end;
     char last;
 
     if (first == '"') {
@@ -523,7 +520,7 @@ static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
     out_str[4095] = 0;
 
     ret->pp_tok_str = out_str;
-    ret->pp_tok_end = out_str + 4095;
+    end = out_str + 4095;
 
     *out_str = first;
     out_str = out_str + 1;
@@ -531,19 +528,18 @@ static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
     while (!tacc_file_iter_accept_ch(iter, last)) {
         tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
-        tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+        tacc_assert(out_str != end, "overlong string literal");
         if (!tacc_file_iter_accept_ch(iter, '\\')) {
             *out_str = tacc_file_iter_consume_ch(iter);
             out_str = out_str + 1;
             continue;
         }
-        out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
+        out_str = tacc_file_iter_lex_escape(iter, out_str, end);
     }
-    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+    tacc_assert(out_str != end, "overlong string literal");
     *out_str = last;
     out_str = out_str + 1;
     *out_str = 0;
-    ret->pp_tok_end = out_str;
 
     return ret;
 }
@@ -554,6 +550,7 @@ static pp_tok_p tacc_file_iter_lex_ppnum(tacc_file_iter_p iter,
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
     char *out_str;
+    char *end;
     char ch;
 
     ret->pp_tok__kind = TOK_PPNUM;
@@ -563,13 +560,13 @@ static pp_tok_p tacc_file_iter_lex_ppnum(tacc_file_iter_p iter,
     out_str[127] = 0;
 
     ret->pp_tok_str = out_str;
-    ret->pp_tok_end = out_str + 127;
+    end = out_str + 127;
 
     *out_str = first;
     out_str = out_str + 1;
 
     while (1) {
-        tacc_assert(out_str != ret->pp_tok_end, "overlong ppnumber literal");
+        tacc_assert(out_str != end, "overlong ppnumber literal");
         if (tacc_file_is_eof(iter)) {
             break;
         }
@@ -612,7 +609,6 @@ static pp_tok_p tacc_file_iter_lex_ppnum(tacc_file_iter_p iter,
         break;
     }
     *out_str = 0;
-    ret->pp_tok_end = out_str;
 
     return ret;
 }
@@ -737,6 +733,7 @@ static pp_tok_p tacc_file_iter_lex_ident(tacc_file_iter_p iter,
                                          char first) {
     pp_tok_p ret = tok_out;
     char *out_str;
+    char *end;
     char ch;
 
     ret->pp_tok__kind = TOK_IDENT;
@@ -746,13 +743,13 @@ static pp_tok_p tacc_file_iter_lex_ident(tacc_file_iter_p iter,
     out_str[127] = 0;
 
     ret->pp_tok_str = out_str;
-    ret->pp_tok_end = out_str + 127;
+    end = out_str + 127;
 
     *out_str = first;
     out_str = out_str + 1;
 
     while (1) {
-        tacc_assert(out_str != ret->pp_tok_end, "overlong ident");
+        tacc_assert(out_str != end, "overlong ident");
         if (tacc_file_is_eof(iter)) {
             break;
         }
@@ -780,7 +777,6 @@ static pp_tok_p tacc_file_iter_lex_ident(tacc_file_iter_p iter,
         break;
     }
     *out_str = 0;
-    ret->pp_tok_end = out_str;
 
     ret->pp_tok_ident_kind = tacc_recognize_ident_kind(ret->pp_tok_str);
 
@@ -789,7 +785,6 @@ static pp_tok_p tacc_file_iter_lex_ident(tacc_file_iter_p iter,
 
 static void tacc_pp_tok_assign_str(pp_tok_p tok, char *str) {
     tok->pp_tok_str = str;
-    tok->pp_tok_end = str + strlen(str);
 }
 
 static tacc_bool tacc_file_iter_maybe_special(tacc_file_iter_p iter,
@@ -800,7 +795,6 @@ static tacc_bool tacc_file_iter_maybe_special(tacc_file_iter_p iter,
         tok_out->pp_tok_str = tacc_malloc(2);
         tok_out->pp_tok_str[0] = special_match[0];
         tok_out->pp_tok_str[1] = 0;
-        tok_out->pp_tok_end = tok_out->pp_tok_str + 1;
         return 0;
     }
     tok_out->pp_tok__kind = special_tok;
@@ -1056,7 +1050,6 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
 
     /* don't include possible following splice */
     ret->pp_tok_str = tacc_malloc(2);
-    ret->pp_tok_end = ret->pp_tok_str + 1;
     ret->pp_tok_str[0] = first;
     ret->pp_tok_str[1] = 0;
     ret->pp_tok__kind = kind;
@@ -1733,9 +1726,8 @@ static void tacc_tok_iter_join_pending(tacc_tok_iter_p iter, pp_tok_p tok) {
     file_iter = tacc_file_iter_new();
     tacc_file_iter_init_str(file_iter,
                             new_tok_str,
-                            new_tok_str +
-                                (old_tok->pp_tok_end - old_tok->pp_tok_str) +
-                                (tok->pp_tok_end - tok->pp_tok_str));
+                            new_tok_str + strlen(old_tok->pp_tok_str) +
+                                strlen(tok->pp_tok_str));
 
     new_tok = tacc_file_iter_lex(file_iter, LEX_IN_REPLACEMENT_LIST);
     new_tok->pp_tok_preceded_by_ws = tok->pp_tok_preceded_by_ws;
@@ -1754,7 +1746,6 @@ static void tacc_tok_iter_insert_macro_replacing_stop(tacc_tok_iter_p iter,
     tok = tacc_malloc(sizeof(struct pp_tok));
     tok->pp_tok__kind = TOK_FAKE_END_OF_MACRO;
     tok->pp_tok_str = macro_name;
-    tok->pp_tok_end = macro_name + strlen(macro_name);
     tacc_tok_iter_push_pending(iter, tok);
 }
 
@@ -1764,7 +1755,6 @@ static void tacc_tok_iter_push_placemarker(tacc_tok_iter_p iter) {
     tok = tacc_malloc(sizeof(struct pp_tok));
     tok->pp_tok__kind = TOK_FAKE_PMARK;
     tok->pp_tok_str = "";
-    tok->pp_tok_end = tok->pp_tok_str;
     tacc_tok_iter_push_pending(iter, tok);
 }
 
@@ -1887,8 +1877,7 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
         if ((tok->pp_tok__kind == TOK_STRING) ||
             (tok->pp_tok__kind == TOK_CHAR)) {
             this_tok_str = tok->pp_tok_str;
-            for (j = 0; j < (size_t) (tok->pp_tok_end - tok->pp_tok_str);
-                 j = j + 1) {
+            for (j = 0; j < (size_t) strlen(tok->pp_tok_str); j = j + 1) {
                 if (*this_tok_str == '"') {
                     *ret_tok_str = '\\';
                     ret_tok_str = ret_tok_str + 1;
@@ -1908,7 +1897,7 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
         } else {
             this_tok_str = tok->pp_tok_str;
             strcat(ret_tok_str, this_tok_str);
-            ret_tok_str = ret_tok_str + (tok->pp_tok_end - tok->pp_tok_str);
+            ret_tok_str = ret_tok_str + strlen(tok->pp_tok_str);
         }
         tok_entry = tok_entry + tacc_sizeadj(1, sizeof(struct tacc_token_p));
         *ret_tok_str = 0;
@@ -1916,7 +1905,6 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
     *ret_tok_str = '"';
     ret_tok_str = ret_tok_str + 1;
     *ret_tok_str = 0;
-    ret->pp_tok_end = ret_tok_str;
 
     return ret;
 }
@@ -2378,7 +2366,7 @@ static pp_tok_p tacc_tok_iter_peek_handle_directives(tacc_tok_iter_p first) {
 
         /* Handle directive. This will never skip over any tokens. */
         tacc_tok_iter_handle_directive(
-            first, peek_tok->pp_tok_str, peek_tok->pp_tok_end);
+            first, peek_tok->pp_tok_str, peek_tok->pp_tok_str + strlen(peek_tok->pp_tok_str));
     }
 }
 
