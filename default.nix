@@ -79,9 +79,6 @@ in
       buildPhase = ''
         M2-Planet --architecture amd64 \
           -f ${lib.strings.concatStringsSep " -f " m2-all} \
-          -f m2_shim.h \
-          -f util.c \
-          -f tasku.c \
           --debug \
           -o ./tasku.M1
 
