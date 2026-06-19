@@ -2,6 +2,7 @@
 #define TASKU_PP_H
 
 #include "tasku_file.h"
+#include "util.h"
 
 enum pp_tok_kind {
     TOK_DIRECTIVE,
@@ -134,8 +135,8 @@ struct tacc_file_iter {
     char *tacc_file_iter_src;
     char *tacc_file_iter_end;
     char *tacc_file_iter_filename;
-    int tacc_file_iter_is_bol;
-    int tacc_file_iter_is_ws;
+    tacc_bool tacc_file_iter_is_bol;
+    tacc_bool tacc_file_iter_is_ws;
 };
 
 typedef struct tacc_file_iter *tacc_file_iter_p;
@@ -149,8 +150,8 @@ struct pp_tok {
     /* points at final null byte, past any possible intermediate null bytes */
     char *pp_tok_end;
 
-    int pp_tok_preceded_by_ws;
-    int pp_tok_is_final;
+    tacc_bool pp_tok_preceded_by_ws;
+    tacc_bool pp_tok_is_final;
 };
 typedef struct pp_tok *pp_tok_p;
 char *tacc_pp_to_string(pp_tok_p tok);
@@ -176,14 +177,14 @@ struct tacc_macro_def {
 
     tacc_token_pp tacc_macro_def_replacement_list;
     size_t tacc_macro_def_replacement_list_len;
-    int tacc_macro_def_is_function_like;
-    int tacc_macro_def_is_va;
-    int tacc_macro_def_is_tombstone;
+    tacc_bool tacc_macro_def_is_function_like;
+    tacc_bool tacc_macro_def_is_va;
+    tacc_bool tacc_macro_def_is_tombstone;
 
     tacc_ident_p tacc_macro_def_params;
     size_t tacc_macro_def_num_params;
 
-    int tacc_macro_def_is_replacing;
+    tacc_bool tacc_macro_def_is_replacing;
 };
 typedef struct tacc_macro_def *tacc_macro_def_p;
 
@@ -210,11 +211,11 @@ struct tacc_tok_iter {
     tacc_token_pp tacc_tok_iter_pending;
     size_t tacc_tok_iter_pending_len;
 
-    int tacc_tok_iter_skip_level;
-    int tacc_tok_iter_inc_level;
+    size_t tacc_tok_iter_skip_level;
+    size_t tacc_tok_iter_inc_level;
 
-    int tacc_tok_iter_in_macro_args;
-    int tacc_tok_iter_in_include_directive;
+    tacc_bool tacc_tok_iter_in_macro_args;
+    tacc_bool tacc_tok_iter_in_include_directive;
 
     struct tacc_tok_iter *tacc_tok_iter_override;
 };

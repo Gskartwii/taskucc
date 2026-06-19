@@ -175,7 +175,7 @@ static char *tacc_file_iter_cur(tacc_file_iter_p iter) {
     return iter->tacc_file_iter_src;
 }
 
-static int tacc_file_is_eof(tacc_file_iter_p iter) {
+static tacc_bool tacc_file_is_eof(tacc_file_iter_p iter) {
     if (tacc_file_iter_cur(iter) == iter->tacc_file_iter_end) {
         return 1;
     }
@@ -213,7 +213,7 @@ static char tacc_file_iter_consume_ch(tacc_file_iter_p iter) {
     return ch;
 }
 
-static int tacc_file_iter_accept_ch(tacc_file_iter_p iter, char accept) {
+static tacc_bool tacc_file_iter_accept_ch(tacc_file_iter_p iter, char accept) {
     if (tacc_file_is_eof(iter)) {
         return 0;
     }
@@ -373,11 +373,11 @@ static char *tacc_file_iter_lex_escape(tacc_file_iter_p iter,
     }
 }
 
-static int tacc_file_iter_lex_directive(tacc_file_iter_p iter,
-                                        pp_tok_p tok_out) {
+static tacc_bool tacc_file_iter_lex_directive(tacc_file_iter_p iter,
+                                              pp_tok_p tok_out) {
     char *directive_str;
     char *directive_str_end;
-    int was_bol, was_ws;
+    tacc_bool was_bol, was_ws;
 
     was_bol = iter->tacc_file_iter_is_bol;
     tacc_file_iter_eat_ws_no_newlines(iter);
@@ -428,7 +428,7 @@ static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter,
                                         pp_tok_p tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
     pp_tok_p ret = tok_out;
-    int contained;
+    tacc_bool contained;
     char *out_str;
 
     ret->pp_tok__kind = TOK_CHAR;
@@ -792,10 +792,10 @@ static void tacc_pp_tok_assign_str(pp_tok_p tok, char *str) {
     tok->pp_tok_end = str + strlen(str);
 }
 
-static int tacc_file_iter_maybe_special(tacc_file_iter_p iter,
-                                        pp_tok_p tok_out,
-                                        pp_tok_kind_e special_tok,
-                                        char *special_match) {
+static tacc_bool tacc_file_iter_maybe_special(tacc_file_iter_p iter,
+                                              pp_tok_p tok_out,
+                                              pp_tok_kind_e special_tok,
+                                              char *special_match) {
     if (!tacc_file_iter_accept_ch(iter, special_match[1])) {
         tok_out->pp_tok_str = tacc_malloc(2);
         tok_out->pp_tok_str[0] = special_match[0];
@@ -1085,7 +1085,7 @@ tacc_pp_state_p tacc_pp_state_new(void) {
 
 tacc_macro_def_entry_p tacc_pp_find_macro_or_first_empty(tacc_pp_state_p state,
                                                          char *name) {
-    int i;
+    size_t i;
     tacc_macro_def_entry_p entry;
 
     entry = state->tacc_pp_macros;
@@ -1168,7 +1168,7 @@ void tacc_pp_undef(tacc_pp_state_p state, char *name) {
 }
 
 void tacc_pp_state_init(tacc_pp_state_p state) {
-    int i;
+    size_t i;
     tacc_include_path_p incpath_entry;
     tacc_macro_def_entry_p macro_entry;
 
@@ -1241,7 +1241,7 @@ static tacc_file_p tacc_pp_search_include_path(tacc_pp_state_p state,
     char *cur_file_path_end;
     tacc_file_p try_file;
     tacc_include_path_p entry;
-    int i;
+    size_t i;
 
     tacc_assert(cur_file_path != NULL, "opened file without path");
 
@@ -1354,7 +1354,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first,
     tacc_token_pp replacement_list;
     size_t i;
     size_t replacement_list_len;
-    int terminated;
+    tacc_bool terminated;
 
     macro = tacc_malloc(sizeof(struct tacc_macro_def));
     tok = tacc_file_iter_expect_ident(iter);
@@ -1794,10 +1794,10 @@ static tacc_token_p_list_p tacc_pp_split_args(tacc_macro_def_p macro_def,
     tacc_token_p_list_p ret_cur;
     pp_tok_p raw_arg;
     tacc_token_pp raw_arg_entry;
-    int nest_level;
+    size_t nest_level;
     size_t i;
     size_t start_j;
-    int had_comma;
+    tacc_bool had_comma;
     size_t j;
     size_t max_param;
 
@@ -1924,7 +1924,7 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
 static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter,
                                              tacc_token_pp tokens,
                                              size_t num_tokens,
-                                             int first_preceded_by_ws,
+                                             tacc_bool first_preceded_by_ws,
                                              tacc_macro_def_p macro_def) {
     tacc_tok_iter_p helper_iter;
     pp_tok_p helper_eof;
@@ -2222,7 +2222,7 @@ static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p iter) {
     tacc_macro_def_entry_p macro_entry;
     tacc_macro_def_p macro_def;
     size_t i;
-    int nest_level;
+    size_t nest_level;
 
     while (1) {
         tok = tacc_tok_iter_peek_nomacro(iter);

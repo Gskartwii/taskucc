@@ -1,6 +1,7 @@
 #include "util.h"
 #include "gcc_compat.h"
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -15,7 +16,7 @@ void tacc_die(char *err, ...) {
     exit(1);
 }
 
-void tacc_assert(int cond, char *err, ...) {
+void tacc_assert(tacc_bool cond, char *err, ...) {
     va_list args;
     if (!cond) {
         va_start(args, err);
@@ -35,15 +36,15 @@ void *tacc_malloc(size_t sz) {
     return out;
 }
 
-int tacc_hex_to_dec(char hex) {
+uint8_t tacc_hex_to_dec(char hex) {
     if (hex >= '0' && hex <= '9') {
-        return ((int) hex) - ((int) '0');
+        return (uint8_t) (hex - '0');
     }
     if (hex >= 'a' && hex <= 'f') {
-        return ((int) hex) - ((int) 'a') + 10;
+        return (uint8_t) ((hex - 'a') + 10);
     }
     if (hex >= 'A' && hex <= 'F') {
-        return ((int) hex) - ((int) 'A') + 10;
+        return (uint8_t) ((hex - 'A') + 10);
     }
     tacc_assert(0, "invalid hex character %x", (int) hex);
     return 0;
