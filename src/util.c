@@ -49,7 +49,7 @@ int tacc_hex_to_dec(char hex) {
     return 0;
 }
 
-int tacc_sizeadj(int count, int size) {
+size_t tacc_sizeadj(size_t count, size_t size) {
 #ifdef __M2__
     return count * size;
 #else

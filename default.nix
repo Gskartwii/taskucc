@@ -39,6 +39,18 @@ let
     rev = "a338258d309c888bde96b2d1f206299231a54ddf";
     hash = "sha256-R1Kyycihw5rKu+vv/GzEMPAdaApW0lrIESjrbnEa2Dg=";
   };
+
+  cflags = [
+    "-std=c90"
+    "-g3"
+    "-Og"
+    "-Wall"
+    "-Wextra"
+    "-Wpedantic"
+    "-Werror"
+    "-Wconversion"
+    "-Warith-conversion"
+  ];
 in
   rec {
     tasku-gcc = pkgs.stdenv.mkDerivation {
@@ -46,7 +58,7 @@ in
       version = "0.1.0";
       src = ./src;
       buildPhase = ''
-        ${lib.strings.concatMapStringsSep "\n" (file: "$CC -std=c90 -g -Og -Wall -Wextra -Wpedantic -Werror -c ${file}") src}
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cflags} -c ${file}") src}
         $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
       '';
       installPhase = ''

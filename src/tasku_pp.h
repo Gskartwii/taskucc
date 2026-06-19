@@ -164,7 +164,7 @@ typedef struct tacc_token_p *tacc_token_pp;
 
 struct tacc_token_p_list {
     tacc_token_pp tacc_token_p_list_content;
-    int tacc_token_p_list_len;
+    size_t tacc_token_p_list_len;
 };
 typedef struct tacc_token_p_list *tacc_token_p_list_p;
 
@@ -172,12 +172,13 @@ struct tacc_macro_def {
     char *tacc_macro_def_name;
 
     tacc_token_pp tacc_macro_def_replacement_list;
-    int tacc_macro_def_replacement_list_len;
+    size_t tacc_macro_def_replacement_list_len;
+    int tacc_macro_def_is_function_like;
     int tacc_macro_def_is_va;
     int tacc_macro_def_is_tombstone;
 
     tacc_ident_p tacc_macro_def_params;
-    int tacc_macro_def_num_params;
+    size_t tacc_macro_def_num_params;
 
     int tacc_macro_def_is_replacing;
 };
@@ -204,7 +205,7 @@ struct tacc_tok_iter {
     tacc_pp_state_p tacc_tok_iter_state;
 
     tacc_token_pp tacc_tok_iter_pending;
-    int tacc_tok_iter_pending_len;
+    size_t tacc_tok_iter_pending_len;
 
     int tacc_tok_iter_skip_level;
     int tacc_tok_iter_inc_level;
