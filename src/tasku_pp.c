@@ -144,6 +144,10 @@ char *tacc_pp_to_string(pp_tok_p tok) {
         return "TOK_COMMA";
     case TOK_OTHER:
         return "TOK_OTHER";
+    case TOK_INCDIR_ANGLE:
+        return "TOK_INCDIR_ANGLE";
+    case TOK_INCDIR_STRING:
+        return "TOK_INCDIR_STRING";
     case TOK_FAKE_END_OF_MACRO:
         return "TOK_FAKE_END_OF_MACRO";
     case TOK_FAKE_PMARK:
@@ -433,6 +437,7 @@ static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter,
     ret->pp_tok_str = out_str;
     ret->pp_tok_end = out_str + 7;
 
+    out_str = out_str + 1;
     tacc_assert(!tacc_file_iter_accept_ch(iter, '\''),
                 "empty character literal");
     if (!tacc_file_iter_accept_ch(iter, '\\')) {
@@ -451,7 +456,7 @@ static pp_tok_p tacc_file_iter_lex_char(tacc_file_iter_p iter,
     out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
     tacc_assert(tacc_file_iter_accept_ch(iter, '\''),
                 "overlong character literal");
-    *out_str = '\\';
+    *out_str = '\'';
     out_str = out_str + 1;
     *out_str = 0;
     ret->pp_tok_end = out_str;
@@ -474,7 +479,53 @@ static pp_tok_p tacc_file_iter_lex_string(tacc_file_iter_p iter,
     ret->pp_tok_str = out_str;
     ret->pp_tok_end = out_str + 4095;
 
+    *out_str = '"';
+    out_str = out_str + 1;
+
     while (!tacc_file_iter_accept_ch(iter, '"')) {
+        tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
+                    "newline in string literal");
+        tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+        if (!tacc_file_iter_accept_ch(iter, '\\')) {
+            *out_str = tacc_file_iter_consume_ch(iter);
+            out_str = out_str + 1;
+            continue;
+        }
+        out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
+    }
+    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+    *out_str = '"';
+    out_str = out_str + 1;
+    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+
+    *out_str = 0;
+    ret->pp_tok_end = out_str;
+
+    return ret;
+}
+
+static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
+                                           pp_tok_p tok_out,
+                                           char first) {
+    /* not permitted to match a partial or malformed character per 6.4p3 */
+    pp_tok_p ret = tok_out;
+    char *out_str;
+    char last;
+
+    if (first == '"') {
+        last = '"';
+    } else {
+        last = '>';
+    }
+
+    /* maybe make dynamic later */
+    out_str = tacc_malloc(4096);
+    out_str[4095] = 0;
+
+    ret->pp_tok_str = out_str;
+    ret->pp_tok_end = out_str + 4095;
+
+    while (!tacc_file_iter_accept_ch(iter, last)) {
         tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
         tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
@@ -751,9 +802,17 @@ static int tacc_file_iter_maybe_special(tacc_file_iter_p iter,
     return 1;
 }
 
+enum tacc_lex_context {
+    LEX_TOP_LEVEL,
+    LEX_IN_MACRO_ARGS,
+    LEX_IN_REPLACEMENT_LIST,
+    LEX_IN_INCLUDE,
+    LEX_SKIPPING
+};
+typedef enum tacc_lex_context tacc_lex_context_e;
+
 static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
-                                   int have_directives,
-                                   int only_directives) {
+                                   tacc_lex_context_e ctx) {
     char first;
     char ch;
     pp_tok_p ret;
@@ -762,7 +821,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
     ret = tacc_malloc(sizeof(struct pp_tok));
     ret->pp_tok_is_final = 0;
 
-    if (only_directives) {
+    if (ctx == LEX_SKIPPING) {
         while (1) {
             if (tacc_file_is_eof(iter)) {
                 ret->pp_tok__kind = TOK_EOF;
@@ -787,7 +846,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
         return ret;
     }
 
-    if (have_directives) {
+    if (ctx == LEX_TOP_LEVEL) {
         if (tacc_file_iter_lex_directive(iter, ret)) {
             return ret;
         }
@@ -816,7 +875,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
 
     switch (first) {
     case '#':
-        tacc_assert(!have_directives, "stray # outside directive");
+        tacc_assert(ctx != LEX_TOP_LEVEL, "stray # outside directive");
         kind = TOK_SHARP;
         if (tacc_file_iter_maybe_special(iter, ret, TOK_SHARP_2, "##")) {
             return ret;
@@ -825,6 +884,10 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
     case '\'':
         return tacc_file_iter_lex_char(iter, ret);
     case '"':
+        if (ctx == LEX_IN_INCLUDE) {
+            kind = TOK_INCDIR_STRING;
+            return tacc_file_iter_lex_incfile(iter, ret, '"');
+        }
         return tacc_file_iter_lex_string(iter, ret);
     case '[':
         kind = TOK_LBRACE;
@@ -914,6 +977,10 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
         tacc_file_iter_maybe_special(iter, ret, TOK_PERCENT_EQ, "%=");
         return ret;
     case '<':
+        if (ctx == LEX_IN_INCLUDE) {
+            kind = TOK_INCDIR_ANGLE;
+            return tacc_file_iter_lex_incfile(iter, ret, '<');
+        }
         kind = TOK_LT;
         if (tacc_file_iter_maybe_special(iter, ret, TOK_LT_EQ, "<=")) {
             return ret;
@@ -976,8 +1043,9 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
         if (first == '_') {
             return tacc_file_iter_lex_ident(iter, ret, first);
         }
-        tacc_assert(0, "unrecognized char: %x", first);
+        /* Allow the character, for the sake of stringification */
         kind = TOK_OTHER;
+        break;
     }
 
     /* don't include possible following splice */
@@ -1069,8 +1137,7 @@ void tacc_pp_define(tacc_pp_state_p state, char *name, char *expansion) {
 
     while (1) {
         tacc_assert(replacement_list_len < 512, "overlong replacement list");
-        tok = tacc_file_iter_lex(
-            iter, 0 /* no directives, but produce TOK_SHARP{,_2} */, 0);
+        tok = tacc_file_iter_lex(iter, LEX_IN_REPLACEMENT_LIST);
         if (tok->pp_tok__kind == TOK_EOF) {
             break;
         }
@@ -1137,6 +1204,7 @@ void tacc_tok_iter_init(tacc_tok_iter_p iter,
     iter->tacc_tok_iter_inc_level = 0;
     iter->tacc_tok_iter_skip_level = 0;
     iter->tacc_tok_iter_in_macro_args = 0;
+    iter->tacc_tok_iter_in_include_directive = 0;
 }
 
 static tacc_file_p tacc_pp_try_file(char *base, char *subpath) {
@@ -1220,23 +1288,29 @@ static tacc_tok_iter_p tacc_tok_iter_cur_iter(tacc_tok_iter_p first) {
     return last_iter;
 }
 
+static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p);
+
 static void tacc_tok_iter_handle_include(tacc_tok_iter_p first,
                                          tacc_file_iter_p iter) {
-    int is_angle;
-    char ch;
     char *hdr_name;
     char *hdr_name_start;
     char *hdr_name_end;
+    pp_tok_p tok;
+    tacc_tok_iter_p tok_iter;
     tacc_tok_iter_p last_iter;
     tacc_file_p included_file;
     tacc_file_iter_p included_file_iter;
     tacc_tok_iter_p included_file_tok_iter;
 
-    if (tacc_file_iter_accept_ch(iter, '<')) {
-        is_angle = 1;
-    } else {
-        is_angle = 0;
-        tacc_assert(tacc_file_iter_accept_ch(iter, '"'), "expected < or \"");
+    tok_iter = tacc_tok_iter_new();
+    tacc_tok_iter_init(tok_iter, iter, first->tacc_tok_iter_state);
+    tok_iter->tacc_tok_iter_in_include_directive = 1;
+
+    tok = tacc_tok_iter_peek_handle_macros(tok_iter);
+    if (tok->pp_tok__kind != TOK_INCDIR_ANGLE) {
+        tacc_assert(tok->pp_tok__kind == TOK_INCDIR_STRING,
+                    "expected include file string, got %s",
+                    tacc_pp_to_string(tok));
     }
 
     hdr_name = tacc_malloc(1024);
@@ -1244,22 +1318,10 @@ static void tacc_tok_iter_handle_include(tacc_tok_iter_p first,
     hdr_name_end = hdr_name + 1023;
     *hdr_name_end = 0;
 
-    while (1) {
-        tacc_assert(hdr_name != hdr_name_end, "overlong included file name");
-        if (is_angle) {
-            if (tacc_file_iter_accept_ch(iter, '>')) {
-                hdr_name_end = hdr_name;
-                break;
-            }
-        } else if (tacc_file_iter_accept_ch(iter, '"')) {
-            hdr_name_end = hdr_name;
-            break;
-        }
-        ch = tacc_file_iter_consume_ch(iter);
-        *hdr_name = ch;
-        hdr_name = hdr_name + 1;
-    }
-    *hdr_name = 0;
+    tacc_assert(strlen(tok->pp_tok_str) > 2, "empty include string");
+    strcpy(hdr_name, tok->pp_tok_str + 1);
+    hdr_name_end = hdr_name + strlen(tok->pp_tok_str) - 2;
+    *hdr_name_end = 0;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #include");
@@ -1352,8 +1414,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first,
     replacement_list_len = 0;
     while (1) {
         tacc_assert(replacement_list_len < 512, "overlong replacement list");
-        tok = tacc_file_iter_lex(
-            iter, 0 /* no directives, but produce TOK_SHARP{,_2} */, 0);
+        tok = tacc_file_iter_lex(iter, LEX_IN_REPLACEMENT_LIST);
         if (tok->pp_tok__kind == TOK_EOF) {
             break;
         }
@@ -1561,11 +1622,14 @@ static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
 
     if (iter->tacc_tok_iter_pending_len == 0) {
         if (iter->tacc_tok_iter_in_macro_args) {
-            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 0, 0);
+            tok =
+                tacc_file_iter_lex(iter->tacc_tok_iter_file, LEX_IN_MACRO_ARGS);
         } else if (iter->tacc_tok_iter_skip_level > 0) {
-            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 1, 1);
+            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, LEX_SKIPPING);
+        } else if (iter->tacc_tok_iter_in_include_directive) {
+            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, LEX_IN_INCLUDE);
         } else {
-            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, 1, 0);
+            tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, LEX_TOP_LEVEL);
         }
         iter->tacc_tok_iter_pending->tacc_token_p_content = tok;
         iter->tacc_tok_iter_pending_len = 1;
@@ -1640,7 +1704,7 @@ static void tacc_tok_iter_join_pending(tacc_tok_iter_p iter, pp_tok_p tok) {
                                 (old_tok->pp_tok_end - old_tok->pp_tok_str) +
                                 (tok->pp_tok_end - tok->pp_tok_str));
 
-    new_tok = tacc_file_iter_lex(file_iter, 0, 0);
+    new_tok = tacc_file_iter_lex(file_iter, LEX_IN_REPLACEMENT_LIST);
     new_tok->pp_tok_preceded_by_ws = tok->pp_tok_preceded_by_ws;
     tacc_file_iter_eat_ws_no_newlines(file_iter);
     tacc_assert(tacc_file_is_eof(file_iter),
@@ -1789,7 +1853,7 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
         if ((tok->pp_tok__kind == TOK_STRING) ||
             (tok->pp_tok__kind == TOK_CHAR)) {
             this_tok_str = tok->pp_tok_str;
-            for (j = 0; j < (size_t) (tok->pp_tok_end - this_tok_str);
+            for (j = 0; j < (size_t) (tok->pp_tok_end - tok->pp_tok_str);
                  j = j + 1) {
                 if (*this_tok_str == '"') {
                     *ret_tok_str = '\\';
@@ -2049,9 +2113,11 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within,
             continue;
         }
         if (next_tok->pp_tok__kind == TOK_SHARP) {
-            tacc_tok_iter_push_pending(
-                iter_within,
-                tacc_pp_stringify(arg, arg_entry->tacc_token_p_list_len));
+            next_tok = tacc_pp_stringify(arg, arg_entry->tacc_token_p_list_len);
+            if (iter_within->tacc_tok_iter_in_include_directive) {
+                next_tok->pp_tok__kind = TOK_INCDIR_STRING;
+            }
+            tacc_tok_iter_push_pending(iter_within, next_tok);
 
             /* consume */
             i = i + 1;

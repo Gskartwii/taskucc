@@ -61,6 +61,9 @@ enum pp_tok_kind {
     TOK_COMMA,
     TOK_OTHER,
 
+    TOK_INCDIR_ANGLE,
+    TOK_INCDIR_STRING,
+
     TOK_FAKE_END_OF_MACRO,
     TOK_FAKE_PMARK
 };
@@ -211,6 +214,7 @@ struct tacc_tok_iter {
     int tacc_tok_iter_inc_level;
 
     int tacc_tok_iter_in_macro_args;
+    int tacc_tok_iter_in_include_directive;
 
     struct tacc_tok_iter *tacc_tok_iter_override;
 };
