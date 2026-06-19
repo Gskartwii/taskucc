@@ -50,6 +50,7 @@ let
     "-Werror"
     "-Wconversion"
     "-Warith-conversion"
+    "-fsanitize=undefined"
   ];
 in
   rec {
@@ -59,7 +60,7 @@ in
       src = ./src;
       buildPhase = ''
         ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cflags} -c ${file}") src}
-        $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
+        $CC -fsanitize=undefined -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
       '';
       installPhase = ''
         mkdir -p $out/bin
