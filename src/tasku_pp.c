@@ -1821,8 +1821,9 @@ static tacc_token_p_list_p tacc_pp_split_args(tacc_macro_def_p macro_def,
         if (had_comma) {
             ret_cur->tacc_token_p_list_len = ret_cur->tacc_token_p_list_len - 1;
         }
+        /* allocate +1 to avoid 0-size allocations */
         ret_cur->tacc_token_p_list_content = tacc_malloc(
-            ret_cur->tacc_token_p_list_len * sizeof(struct tacc_token_p));
+            (ret_cur->tacc_token_p_list_len + 1) * sizeof(struct tacc_token_p));
         memcpy(ret_cur->tacc_token_p_list_content,
                raw_args + tacc_sizeadj(start_j, sizeof(struct tacc_token_p)),
                ret_cur->tacc_token_p_list_len * sizeof(struct tacc_token_p));
