@@ -1620,6 +1620,31 @@ static void tacc_tok_iter_handle_directive(tacc_tok_iter_p first,
     tacc_assert(0, "unknown directive: %s", tok->pp_tok_str);
 }
 
+static pp_tok_p tacc_tok_maybe_finalize(tacc_tok_iter_p iter, pp_tok_p tok) {
+    tacc_macro_def_entry_p macro_def_entry;
+    tacc_macro_def_p macro_def;
+    pp_tok_p new_tok;
+
+    if ((tok->pp_tok__kind != TOK_IDENT) || (tok->pp_tok_is_final)) {
+        return tok;
+    }
+    macro_def_entry = tacc_pp_find_macro_or_first_empty(
+        iter->tacc_tok_iter_state, tok->pp_tok_str);
+    macro_def = macro_def_entry->tacc_macro_def_entry_content;
+    if (!macro_def) {
+        return tok;
+    }
+    if (!macro_def->tacc_macro_def_is_replacing) {
+        return tok;
+    }
+
+    new_tok = tacc_malloc(sizeof(struct pp_tok));
+    memcpy(new_tok, tok, sizeof(struct pp_tok));
+    new_tok->pp_tok_is_final = 1;
+
+    return new_tok;
+}
+
 static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
     pp_tok_p tok;
     tacc_macro_def_entry_p macro_entry;
@@ -1637,6 +1662,7 @@ static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
         } else {
             tok = tacc_file_iter_lex(iter->tacc_tok_iter_file, LEX_TOP_LEVEL);
         }
+        tok = tacc_tok_maybe_finalize(iter, tok);
         iter->tacc_tok_iter_pending->tacc_token_p_content = tok;
         iter->tacc_tok_iter_pending_len = 1;
         return tok;
@@ -1645,6 +1671,7 @@ static pp_tok_p tacc_tok_iter_peek_nomacro(tacc_tok_iter_p iter) {
             tacc_sizeadj((iter->tacc_tok_iter_pending_len - 1),
                          sizeof(struct tacc_token_p));
     tok = entry->tacc_token_p_content;
+    tok = tacc_tok_maybe_finalize(iter, tok);
     if (tok->pp_tok__kind == TOK_FAKE_END_OF_MACRO) {
         iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
         macro_entry = tacc_pp_find_macro_or_first_empty(
@@ -2214,12 +2241,6 @@ static pp_tok_p tacc_tok_iter_peek_handle_macros(tacc_tok_iter_p iter) {
         }
         if (macro_def->tacc_macro_def_is_tombstone) {
             return tok;
-        }
-        if (macro_def->tacc_macro_def_is_replacing) {
-            new_tok = tacc_malloc(sizeof(struct pp_tok));
-            memcpy(new_tok, tok, sizeof(struct pp_tok));
-            new_tok->pp_tok_is_final = 1;
-            return new_tok;
         }
 
         iter->tacc_tok_iter_pending_len = iter->tacc_tok_iter_pending_len - 1;
