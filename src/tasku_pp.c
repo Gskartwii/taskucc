@@ -1224,7 +1224,6 @@ static tacc_file_p tacc_pp_try_file(char *base, char *subpath) {
     strcpy(path, base);
     strcat(path, "/");
     strcat(path, subpath);
-    printf("trying %s\n", path);
 
     file = fopen(path, "r");
     if (!file) {
@@ -2058,7 +2057,10 @@ static void tacc_pp_macro_def_func_expand(tacc_tok_iter_p iter_within,
                 tacc_sizeadj(par_position, sizeof(struct tacc_token_p_list));
             arg = arg_entry->tacc_token_p_list_content;
             if (arg_entry->tacc_token_p_list_len == 0) {
-                tacc_tok_iter_push_placemarker(iter_within);
+                /*
+                 * There must be a previous token (which is possibly a
+                 * placemarker, or a real token). Do not push a placemarker.
+                 */
                 continue;
             }
             arg_last_tok =
