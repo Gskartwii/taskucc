@@ -525,6 +525,9 @@ static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
     ret->pp_tok_str = out_str;
     ret->pp_tok_end = out_str + 4095;
 
+    *out_str = first;
+    out_str = out_str + 1;
+
     while (!tacc_file_iter_accept_ch(iter, last)) {
         tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
@@ -536,6 +539,9 @@ static pp_tok_p tacc_file_iter_lex_incfile(tacc_file_iter_p iter,
         }
         out_str = tacc_file_iter_lex_escape(iter, out_str, ret->pp_tok_end);
     }
+    tacc_assert(out_str != ret->pp_tok_end, "overlong string literal");
+    *out_str = last;
+    out_str = out_str + 1;
     *out_str = 0;
     ret->pp_tok_end = out_str;
 
@@ -885,7 +891,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
         return tacc_file_iter_lex_char(iter, ret);
     case '"':
         if (ctx == LEX_IN_INCLUDE) {
-            kind = TOK_INCDIR_STRING;
+            ret->pp_tok__kind = TOK_INCDIR_STRING;
             return tacc_file_iter_lex_incfile(iter, ret, '"');
         }
         return tacc_file_iter_lex_string(iter, ret);
@@ -978,7 +984,7 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
         return ret;
     case '<':
         if (ctx == LEX_IN_INCLUDE) {
-            kind = TOK_INCDIR_ANGLE;
+            ret->pp_tok__kind = TOK_INCDIR_ANGLE;
             return tacc_file_iter_lex_incfile(iter, ret, '<');
         }
         kind = TOK_LT;
