@@ -1,2 +1,12 @@
 CompileFlags:
-  Add: [-xc, -std=c90, -Wall, -Wextra, -Wpedantic, -Werror, -Wconversion, -Warith-conversion, -Wtype-limits]
+  Add: [
+    -xc,
+    -std=c90,
+    -Wall,
+    -Wextra,
+    -Wpedantic,
+    -Werror,
+    -Wconversion,
+    -Warith-conversion,
+    -Wtype-limits
+  ]

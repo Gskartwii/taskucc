@@ -7,6 +7,9 @@ in
       gdb
     ];
     env.KAK_EXTRA_CONFIG = pkgs.writeText "tasku-extra.kak" ''
-      hook global WinSetOption filetype=(c|cpp) expandtab
+      hook global WinSetOption filetype=(c|cpp) %{
+        expandtab
+        set window formatcmd clang-format
+      }
     '';
   }
