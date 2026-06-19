@@ -150,4 +150,26 @@ in
         fi
       '';
     };
+
+    unit-test = pkgs.stdenvNoCC.mkDerivation {
+      pname = "taskucc-unit-test";
+      version = "0.1.0";
+      dontUnpack = true;
+
+      buildPhase = ''
+        cd ${./test}
+        ok=true
+        echo "=== TASKU-M2 ==="
+        if ! ./run.sh "${lib.getExe tasku-m2}"; then
+          ok=false
+        fi
+        echo "=== TASKU-GCC ==="
+        if ! ./run.sh "${lib.getExe tasku-gcc}"; then
+          ok=false
+        fi
+        if $ok; then
+          touch "$out"
+        fi
+      '';
+    };
   }
