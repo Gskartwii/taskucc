@@ -153,6 +153,9 @@ struct pp_tok {
 };
 typedef struct pp_tok *pp_tok_p;
 char *tacc_pp_to_string(pp_tok_p tok);
+pp_tok_p tacc_pp_tok_new(void);
+void tacc_pp_tok_init(pp_tok_p tok);
+pp_tok_p tacc_pp_tok_clone(pp_tok_p tok);
 
 struct tacc_ident {
     char *tacc_ident_content;

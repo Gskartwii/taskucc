@@ -30,6 +30,30 @@ void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file) {
     iter->tacc_file_iter_filename = file->tacc_file_name;
 }
 
+pp_tok_p tacc_pp_tok_new(void) { return tacc_malloc(sizeof(struct pp_tok)); }
+
+void tacc_pp_tok_init(pp_tok_p tok) {
+    tok->pp_tok__kind = TOK_UNRECOGNIZED;
+    tok->pp_tok_ident_kind = ID_OTHER;
+    tok->pp_tok_is_final = 0;
+    tok->pp_tok_preceded_by_ws = 0;
+    tok->pp_tok_str = NULL;
+}
+
+pp_tok_p tacc_pp_tok_clone(pp_tok_p tok) {
+    pp_tok_p new_tok;
+
+    new_tok = tacc_pp_tok_new();
+
+    new_tok->pp_tok__kind = tok->pp_tok__kind;
+    new_tok->pp_tok_ident_kind = tok->pp_tok_ident_kind;
+    new_tok->pp_tok_is_final = tok->pp_tok_is_final;
+    new_tok->pp_tok_preceded_by_ws = tok->pp_tok_preceded_by_ws;
+    new_tok->pp_tok_str = tok->pp_tok_str;
+
+    return new_tok;
+}
+
 char *tacc_pp_to_string(pp_tok_p tok) {
     switch (tok->pp_tok__kind) {
     case TOK_DIRECTIVE:
@@ -818,8 +842,8 @@ static pp_tok_p tacc_file_iter_lex(tacc_file_iter_p iter,
     pp_tok_p ret;
     pp_tok_kind_e kind;
 
-    ret = tacc_malloc(sizeof(struct pp_tok));
-    ret->pp_tok_is_final = 0;
+    ret = tacc_pp_tok_new();
+    tacc_pp_tok_init(ret);
 
     if (ctx == LEX_SKIPPING) {
         while (1) {
@@ -1060,8 +1084,8 @@ static pp_tok_p tacc_file_iter_expect_ident(tacc_file_iter_p iter) {
     pp_tok_p tok;
     char ch;
 
-    tok = tacc_malloc(sizeof(struct pp_tok));
-    tok->pp_tok_is_final = 0;
+    tok = tacc_pp_tok_new();
+    tacc_pp_tok_init(tok);
     ch = tacc_file_iter_consume_ch(iter);
     tacc_assert((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                     (ch == '_'),
@@ -1631,8 +1655,7 @@ static pp_tok_p tacc_tok_maybe_finalize(tacc_tok_iter_p iter, pp_tok_p tok) {
         return tok;
     }
 
-    new_tok = tacc_malloc(sizeof(struct pp_tok));
-    memcpy(new_tok, tok, sizeof(struct pp_tok));
+    new_tok = tacc_pp_tok_clone(tok);
     new_tok->pp_tok_is_final = 1;
 
     return new_tok;
@@ -1743,7 +1766,8 @@ static void tacc_tok_iter_insert_macro_replacing_stop(tacc_tok_iter_p iter,
                                                       char *macro_name) {
     pp_tok_p tok;
 
-    tok = tacc_malloc(sizeof(struct pp_tok));
+    tok = tacc_pp_tok_new();
+    tacc_pp_tok_init(tok);
     tok->pp_tok__kind = TOK_FAKE_END_OF_MACRO;
     tok->pp_tok_str = macro_name;
     tacc_tok_iter_push_pending(iter, tok);
@@ -1752,7 +1776,8 @@ static void tacc_tok_iter_insert_macro_replacing_stop(tacc_tok_iter_p iter,
 static void tacc_tok_iter_push_placemarker(tacc_tok_iter_p iter) {
     pp_tok_p tok;
 
-    tok = tacc_malloc(sizeof(struct pp_tok));
+    tok = tacc_pp_tok_new();
+    tacc_pp_tok_init(tok);
     tok->pp_tok__kind = TOK_FAKE_PMARK;
     tok->pp_tok_str = "";
     tacc_tok_iter_push_pending(iter, tok);
@@ -1859,9 +1884,9 @@ static pp_tok_p tacc_pp_stringify(tacc_token_pp tokens, size_t num_tokens) {
     size_t j;
 
     ret_tok_str = tacc_malloc(1024);
-    ret = tacc_malloc(sizeof(pp_tok_p));
+    ret = tacc_pp_tok_new();
+    tacc_pp_tok_init(ret);
     ret->pp_tok__kind = TOK_STRING;
-    ret->pp_tok_is_final = 0;
     ret->pp_tok_str = ret_tok_str;
 
     tok_entry = tokens;
@@ -1935,7 +1960,8 @@ static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter,
         tacc_malloc(512 * sizeof(struct tacc_token_p));
     helper_iter->tacc_tok_iter_pending_len = 0;
 
-    helper_eof = tacc_malloc(sizeof(struct pp_tok));
+    helper_eof = tacc_pp_tok_new();
+    tacc_pp_tok_init(helper_eof);
     helper_eof->pp_tok__kind = TOK_EOF;
     helper_eof->pp_tok_is_final = 1;
     helper_eof->pp_tok_preceded_by_ws = 1;
@@ -1960,8 +1986,7 @@ static void tacc_tok_iter_push_all_expanding(tacc_tok_iter_p iter,
         }
         if ((tok_count == 0) &&
             (tok->pp_tok_preceded_by_ws != first_preceded_by_ws)) {
-            new_tok = tacc_malloc(sizeof(struct pp_tok));
-            memcpy(new_tok, tok, sizeof(struct pp_tok));
+            new_tok = tacc_pp_tok_clone(tok);
             new_tok->pp_tok_preceded_by_ws = first_preceded_by_ws;
             tok = new_tok;
         }
