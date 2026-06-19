@@ -1389,6 +1389,7 @@ static void tacc_tok_iter_handle_define(tacc_tok_iter_p first,
                     /* has params up to and excluding i */
                     macro->tacc_macro_def_num_params = i;
                     macro->tacc_macro_def_is_va = 1;
+                    terminated = 1;
                     break;
                 }
                 tok = tacc_file_iter_expect_ident(iter);
@@ -1745,7 +1746,7 @@ static size_t tacc_macro_def_index_of_par(tacc_macro_def_p macro_def,
     size_t i;
     tacc_ident_p par_ident;
 
-    if (macro_def->tacc_macro_def_is_va && strcmp(ident, "__VA_ARGS__")) {
+    if (macro_def->tacc_macro_def_is_va && (!strcmp(ident, "__VA_ARGS__"))) {
         return macro_def->tacc_macro_def_num_params;
     }
     for (i = 0; i < macro_def->tacc_macro_def_num_params; ++i) {
