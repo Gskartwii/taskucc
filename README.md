@@ -27,3 +27,5 @@ Restrictions placed by M2-Planet:
 - Can not use long long on 32-bit platforms
 - No floating-point support
 - Pointer arithmetic on non-char types requires `tacc_sizeadj`
+
+Tasku C Compiler is licensed under the EUPL.
