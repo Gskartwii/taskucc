@@ -1,6 +1,7 @@
 #ifndef TASKU_PP_H
 #define TASKU_PP_H
 
+#include "dynstring.h"
 #include "tasku_file.h"
 #include "util.h"
 
@@ -146,7 +147,7 @@ void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file);
 struct pp_tok {
     pp_tok_kind_e pp_tok__kind;
     pp_ident_kind_e pp_tok_ident_kind;
-    char *pp_tok_str;
+    tacc_string_p pp_tok_str;
 
     tacc_bool pp_tok_preceded_by_ws;
     tacc_bool pp_tok_is_final;
@@ -158,7 +159,7 @@ void tacc_pp_tok_init(pp_tok_p tok);
 pp_tok_p tacc_pp_tok_clone(pp_tok_p tok);
 
 struct tacc_ident {
-    char *tacc_ident_content;
+    tacc_string_p tacc_ident_content;
 };
 typedef struct tacc_ident *tacc_ident_p;
 
@@ -174,7 +175,7 @@ struct tacc_token_p_list {
 typedef struct tacc_token_p_list *tacc_token_p_list_p;
 
 struct tacc_macro_def {
-    char *tacc_macro_def_name;
+    tacc_string_p tacc_macro_def_name;
 
     tacc_token_pp tacc_macro_def_replacement_list;
     size_t tacc_macro_def_replacement_list_len;
@@ -190,7 +191,7 @@ struct tacc_macro_def {
 typedef struct tacc_macro_def *tacc_macro_def_p;
 
 struct tacc_include_path_entry {
-    char *tacc_include_path_entry_content;
+    tacc_string_p tacc_include_path_entry_content;
 };
 typedef struct tacc_include_path_entry *tacc_include_path_p;
 

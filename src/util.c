@@ -36,6 +36,11 @@ void *tacc_malloc(size_t sz) {
     return out;
 }
 
+void tacc_free(void *allocation) {
+    tacc_assert(allocation != NULL, "free of NULL");
+    free(allocation);
+}
+
 uint8_t tacc_hex_to_dec(char hex) {
     if (hex >= '0' && hex <= '9') {
         return (uint8_t) (hex - '0');

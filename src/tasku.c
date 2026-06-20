@@ -30,7 +30,9 @@ int main(int argc, char **argv) {
         if (token->pp_tok__kind == TOK_EOF) {
             break;
         }
-        printf("%s: %s\n", tacc_pp_to_string(token), token->pp_tok_str);
+        printf("%s: %s\n",
+               tacc_pp_to_string(token),
+               tacc_dynstring_as_str(token->pp_tok_str));
     }
 
     return 0;
