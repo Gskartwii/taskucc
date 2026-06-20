@@ -133,11 +133,11 @@ enum pp_ident_kind {
 typedef enum pp_ident_kind pp_ident_kind_e;
 
 struct tacc_file_iter {
-    char *tacc_file_iter_src;
-    char *tacc_file_iter_end;
-    char *tacc_file_iter_filename;
-    tacc_bool tacc_file_iter_is_bol;
-    tacc_bool tacc_file_iter_is_ws;
+    char *src;
+    char *end;
+    char *filename;
+    tacc_bool is_bol;
+    tacc_bool is_ws;
 };
 
 typedef struct tacc_file_iter *tacc_file_iter_p;
@@ -145,12 +145,12 @@ tacc_file_iter_p tacc_file_iter_new(void);
 void tacc_file_iter_init(tacc_file_iter_p iter, tacc_file_p file);
 
 struct pp_tok {
-    pp_tok_kind_e pp_tok__kind;
-    pp_ident_kind_e pp_tok_ident_kind;
-    tacc_string_p pp_tok_str;
+    pp_tok_kind_e kind;
+    pp_ident_kind_e ident_kind;
+    tacc_string_p str;
 
-    tacc_bool pp_tok_preceded_by_ws;
-    tacc_bool pp_tok_is_final;
+    tacc_bool preceded_by_ws;
+    tacc_bool is_final;
 };
 typedef struct pp_tok *pp_tok_p;
 char *tacc_pp_to_string(pp_tok_p tok);
@@ -159,67 +159,67 @@ void tacc_pp_tok_init(pp_tok_p tok);
 pp_tok_p tacc_pp_tok_clone(pp_tok_p tok);
 
 struct tacc_ident {
-    tacc_string_p tacc_ident_content;
+    tacc_string_p content;
 };
 typedef struct tacc_ident *tacc_ident_p;
 
 struct tacc_token_p {
-    pp_tok_p tacc_token_p_content;
+    pp_tok_p content;
 };
 typedef struct tacc_token_p *tacc_token_pp;
 
 struct tacc_token_p_list {
-    tacc_token_pp tacc_token_p_list_content;
-    size_t tacc_token_p_list_len;
+    tacc_token_pp list;
+    size_t list_len;
 };
 typedef struct tacc_token_p_list *tacc_token_p_list_p;
 
 struct tacc_macro_def {
-    tacc_string_p tacc_macro_def_name;
+    tacc_string_p name;
 
-    tacc_token_pp tacc_macro_def_replacement_list;
-    size_t tacc_macro_def_replacement_list_len;
-    tacc_bool tacc_macro_def_is_function_like;
-    tacc_bool tacc_macro_def_is_va;
-    tacc_bool tacc_macro_def_is_tombstone;
+    tacc_token_pp replacement_list;
+    size_t replacement_list_len;
+    tacc_bool is_function_like;
+    tacc_bool is_va;
+    tacc_bool is_tombstone;
 
-    tacc_ident_p tacc_macro_def_params;
-    size_t tacc_macro_def_num_params;
+    tacc_ident_p params;
+    size_t num_params;
 
-    tacc_bool tacc_macro_def_is_replacing;
+    tacc_bool is_replacing;
 };
 typedef struct tacc_macro_def *tacc_macro_def_p;
 
 struct tacc_include_path_entry {
-    tacc_string_p tacc_include_path_entry_content;
+    tacc_string_p content;
 };
 typedef struct tacc_include_path_entry *tacc_include_path_p;
 
 struct tacc_macro_def_entry {
-    tacc_macro_def_p tacc_macro_def_entry_content;
+    tacc_macro_def_p content;
 };
 typedef struct tacc_macro_def_entry *tacc_macro_def_entry_p;
 
 struct tacc_pp_state {
-    tacc_include_path_p tacc_pp_include_path;
-    tacc_macro_def_entry_p tacc_pp_macros;
+    tacc_include_path_p include_path;
+    tacc_macro_def_entry_p macros;
 };
 typedef struct tacc_pp_state *tacc_pp_state_p;
 
 struct tacc_tok_iter {
-    tacc_file_iter_p tacc_tok_iter_file;
-    tacc_pp_state_p tacc_tok_iter_state;
+    tacc_file_iter_p file_iter;
+    tacc_pp_state_p state;
 
-    tacc_token_pp tacc_tok_iter_pending;
-    size_t tacc_tok_iter_pending_len;
+    tacc_token_pp pending;
+    size_t pending_len;
 
-    size_t tacc_tok_iter_skip_level;
-    size_t tacc_tok_iter_inc_level;
+    size_t skip_level;
+    size_t inc_level;
 
-    tacc_bool tacc_tok_iter_in_macro_args;
-    tacc_bool tacc_tok_iter_in_include_directive;
+    tacc_bool in_macro_args;
+    tacc_bool in_include_directive;
 
-    struct tacc_tok_iter *tacc_tok_iter_override;
+    struct tacc_tok_iter *override;
 };
 typedef struct tacc_tok_iter *tacc_tok_iter_p;
 

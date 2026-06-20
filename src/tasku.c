@@ -27,12 +27,12 @@ int main(int argc, char **argv) {
 
     while (1) {
         token = tacc_tok_iter_next(tok_iter);
-        if (token->pp_tok__kind == TOK_EOF) {
+        if (token->kind == TOK_EOF) {
             break;
         }
         printf("%s: %s\n",
                tacc_pp_to_string(token),
-               tacc_dynstring_as_str(token->pp_tok_str));
+               tacc_dynstring_as_str(token->str));
     }
 
     return 0;

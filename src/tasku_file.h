@@ -4,9 +4,9 @@
 #include <stddef.h>
 
 struct tacc_file {
-    char *tacc_file_name;
-    size_t tacc_file_len;
-    char *tacc_file_src;
+    char *name;
+    size_t len;
+    char *src;
 };
 
 typedef struct tacc_file tacc_file_s;

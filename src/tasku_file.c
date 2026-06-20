@@ -38,9 +38,9 @@ tacc_file_p tacc_open(char *name) {
 
     src[file_sz] = 0;
 
-    out_file->tacc_file_src = src;
-    out_file->tacc_file_name = name;
-    out_file->tacc_file_len = (size_t) file_sz;
+    out_file->src = src;
+    out_file->name = name;
+    out_file->len = (size_t) file_sz;
 
     return out_file;
 }
