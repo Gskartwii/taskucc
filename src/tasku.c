@@ -5,11 +5,11 @@
 
 int main(int argc, char **argv) {
     char *filename;
-    tacc_file_p input_file;
-    tacc_file_iter_p file_iter;
-    tacc_tok_iter_p tok_iter;
-    tacc_pp_state_p pp_state;
-    pp_tok_p token;
+    struct tacc_file *input_file;
+    struct tacc_file_iter *file_iter;
+    struct tacc_tok_iter *tok_iter;
+    struct tacc_pp_state *pp_state;
+    struct pp_tok *token;
 
     init_io();
 
