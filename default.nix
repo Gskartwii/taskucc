@@ -1,7 +1,12 @@
 let
   pkgs = import (builtins.getFlake "nixpkgs") {};
   lib = pkgs.lib;
-  m2libc = pkgs.minimal-bootstrap.m2libc;
+  m2libc = pkgs.fetchFromGitHub {
+    owner = "oriansj";
+    repo = "M2libc";
+    rev = "ca023d8dc855171fd0618951add5817e0e568fca";
+    hash = "sha256-7xjH/Dti62/s4cRVLE5NMDYEsiKIfuaDsF9a8+glW5o=";
+  };
   includes-m2 = [
     "sys/types.h"
     "stddef.h"
