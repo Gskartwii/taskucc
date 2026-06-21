@@ -1,6 +1,7 @@
 #ifndef TASKU_PP_H
 #define TASKU_PP_H
 
+#include "dynarray.h"
 #include "dynstring.h"
 #include "tasku_file.h"
 #include "util.h"
@@ -180,9 +181,13 @@ struct tacc_token_p {
 };
 
 struct tacc_token_p_list {
-    /* owning */
-    struct tacc_token_p *list;
-    size_t list_len;
+    /* owning, array of tacc_token_p */
+    struct tacc_dynarray *list;
+};
+
+struct tacc_ident_list {
+    /* owning, array of tacc_ident */
+    struct tacc_dynarray *list;
 };
 
 struct tacc_macro_def {
@@ -190,15 +195,13 @@ struct tacc_macro_def {
     struct tacc_string *name;
 
     /* owning */
-    struct tacc_token_p *replacement_list;
-    size_t replacement_list_len;
+    struct tacc_token_p_list *replacement_list;
     tacc_bool is_function_like;
     tacc_bool is_va;
     tacc_bool is_tombstone;
 
     /* owning */
-    struct tacc_ident *params;
-    size_t num_params;
+    struct tacc_ident_list *params;
 
     tacc_bool is_replacing;
 };
@@ -227,8 +230,7 @@ struct tacc_tok_iter {
     struct tacc_pp_state *state;
 
     /* owning */
-    struct tacc_token_p *pending;
-    size_t pending_len;
+    struct tacc_token_p_list *pending;
 
     size_t skip_level;
     size_t inc_level;

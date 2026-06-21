@@ -27,12 +27,14 @@ let
   local_hdrs = [
     "m2_shim.h"
     "util.h"
+    "dynarray.h"
     "dynstring.h"
     "tasku_file.h"
     "tasku_pp.h"
   ];
   src = [
     "util.c"
+    "dynarray.c"
     "dynstring.c"
     "tasku_file.c"
     "tasku_pp.c"
