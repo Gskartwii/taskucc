@@ -3,7 +3,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+/* name: borrow */
 tacc_file_p tacc_open(char *name) {
     FILE *f;
     char *src;
@@ -39,7 +41,8 @@ tacc_file_p tacc_open(char *name) {
     src[file_sz] = 0;
 
     out_file->src = src;
-    out_file->name = name;
+    out_file->name = tacc_malloc(strlen(name) + 1);
+    strcpy(out_file->name, name);
     out_file->len = (size_t) file_sz;
 
     return out_file;

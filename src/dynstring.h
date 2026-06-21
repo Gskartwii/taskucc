@@ -19,6 +19,8 @@ void tacc_dynstring_push(tacc_string_p string, char to_push);
 char *tacc_dynstring_as_str(tacc_string_p string);
 tacc_string_p tacc_dynstring_clone(tacc_string_p string);
 size_t tacc_dynstring_len(tacc_string_p string);
-char tacc_dynstring_at(tacc_string_p, size_t index);
+char tacc_dynstring_at(tacc_string_p string, size_t index);
+void tacc_dynstring_free(tacc_string_p string);
+char *tacc_dynstring_take_str(tacc_string_p string);
 
 #endif

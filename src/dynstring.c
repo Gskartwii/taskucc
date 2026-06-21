@@ -123,3 +123,19 @@ char tacc_dynstring_at(tacc_string_p string, size_t index) {
 
     return *at;
 }
+
+void tacc_dynstring_free(tacc_string_p string) {
+    if (string->string != NULL) {
+        tacc_free(string->string);
+    }
+    tacc_free(string);
+}
+
+char *tacc_dynstring_take_str(tacc_string_p string) {
+    char *str;
+
+    str = string->string;
+    tacc_dynstring_init(string);
+
+    return str;
+}

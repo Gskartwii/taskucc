@@ -129,51 +129,74 @@ enum pp_ident_kind {
 };
 
 struct tacc_file_iter {
+    /* owning */
+    char *orig;
+    /* borrow of orig */
     char *src;
+    /* borrow of src */
     char *end;
+    /* owning, possibly null */
     char *filename;
     tacc_bool is_bol;
     tacc_bool is_ws;
 };
 
+/* return: owning */
 struct tacc_file_iter *tacc_file_iter_new(void);
+/* iter: owning */
+void tacc_file_iter_free(struct tacc_file_iter *iter);
+
+/* iter: borrow, file: owning */
 void tacc_file_iter_init(struct tacc_file_iter *iter, struct tacc_file *file);
 
 struct pp_tok {
     enum pp_tok_kind kind;
     enum pp_ident_kind ident_kind;
+    /* owning */
     struct tacc_string *str;
 
     tacc_bool preceded_by_ws;
     tacc_bool is_final;
 };
+/* return: static, tok: borrow */
 char *tacc_pp_to_string(struct pp_tok *tok);
+/* return: owning */
 struct pp_tok *tacc_pp_tok_new(void);
+/* tok: borrow */
 void tacc_pp_tok_init(struct pp_tok *tok);
+/* tok: owned */
+void tacc_pp_tok_free(struct pp_tok *tok);
+/* return: owning, tok: borrow */
 struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok);
 
 struct tacc_ident {
+    /* owning */
     struct tacc_string *content;
 };
 
 struct tacc_token_p {
+    /* owning */
     struct pp_tok *content;
 };
 
 struct tacc_token_p_list {
+    /* owning */
     struct tacc_token_p *list;
     size_t list_len;
 };
 
 struct tacc_macro_def {
+    /* owning */
     struct tacc_string *name;
 
+    /* owning */
     struct tacc_token_p *replacement_list;
     size_t replacement_list_len;
     tacc_bool is_function_like;
     tacc_bool is_va;
     tacc_bool is_tombstone;
 
+    /* owning */
     struct tacc_ident *params;
     size_t num_params;
 
@@ -181,22 +204,29 @@ struct tacc_macro_def {
 };
 
 struct tacc_include_path_entry {
+    /* owning */
     struct tacc_string *content;
 };
 
 struct tacc_macro_def_entry {
+    /* owning */
     struct tacc_macro_def *content;
 };
 
 struct tacc_pp_state {
+    /* owning */
     struct tacc_include_path_entry *include_path;
     struct tacc_macro_def_entry *macros;
 };
 
 struct tacc_tok_iter {
+    /* owning */
     struct tacc_file_iter *file_iter;
+
+    /* borrow */
     struct tacc_pp_state *state;
 
+    /* owning */
     struct tacc_token_p *pending;
     size_t pending_len;
 
@@ -206,23 +236,39 @@ struct tacc_tok_iter {
     tacc_bool in_macro_args;
     tacc_bool in_include_directive;
 
+    /* owning, possibly null */
     struct tacc_tok_iter *override;
 };
 
+/* return: owning */
 struct tacc_tok_iter *tacc_tok_iter_new(void);
+/* iter: borrow, file: owning, state: borrow */
 void tacc_tok_iter_init(struct tacc_tok_iter *iter,
                         struct tacc_file_iter *file,
                         struct tacc_pp_state *state);
+/* iter: owning */
+void tacc_tok_iter_free(struct tacc_tok_iter *iter);
+/* return: borrow, iter: borrow */
 struct pp_tok *tacc_tok_iter_peek(struct tacc_tok_iter *iter);
+/* return: owning, iter: borrow */
 struct pp_tok *tacc_tok_iter_next(struct tacc_tok_iter *iter);
+/* return: owning */
 struct tacc_pp_state *tacc_pp_state_new(void);
+/* state: borrow */
 void tacc_pp_state_init(struct tacc_pp_state *state);
+/* state: owning */
+void tacc_pp_state_free(struct tacc_pp_state *state);
+/* state: borrow, name: borrow, expansion: borrow */
 void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion);
+/* state: borrow, name: borrow */
 void tacc_pp_undef(struct tacc_pp_state *state, char *name);
+/* return: borrow, state: borrow, name: borrow */
 struct tacc_macro_def_entry *
 tacc_pp_find_macro_or_first_empty(struct tacc_pp_state *state, char *name);
+/* state: borrow, macro: owning */
 void tacc_pp_insert_macro(struct tacc_pp_state *state,
                           struct tacc_macro_def *macro);
+/* state: borrow, dir: owning */
 void tacc_pp_add_include_dir(struct tacc_pp_state *state, char *dir);
 
 #endif

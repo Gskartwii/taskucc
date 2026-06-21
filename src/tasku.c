@@ -20,10 +20,12 @@ int main(int argc, char **argv) {
 
     file_iter = tacc_file_iter_new();
     tacc_file_iter_init(file_iter, input_file);
+    input_file = NULL;
     tok_iter = tacc_tok_iter_new();
     pp_state = tacc_pp_state_new();
     tacc_pp_state_init(pp_state);
     tacc_tok_iter_init(tok_iter, file_iter, pp_state);
+    file_iter = NULL;
 
     while (1) {
         token = tacc_tok_iter_next(tok_iter);
@@ -33,7 +35,11 @@ int main(int argc, char **argv) {
         printf("%s: %s\n",
                tacc_pp_to_string(token),
                tacc_dynstring_as_str(token->str));
+        tacc_pp_tok_free(token);
     }
+
+    tacc_tok_iter_free(tok_iter);
+    tacc_pp_state_free(pp_state);
 
     return 0;
 }
