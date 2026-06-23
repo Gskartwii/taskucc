@@ -1,7 +1,9 @@
 #include "gcc_compat.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
+#include "test.h"
 #include "util.h"
+#include <string.h>
 
 int main(int argc, char **argv) {
     char *filename;
@@ -15,6 +17,10 @@ int main(int argc, char **argv) {
 
     tacc_assert(argc >= 2, "need filename");
     filename = argv[1];
+
+    if (!strcmp(filename, "run-tests")) {
+        return run_tests();
+    }
 
     input_file = tacc_open(filename);
 

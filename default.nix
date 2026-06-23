@@ -30,7 +30,9 @@ let
     "dynarray.h"
     "dynstring.h"
     "tasku_file.h"
+    "soft_u64.h"
     "tasku_pp.h"
+    "test.h"
   ];
   src = [
     "util.c"
@@ -38,6 +40,8 @@ let
     "dynstring.c"
     "tasku_file.c"
     "tasku_pp.c"
+    "soft_u64.c"
+    "test.c"
     "tasku.c"
   ];
 
