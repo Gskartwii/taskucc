@@ -24,13 +24,10 @@ int main(int argc, char **argv) {
 
     input_file = tacc_open(filename);
 
-    file_iter = tacc_file_iter_new();
-    tacc_file_iter_init(file_iter, input_file);
+    file_iter = tacc_file_iter_new_file(input_file);
     input_file = NULL;
-    tok_iter = tacc_tok_iter_new();
     pp_state = tacc_pp_state_new();
-    tacc_pp_state_init(pp_state);
-    tacc_tok_iter_init(tok_iter, file_iter, pp_state);
+    tok_iter = tacc_tok_iter_new(file_iter, pp_state);
     file_iter = NULL;
 
     while (1) {

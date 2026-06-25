@@ -1,6 +1,6 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -11,11 +11,6 @@
 #else
 #define TACC_PARAM_NOT_FOUND SIZE_MAX
 #endif
-
-/* return: owning */
-struct tacc_file_iter *tacc_file_iter_new(void) {
-    return tacc_malloc(sizeof(struct tacc_file_iter));
-}
 
 void tacc_file_iter_free(struct tacc_file_iter *iter) {
     if (iter->filename) {
@@ -45,8 +40,23 @@ void tacc_file_iter_init(struct tacc_file_iter *iter, struct tacc_file *file) {
 }
 
 /* return: owning */
-struct pp_tok *tacc_pp_tok_new(void) {
-    return tacc_malloc(sizeof(struct pp_tok));
+struct tacc_file_iter *tacc_file_iter_new_file(struct tacc_file *file) {
+    struct tacc_file_iter *iter;
+
+    iter = tacc_malloc(sizeof(struct tacc_file_iter));
+    tacc_file_iter_init(iter, file);
+
+    return iter;
+}
+
+/* return: owning */
+struct tacc_file_iter *tacc_file_iter_new_str(char *start, char *end) {
+    struct tacc_file_iter *iter;
+
+    iter = tacc_malloc(sizeof(struct tacc_file_iter));
+    tacc_file_iter_init_str(iter, start, end);
+
+    return iter;
 }
 
 /* tok: borrow */
@@ -56,14 +66,23 @@ void tacc_pp_tok_init(struct pp_tok *tok) {
     tok->is_final = 0;
     tok->preceded_by_ws = 0;
     tok->str = tacc_dynstring_new();
-    tacc_dynstring_init(tok->str);
+}
+
+/* return: owning */
+struct pp_tok *tacc_pp_tok_new(void) {
+    struct pp_tok *tok;
+
+    tok = tacc_malloc(sizeof(struct pp_tok));
+    tacc_pp_tok_init(tok);
+
+    return tok;
 }
 
 /* return: owning, tok: borrow */
 struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok) {
     struct pp_tok *new_tok;
 
-    new_tok = tacc_pp_tok_new();
+    new_tok = tacc_malloc(sizeof(struct pp_tok));
 
     new_tok->kind = tok->kind;
     new_tok->ident_kind = tok->ident_kind;
@@ -439,9 +458,9 @@ static void tacc_pp_tok_assign_tstr(struct pp_tok *tok,
 static void tacc_pp_tok_assign_str(struct pp_tok *tok, char *str) {
     if (tok->str == NULL) {
         tok->str = tacc_dynstring_new();
-        tacc_dynstring_init(tok->str);
+    } else {
+        tacc_dynstring_reset(tok->str);
     }
-    tacc_dynstring_reset(tok->str);
     tacc_dynstring_concat(tok->str, str);
 }
 
@@ -462,7 +481,6 @@ static tacc_bool tacc_file_iter_lex_directive(struct tacc_file_iter *iter,
     }
 
     directive_str = tacc_dynstring_new();
-    tacc_dynstring_init(directive_str);
 
     /* file must end in newline, no need to check for eof */
     was_ws = 0;
@@ -498,8 +516,6 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
     struct tacc_string *out_str;
 
     out_str = tacc_dynstring_new();
-    tacc_dynstring_init(out_str);
-
     ret->kind = TOK_CHAR;
     tacc_dynstring_push(out_str, '\'');
 
@@ -533,9 +549,7 @@ static struct pp_tok *tacc_file_iter_lex_string(struct tacc_file_iter *iter,
 
     ret->kind = TOK_STRING;
 
-    /* maybe make dynamic later */
     out_str = tacc_dynstring_new();
-    tacc_dynstring_init(out_str);
     tacc_dynstring_push(out_str, '"');
 
     while (!tacc_file_iter_accept_ch(iter, '"')) {
@@ -567,9 +581,7 @@ static struct pp_tok *tacc_file_iter_lex_incfile(struct tacc_file_iter *iter,
         last = '>';
     }
 
-    /* maybe make dynamic later */
     out_str = tacc_dynstring_new();
-    tacc_dynstring_init(out_str);
     tacc_dynstring_push(out_str, first);
 
     while (!tacc_file_iter_accept_ch(iter, last)) {
@@ -598,9 +610,7 @@ static struct pp_tok *tacc_file_iter_lex_ppnum(struct tacc_file_iter *iter,
 
     ret->kind = TOK_PPNUM;
 
-    /* maybe make dynamic later */
     out_str = tacc_dynstring_new();
-    tacc_dynstring_init(out_str);
     tacc_dynstring_push(out_str, first);
 
     while (1) {
@@ -769,9 +779,7 @@ static struct pp_tok *tacc_file_iter_lex_ident(struct tacc_file_iter *iter,
 
     ret->kind = TOK_IDENT;
 
-    /* maybe make dynamic later */
     out_str = tacc_dynstring_new();
-    tacc_dynstring_init(out_str);
     tacc_dynstring_push(out_str, first);
 
     while (1) {
@@ -812,7 +820,6 @@ static tacc_bool tacc_file_iter_maybe_special(struct tacc_file_iter *iter,
 
     if (!tacc_file_iter_accept_ch(iter, special_match[1])) {
         out_str = tacc_dynstring_new();
-        tacc_dynstring_init(out_str);
         tacc_dynstring_push(out_str, special_match[0]);
         tacc_pp_tok_assign_tstr(tok_out, out_str);
         return 0;
@@ -840,8 +847,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     enum pp_tok_kind kind;
 
     ret = tacc_pp_tok_new();
-    tacc_pp_tok_init(ret);
-
     if (ctx == LEX_SKIPPING) {
         while (1) {
             if (tacc_file_is_eof(iter)) {
@@ -1078,7 +1083,6 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
     char ch;
 
     tok = tacc_pp_tok_new();
-    tacc_pp_tok_init(tok);
     ch = tacc_file_iter_consume_ch(iter);
     tacc_assert((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                     (ch == '_'),
@@ -1089,9 +1093,42 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
     return tok;
 }
 
+/* state: borrow */
+void tacc_pp_state_init(struct tacc_pp_state *state) {
+    size_t i;
+    struct tacc_include_path_entry *incpath_entry;
+    struct tacc_macro_def_entry *macro_entry;
+
+    state->include_path =
+        tacc_malloc(sizeof(struct tacc_include_path_entry) * 32);
+    state->macros = tacc_malloc(sizeof(struct tacc_macro_def_entry) * 1024);
+
+    incpath_entry = state->include_path;
+    for (i = 0; i < 32; i = i + 1) {
+        incpath_entry->content = NULL;
+        incpath_entry = incpath_entry +
+                        tacc_sizeadj(1, sizeof(struct tacc_include_path_entry));
+    }
+    state->include_path->content = tacc_dynstring_new();
+    tacc_dynstring_concat(state->include_path->content, ".");
+    macro_entry = state->macros;
+    for (i = 0; i < 1024; i = i + 1) {
+        macro_entry->content = NULL;
+        macro_entry =
+            macro_entry + tacc_sizeadj(1, sizeof(struct tacc_macro_def_entry));
+    }
+
+    tacc_pp_define(state, "__STDC__", "1");
+}
+
 /* return: owning */
 struct tacc_pp_state *tacc_pp_state_new(void) {
-    return tacc_malloc(sizeof(struct tacc_pp_state));
+    struct tacc_pp_state *state;
+
+    state = tacc_malloc(sizeof(struct tacc_pp_state));
+    tacc_pp_state_init(state);
+
+    return state;
 }
 
 /* return: borrow, state: borrow, name: borrow */
@@ -1127,12 +1164,16 @@ void tacc_pp_tok_free(struct pp_tok *tok) {
     tacc_free(tok);
 }
 
-static struct tacc_ident_list *tacc_ident_list_new(void) {
-    return tacc_malloc(sizeof(struct tacc_ident_list));
-}
 static void tacc_ident_list_init(struct tacc_ident_list *list) {
-    list->list = tacc_dynarray_new();
-    tacc_dynarray_init(list->list, sizeof(struct tacc_ident));
+    list->list = tacc_dynarray_new(sizeof(struct tacc_ident));
+}
+static struct tacc_ident_list *tacc_ident_list_new(void) {
+    struct tacc_ident_list *list;
+
+    list = tacc_malloc(sizeof(struct tacc_ident_list));
+    tacc_ident_list_init(list);
+
+    return list;
 }
 static void tacc_ident_list_push(struct tacc_ident_list *list,
                                  struct tacc_string *str) {
@@ -1167,12 +1208,16 @@ tacc_token_p_list_get(struct tacc_token_p_list *list, size_t i) {
     return tacc_dynarray_get(list->list, i);
 }
 
-static struct tacc_token_p_list *tacc_token_p_list_new(void) {
-    return tacc_malloc(sizeof(struct tacc_token_p_list));
-}
 static void tacc_token_p_list_init(struct tacc_token_p_list *list) {
-    list->list = tacc_dynarray_new();
-    tacc_dynarray_init(list->list, sizeof(struct tacc_token_p));
+    list->list = tacc_dynarray_new(sizeof(struct tacc_token_p));
+}
+static struct tacc_token_p_list *tacc_token_p_list_new(void) {
+    struct tacc_token_p_list *list;
+
+    list = tacc_malloc(sizeof(struct tacc_token_p_list));
+    tacc_token_p_list_init(list);
+
+    return list;
 }
 static void tacc_token_p_list_push(struct tacc_token_p_list *list,
                                    struct pp_tok *tok) {
@@ -1231,7 +1276,6 @@ void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion) {
 
     macro = tacc_malloc(sizeof(struct tacc_macro_def));
     macro->name = tacc_dynstring_new();
-    tacc_dynstring_init(macro->name);
     tacc_dynstring_concat(macro->name, name);
     macro->is_va = 0;
     macro->is_tombstone = 0;
@@ -1240,14 +1284,12 @@ void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion) {
     macro->is_replacing = 0;
 
     replacement_list = tacc_token_p_list_new();
-    tacc_token_p_list_init(replacement_list);
     macro->replacement_list = replacement_list;
 
-    iter = tacc_file_iter_new();
     expansion_owned = tacc_malloc(strlen(expansion) + 1);
     strcpy(expansion_owned, expansion);
-    tacc_file_iter_init_str(
-        iter, expansion_owned, expansion_owned + strlen(expansion));
+    iter = tacc_file_iter_new_str(expansion_owned,
+                                  expansion_owned + strlen(expansion));
 
     while (1) {
         tok = tacc_file_iter_lex(iter, LEX_IN_REPLACEMENT_LIST);
@@ -1274,53 +1316,29 @@ void tacc_pp_undef(struct tacc_pp_state *state, char *name) {
     place->content->is_tombstone = 1;
 }
 
-/* state: borrow */
-void tacc_pp_state_init(struct tacc_pp_state *state) {
-    size_t i;
-    struct tacc_include_path_entry *incpath_entry;
-    struct tacc_macro_def_entry *macro_entry;
-
-    state->include_path =
-        tacc_malloc(sizeof(struct tacc_include_path_entry) * 32);
-    state->macros = tacc_malloc(sizeof(struct tacc_macro_def_entry) * 1024);
-
-    incpath_entry = state->include_path;
-    for (i = 0; i < 32; i = i + 1) {
-        incpath_entry->content = NULL;
-        incpath_entry = incpath_entry +
-                        tacc_sizeadj(1, sizeof(struct tacc_include_path_entry));
-    }
-    state->include_path->content = tacc_dynstring_new();
-    tacc_dynstring_init(state->include_path->content);
-    tacc_dynstring_concat(state->include_path->content, ".");
-    macro_entry = state->macros;
-    for (i = 0; i < 1024; i = i + 1) {
-        macro_entry->content = NULL;
-        macro_entry =
-            macro_entry + tacc_sizeadj(1, sizeof(struct tacc_macro_def_entry));
-    }
-
-    tacc_pp_define(state, "__STDC__", "1");
-}
-
-/* return: owning */
-struct tacc_tok_iter *tacc_tok_iter_new(void) {
-    return tacc_malloc(sizeof(struct tacc_tok_iter));
-}
-
 /* iter: borrow, file: owning, possibly null, state: borrow */
 void tacc_tok_iter_init(struct tacc_tok_iter *iter,
                         struct tacc_file_iter *file,
                         struct tacc_pp_state *state) {
     iter->file_iter = file;
     iter->pending = tacc_token_p_list_new();
-    tacc_token_p_list_init(iter->pending);
     iter->override = NULL;
     iter->state = state;
     iter->inc_level = 0;
     iter->skip_level = 0;
     iter->in_macro_args = 0;
     iter->in_include_directive = 0;
+}
+
+/* return: owning */
+struct tacc_tok_iter *tacc_tok_iter_new(struct tacc_file_iter *file,
+                                        struct tacc_pp_state *state) {
+    struct tacc_tok_iter *iter;
+
+    iter = tacc_malloc(sizeof(struct tacc_tok_iter));
+    tacc_tok_iter_init(iter, file, state);
+
+    return iter;
 }
 
 /* return: owning, base: borrow, subpath: borrow */
@@ -1428,8 +1446,7 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     struct tacc_file_iter *included_file_iter;
     struct tacc_tok_iter *included_file_tok_iter;
 
-    tok_iter = tacc_tok_iter_new();
-    tacc_tok_iter_init(tok_iter, iter, first->state);
+    tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_include_directive = 1;
 
     tok = tacc_tok_iter_next(tok_iter);
@@ -1464,11 +1481,9 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
 
     tacc_free(hdr_name);
 
-    included_file_iter = tacc_file_iter_new();
-    tacc_file_iter_init(included_file_iter, included_file);
-    included_file_tok_iter = tacc_tok_iter_new();
-    tacc_tok_iter_init(
-        included_file_tok_iter, included_file_iter, first->state);
+    included_file_iter = tacc_file_iter_new_file(included_file);
+    included_file_tok_iter =
+        tacc_tok_iter_new(included_file_iter, first->state);
     last_iter->override = included_file_tok_iter;
 }
 
@@ -1500,7 +1515,6 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
         tacc_file_iter_eat_ws_no_newlines(iter);
         /* function-like macro */
         params = tacc_ident_list_new();
-        tacc_ident_list_init(params);
         macro->params = params;
         if (!tacc_file_iter_accept_ch(iter, ')')) {
             terminated = 0;
@@ -1545,7 +1559,6 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
     /* no ws necessarily required here!!! huh??? */
 
     replacement_list = tacc_token_p_list_new();
-    tacc_token_p_list_init(replacement_list);
     macro->replacement_list = replacement_list;
     while (1) {
         tok = tacc_file_iter_lex(iter, LEX_IN_REPLACEMENT_LIST);
@@ -1698,14 +1711,13 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     char *directive_str;
     size_t directive_len;
 
-    dir_scanner = tacc_file_iter_new();
     directive_len = tacc_dynstring_len(directive);
     directive_str = tacc_dynstring_take_str(directive);
     tacc_dynstring_free(directive);
     directive = NULL;
 
-    tacc_file_iter_init_str(
-        dir_scanner, directive_str, directive_str + directive_len);
+    dir_scanner =
+        tacc_file_iter_new_str(directive_str, directive_str + directive_len);
 
     tacc_file_iter_eat_ws_no_newlines(dir_scanner);
     if (tacc_file_is_eof(dir_scanner) ||
@@ -1804,7 +1816,6 @@ static struct pp_tok *tacc_tok_iter_peek_nomacro(struct tacc_tok_iter *iter) {
     if (tacc_token_p_list_len(iter->pending) == 0) {
         if (iter->file_iter == NULL) {
             tok = tacc_pp_tok_new();
-            tacc_pp_tok_init(tok);
             tok->kind = TOK_EOF;
         } else if (iter->in_macro_args) {
             tok = tacc_file_iter_lex(iter->file_iter, LEX_IN_MACRO_ARGS);
@@ -1890,7 +1901,6 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
                                       tacc_token_p_list_len(iter->pending) - 1);
     old_tok = tok_entry->content;
     new_tok_str = tacc_dynstring_new();
-    tacc_dynstring_init(new_tok_str);
 
     /*
      * pending is pushed in right-to-left order.
@@ -1901,12 +1911,11 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
     tacc_dynstring_join(new_tok_str, old_tok->str);
     tacc_pp_tok_free(old_tok);
 
-    file_iter = tacc_file_iter_new();
     new_tok_size = tacc_dynstring_len(new_tok_str);
     new_tok_str_c = tacc_dynstring_take_str(new_tok_str);
     tacc_dynstring_free(new_tok_str);
-    tacc_file_iter_init_str(
-        file_iter, new_tok_str_c, new_tok_str_c + new_tok_size);
+    file_iter =
+        tacc_file_iter_new_str(new_tok_str_c, new_tok_str_c + new_tok_size);
 
     new_tok = tacc_file_iter_lex(file_iter, LEX_IN_REPLACEMENT_LIST);
     new_tok->preceded_by_ws = tok->preceded_by_ws;
@@ -1926,7 +1935,6 @@ static void tacc_tok_iter_insert_macro_replacing_stop(
     struct pp_tok *tok;
 
     tok = tacc_pp_tok_new();
-    tacc_pp_tok_init(tok);
     tok->kind = TOK_FAKE_END_OF_MACRO;
     tacc_dynstring_concat(tok->str, macro_name);
     tacc_tok_iter_push_pending(iter, tok);
@@ -1937,7 +1945,6 @@ static void tacc_tok_iter_push_placemarker(struct tacc_tok_iter *iter) {
     struct pp_tok *tok;
 
     tok = tacc_pp_tok_new();
-    tacc_pp_tok_init(tok);
     tok->kind = TOK_FAKE_PMARK;
     tacc_tok_iter_push_pending(iter, tok);
 }
@@ -2030,9 +2037,7 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_p_list *tokens) {
     char ch;
 
     ret_tok_str = tacc_dynstring_new();
-    tacc_dynstring_init(ret_tok_str);
     ret = tacc_pp_tok_new();
-    tacc_pp_tok_init(ret);
     ret->kind = TOK_STRING;
 
     tacc_dynstring_push(ret_tok_str, '"');
@@ -2082,8 +2087,7 @@ static void tacc_tok_iter_push_all_expanding(struct tacc_tok_iter *iter,
     size_t i;
     size_t tok_count;
 
-    helper_iter = tacc_tok_iter_new();
-    tacc_tok_iter_init(helper_iter, NULL, iter->state);
+    helper_iter = tacc_tok_iter_new(NULL, iter->state);
 
     /* Soak the sponge */
     for (i = 0; i < num_tokens; i = i + 1) {
@@ -2096,7 +2100,6 @@ static void tacc_tok_iter_push_all_expanding(struct tacc_tok_iter *iter,
     /* Squeeze the sponge */
     macro_def->is_replacing = 0;
     reverse_toks = tacc_token_p_list_new();
-    tacc_token_p_list_init(reverse_toks);
     tok_count = 0;
     while (1) {
         tok = tacc_tok_iter_next(helper_iter);
@@ -2450,7 +2453,6 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
         tok = NULL;
 
         arg_list = tacc_token_p_list_new();
-        tacc_token_p_list_init(arg_list);
         nest_level = 1;
         i = 0;
         while (1) {
@@ -2555,7 +2557,6 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
         peek_tok = tacc_tok_iter_consume_nomacro(last_iter);
         directive = peek_tok->str;
         peek_tok->str = tacc_dynstring_new();
-        tacc_dynstring_init(peek_tok->str);
         tacc_pp_tok_free(peek_tok);
         peek_tok = NULL;
 

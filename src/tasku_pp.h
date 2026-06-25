@@ -143,12 +143,9 @@ struct tacc_file_iter {
 };
 
 /* return: owning */
-struct tacc_file_iter *tacc_file_iter_new(void);
+struct tacc_file_iter *tacc_file_iter_new_file(struct tacc_file *file);
 /* iter: owning */
 void tacc_file_iter_free(struct tacc_file_iter *iter);
-
-/* iter: borrow, file: owning */
-void tacc_file_iter_init(struct tacc_file_iter *iter, struct tacc_file *file);
 
 struct pp_tok {
     enum pp_tok_kind kind;
@@ -243,11 +240,8 @@ struct tacc_tok_iter {
 };
 
 /* return: owning */
-struct tacc_tok_iter *tacc_tok_iter_new(void);
-/* iter: borrow, file: owning, state: borrow */
-void tacc_tok_iter_init(struct tacc_tok_iter *iter,
-                        struct tacc_file_iter *file,
-                        struct tacc_pp_state *state);
+struct tacc_tok_iter *tacc_tok_iter_new(struct tacc_file_iter *file,
+                                        struct tacc_pp_state *state);
 /* iter: owning */
 void tacc_tok_iter_free(struct tacc_tok_iter *iter);
 /* return: borrow, iter: borrow */

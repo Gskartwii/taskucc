@@ -4,14 +4,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct tacc_dynarray *tacc_dynarray_new(void) {
-    return tacc_malloc(sizeof(struct tacc_dynarray));
-}
 void tacc_dynarray_init(struct tacc_dynarray *array, size_t elem_size) {
     array->element_size = elem_size;
     array->buffer = tacc_malloc(elem_size);
     array->cap = 1;
     array->len = 0;
+}
+
+struct tacc_dynarray *tacc_dynarray_new(size_t elem_size) {
+    struct tacc_dynarray *array;
+
+    array = tacc_malloc(sizeof(struct tacc_dynarray));
+    tacc_dynarray_init(array, elem_size);
+
+    return array;
 }
 
 static void tacc_dynarray_grow_to(struct tacc_dynarray *array,
@@ -90,7 +96,7 @@ size_t tacc_dynarray_len(struct tacc_dynarray *array) { return array->len; }
 struct tacc_dynarray *tacc_dynarray_clone(struct tacc_dynarray *array) {
     struct tacc_dynarray *new;
 
-    new = tacc_dynarray_new();
+    new = tacc_malloc(sizeof(struct tacc_dynarray));
     new->cap = array->cap;
     new->element_size = array->element_size;
     new->len = array->len;

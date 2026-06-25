@@ -3,15 +3,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-tacc_string_p tacc_dynstring_new(void) {
-    return tacc_malloc(sizeof(struct tacc_string));
-}
-
 void tacc_dynstring_init(tacc_string_p string) {
     string->string = tacc_malloc(1);
     *string->string = 0;
     string->cap = 0;
     string->len = 0;
+}
+
+tacc_string_p tacc_dynstring_new(void) {
+    struct tacc_string *string;
+
+    string = tacc_malloc(sizeof(struct tacc_string));
+    tacc_dynstring_init(string);
+
+    return string;
 }
 
 void tacc_dynstring_reset(tacc_string_p string) {
@@ -104,7 +109,7 @@ char *tacc_dynstring_as_str(tacc_string_p string) { return string->string; }
 tacc_string_p tacc_dynstring_clone(tacc_string_p string) {
     tacc_string_p new_string;
 
-    new_string = tacc_dynstring_new();
+    new_string = tacc_malloc(sizeof(struct tacc_string));
     new_string->cap = string->cap;
     new_string->len = string->len;
     new_string->string = tacc_malloc(string->cap + 1);

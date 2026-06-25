@@ -10,7 +10,7 @@ struct tacc_dynarray {
     size_t element_size;
 };
 
-struct tacc_dynarray *tacc_dynarray_new(void);
+struct tacc_dynarray *tacc_dynarray_new(size_t element_size);
 void tacc_dynarray_init(struct tacc_dynarray *array, size_t element_size);
 void *tacc_dynarray_get(struct tacc_dynarray *array, size_t index);
 void tacc_dynarray_push(struct tacc_dynarray *array, void *elem);
