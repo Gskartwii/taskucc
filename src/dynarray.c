@@ -88,8 +88,17 @@ void tacc_dynarray_push(struct tacc_dynarray *array, void *elem) {
     memcpy(old_end, elem, array->element_size);
     array->len = array->len + 1;
 }
-void tacc_dynarray_pop(struct tacc_dynarray *array) {
+void tacc_dynarray_pop(struct tacc_dynarray *array, void *out) {
+    char *elem;
+
     tacc_assert(array->len > 0, "cannot pop from empty array");
+    elem = array->buffer;
+    elem = elem + (array->len - 1) * array->element_size;
+
+    if (out) {
+        memcpy(out, elem, array->element_size);
+    }
+
     array->len = array->len - 1;
 }
 size_t tacc_dynarray_len(struct tacc_dynarray *array) { return array->len; }

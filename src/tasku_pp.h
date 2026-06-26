@@ -167,56 +167,59 @@ void tacc_pp_tok_free(struct pp_tok *tok);
 /* return: owning, tok: borrow */
 struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok);
 
-struct tacc_ident {
-    /* owning */
-    struct tacc_string *content;
-};
-
-struct tacc_token_p {
-    /* owning */
-    struct pp_tok *content;
-};
-
-struct tacc_token_p_list {
-    /* owning, array of tacc_token_p */
-    struct tacc_dynarray *list;
-};
-
-struct tacc_ident_list {
-    /* owning, array of tacc_ident */
-    struct tacc_dynarray *list;
-};
-
 struct tacc_macro_def {
     /* owning */
     struct tacc_string *name;
 
     /* owning */
-    struct tacc_token_p_list *replacement_list;
+    struct tacc_token_list *replacement_list;
     tacc_bool is_function_like;
     tacc_bool is_va;
     tacc_bool is_tombstone;
 
     /* owning */
-    struct tacc_ident_list *params;
+    struct tacc_string_list *params;
 
     tacc_bool is_replacing;
 };
 
-struct tacc_include_path_entry {
-    /* owning */
-    struct tacc_string *content;
-};
+DECL_DYNARRAY_OVER(tacc_string_list,
+                   tacc_string_list_entry,
+                   struct tacc_string *,
+                   tacc_string_list_new,
+                   tacc_string_list_init,
+                   tacc_string_list_get,
+                   tacc_string_list_push,
+                   tacc_string_list_pop,
+                   tacc_string_list_len,
+                   tacc_string_list_free)
 
-struct tacc_macro_def_entry {
-    /* owning */
-    struct tacc_macro_def *content;
-};
+DECL_DYNARRAY_OVER(tacc_token_list,
+                   tacc_token_list_entry,
+                   struct pp_tok *,
+                   tacc_token_list_new,
+                   tacc_token_list_init,
+                   tacc_token_list_get,
+                   tacc_token_list_push,
+                   tacc_token_list_pop,
+                   tacc_token_list_len,
+                   tacc_token_list_free)
+
+DECL_DYNARRAY_OVER(tacc_macro_def_list,
+                   tacc_macro_def_list_entry,
+                   struct tacc_macro_def *,
+                   tacc_macro_def_list_new,
+                   tacc_macro_def_list_init,
+                   tacc_macro_def_list_get,
+                   tacc_macro_def_list_push,
+                   tacc_macro_def_list_pop,
+                   tacc_macro_def_list_len,
+                   tacc_macro_def_list_free)
 
 struct tacc_pp_state {
     /* owning */
-    struct tacc_include_path_entry *include_path;
-    struct tacc_macro_def_entry *macros;
+    struct tacc_string_list *include_path;
+    struct tacc_macro_def_list *macros;
 };
 
 struct tacc_tok_iter {
@@ -227,7 +230,7 @@ struct tacc_tok_iter {
     struct tacc_pp_state *state;
 
     /* owning */
-    struct tacc_token_p_list *pending;
+    struct tacc_token_list *pending;
 
     size_t skip_level;
     size_t inc_level;
@@ -259,7 +262,7 @@ void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion);
 /* state: borrow, name: borrow */
 void tacc_pp_undef(struct tacc_pp_state *state, char *name);
 /* return: borrow, state: borrow, name: borrow */
-struct tacc_macro_def_entry *
+struct tacc_macro_def_list_entry *
 tacc_pp_find_macro_or_first_empty(struct tacc_pp_state *state, char *name);
 /* state: borrow, macro: owning */
 void tacc_pp_insert_macro(struct tacc_pp_state *state,
