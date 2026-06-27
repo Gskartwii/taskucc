@@ -56,9 +56,9 @@ int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
                a->low,
                exp->high,
                exp->low);
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 uint32_t *read_test_val(uint32_t *data, struct tacc_u64 *out) {

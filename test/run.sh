@@ -9,11 +9,11 @@ ok=true
 
 for case_dir in cases/*; do
     if [ -x "$case_dir/run.sh" ]; then
-        if ! "$case_dir/run.sh"; then
+        if ! "$case_dir/run.sh" "$RUNNER"; then
             echo "$case_dir: fail: $?"
             ok=false
-            continue
         fi
+        continue
     fi
     if ! timeout 1 "$RUNNER" "$case_dir/test.c" > "$RUN_TMP/test.log"; then
         echo "$case_dir/test.c: fail"
