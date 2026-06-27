@@ -1,4 +1,5 @@
 #include "gcc_compat.h"
+#include "target_defs.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
 #include "test.h"
@@ -11,6 +12,7 @@ int main(int argc, char **argv) {
     struct tacc_file_iter *file_iter;
     struct tacc_tok_iter *tok_iter;
     struct tacc_pp_state *pp_state;
+    struct tacc_target *target;
     struct pp_tok *token;
 
     init_io();
@@ -24,9 +26,10 @@ int main(int argc, char **argv) {
 
     input_file = tacc_open(filename);
 
+    target = tacc_target_new("x86_64-linux");
     file_iter = tacc_file_iter_new_file(input_file);
     input_file = NULL;
-    pp_state = tacc_pp_state_new();
+    pp_state = tacc_pp_state_new(target);
     tok_iter = tacc_tok_iter_new(file_iter, pp_state);
     file_iter = NULL;
 
@@ -43,6 +46,7 @@ int main(int argc, char **argv) {
 
     tacc_tok_iter_free(tok_iter);
     tacc_pp_state_free(pp_state);
+    tacc_target_free(target);
 
     return 0;
 }

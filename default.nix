@@ -31,16 +31,24 @@ let
     "dynstring.h"
     "tasku_file.h"
     "soft_u64.h"
+    "type.h"
+    "machine.h"
+    "target_defs.h"
+    "expr.h"
     "tasku_pp.h"
     "test.h"
   ];
   src = [
+    "3rdparty/intscan.c"
     "util.c"
     "dynarray.c"
     "dynstring.c"
+    "expr.c"
+    "machine.c"
+    "soft_u64.c"
+    "target_defs.c"
     "tasku_file.c"
     "tasku_pp.c"
-    "soft_u64.c"
     "test.c"
     "tasku.c"
   ];
@@ -65,122 +73,122 @@ let
     "-Warith-conversion"
     "-fsanitize=address,undefined"
   ];
-in
-  rec {
-    tasku-gcc = pkgs.stdenv.mkDerivation {
-      pname = "tasku-cc-gcc";
-      version = "0.1.0";
-      src = ./src;
-      buildPhase = ''
-        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cflags} -c ${file}") src}
-        $CC -fsanitize=address,undefined -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src}
-      '';
-      installPhase = ''
-        mkdir -p $out/bin
-        cp tasku $out/bin/tasku-gcc
-      '';
-      dontStrip = true;
-      meta.mainProgram = "tasku-gcc";
-    };
-    tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
-      pname = "tasku-cc";
-      version = "0.1.0";
-      src = ./src;
-      nativeBuildInputs = [
-        pkgs.minimal-bootstrap.stage0-posix.mescc-tools
-      ];
-      buildPhase = ''
-        M2-Planet --architecture amd64 \
-          -f ${lib.strings.concatStringsSep " -f " m2-all} \
-          --debug \
-          -o ./tasku.M1
+in rec {
+  tasku-gcc = pkgs.stdenv.mkDerivation {
+    pname = "tasku-cc-gcc";
+    version = "0.1.0";
+    src = ./src;
+    buildPhase = ''
+      ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cflags} -c ${file}") src}
+      $CC -fsanitize=address,undefined -o tasku $(basename --multiple ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src})
+    '';
+    installPhase = ''
+      mkdir -p $out/bin
+      cp tasku $out/bin/tasku-gcc
+    '';
+    dontStrip = true;
+    meta.mainProgram = "tasku-gcc";
+  };
+  tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
+    pname = "tasku-cc";
+    version = "0.1.0";
+    src = ./src;
+    nativeBuildInputs = [
+      pkgs.minimal-bootstrap.stage0-posix.mescc-tools
+    ];
+    buildPhase = ''
+      M2-Planet --architecture amd64 \
+        -f ${lib.strings.concatStringsSep " -f " m2-all} \
+        --debug \
+        -o ./tasku.M1
 
-        blood-elf --little-endian --64 -f tasku.M1 -o tasku-footer.M1
+      blood-elf --little-endian --64 -f tasku.M1 -o tasku-footer.M1
 
-        M1 --architecture amd64 \
-          --little-endian \
-          -f ${m2libc}/amd64/amd64_defs.M1 \
-          -f ${m2libc}/amd64/libc-full.M1 \
-          -f tasku.M1 \
-          -f tasku-footer.M1 \
-          -o tasku.hex2
+      M1 --architecture amd64 \
+        --little-endian \
+        -f ${m2libc}/amd64/amd64_defs.M1 \
+        -f ${m2libc}/amd64/libc-full.M1 \
+        -f tasku.M1 \
+        -f tasku-footer.M1 \
+        -o tasku.hex2
 
-        hex2 --architecture amd64 \
-          --little-endian \
-          --base-address 0x00600000 \
-          -f ${m2libc}/amd64/ELF-amd64-debug.hex2 \
-          -f tasku.hex2 \
-          -o tasku
-      '';
+      hex2 --architecture amd64 \
+        --little-endian \
+        --base-address 0x00600000 \
+        -f ${m2libc}/amd64/ELF-amd64-debug.hex2 \
+        -f tasku.hex2 \
+        -o tasku
+    '';
 
-      installPhase = ''
-        mkdir -p $out/bin/
-        cp tasku $out/bin/tasku-m2
-      '';
-      meta.mainProgram = "tasku-m2";
-    };
-    tasku-both = pkgs.symlinkJoin {
-      name = "tasku";
-      paths = [tasku-m2 tasku-gcc];
-    };
+    installPhase = ''
+      mkdir -p $out/bin/
+      cp tasku.M1 $out/bin/tasku.M1
+      cp tasku $out/bin/tasku-m2
+    '';
+    meta.mainProgram = "tasku-m2";
+  };
+  tasku-both = pkgs.symlinkJoin {
+    name = "tasku";
+    paths = [tasku-m2 tasku-gcc];
+  };
 
-    compare-m2-gcc = pkgs.stdenvNoCC.mkDerivation {
-      pname = "compare-taskucc-across-m2-gcc";
-      version = "0.1.0";
-      dontUnpack = true;
+  compare-m2-gcc = pkgs.stdenvNoCC.mkDerivation {
+    pname = "compare-taskucc-across-m2-gcc";
+    version = "0.1.0";
+    dontUnpack = true;
 
-      buildPhase = ''
-        ok=true
-        for file in ${tinycc-src}/*.{h,c}; do
-          case "$file" in
-            */coff.h)
-              continue
-              ;;
-          esac
-
-          bn=$(basename "$file")
-          if ! timeout 1 ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
-            ok=false
-            echo "tasku-m2 failed on $file"
+    buildPhase = ''
+      ok=true
+      for file in ${tinycc-src}/*.{h,c}; do
+        case "$file" in
+          */coff.h)
             continue
-          fi
-          if ! timeout 1 ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
-            ok=false
-            echo "tasku-gcc failed on $file"
-            continue
-          fi
-          if ! diff -q tasku-gcc-test tasku-m2-test; then
-            ok=false
-            echo "mismatch found on $file"
-            continue
-          fi
-          echo "$bn: ok"
-        done
-        if $ok; then
-          touch "$out"
-        fi
-      '';
-    };
+            ;;
+        esac
 
-    unit-test = pkgs.stdenvNoCC.mkDerivation {
-      pname = "taskucc-unit-test";
-      version = "0.1.0";
-      dontUnpack = true;
-
-      buildPhase = ''
-        cd ${./test}
-        ok=true
-        echo "=== TASKU-M2 ==="
-        if ! ./run.sh "${lib.getExe tasku-m2}"; then
+        bn=$(basename "$file")
+        if ! timeout 1 ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
           ok=false
+          echo "tasku-m2 failed on $file"
+          continue
         fi
-        echo "=== TASKU-GCC ==="
-        if ! ./run.sh "${lib.getExe tasku-gcc}"; then
+        if ! timeout 1 ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
           ok=false
+          echo "tasku-gcc failed on $file"
+          continue
         fi
-        if $ok; then
-          touch "$out"
+        if ! diff -q tasku-gcc-test tasku-m2-test; then
+          ok=false
+          echo "mismatch found on $file"
+          continue
         fi
-      '';
-    };
-  }
+        echo "$bn: ok"
+      done
+      if $ok; then
+        touch "$out"
+      fi
+    '';
+  };
+
+  unit-test = pkgs.stdenvNoCC.mkDerivation {
+    pname = "taskucc-unit-test";
+    version = "0.1.0";
+    dontUnpack = true;
+
+    buildPhase = ''
+      cd ${./test}
+      ok=true
+      echo "=== TASKU-M2 ==="
+      if ! ./run.sh "${lib.getExe tasku-m2}"; then
+        ok=false
+      fi
+      echo "=== TASKU-GCC ==="
+      if ! ./run.sh "${lib.getExe tasku-gcc}"; then
+        ok=false
+      fi
+      if $ok; then
+        touch "$out"
+      fi
+    '';
+  };
+}

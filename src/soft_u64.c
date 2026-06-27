@@ -5,6 +5,36 @@
 #define IS_U32_MAX(x)                                                \
     ((((x) & 0x7FFFFFFF) == 0x7FFFFFFF) && ((((x) >> 31) & 1) == 1))
 
+struct tacc_u64 *tacc_u64_new(void) {
+    struct tacc_u64 *u64;
+
+    u64 = tacc_malloc(sizeof(struct tacc_u64));
+    u64->high = 0;
+    u64->low = 0;
+
+    return u64;
+}
+
+struct tacc_u64 *tacc_u64_clone(struct tacc_u64 *orig) {
+    struct tacc_u64 *u64;
+
+    u64 = tacc_malloc(sizeof(struct tacc_u64));
+    u64->high = orig->high;
+    u64->low = orig->low;
+
+    return u64;
+}
+
+struct tacc_u64 *tacc_u64_new_from_u32(uint32_t val) {
+    struct tacc_u64 *u64;
+
+    u64 = tacc_malloc(sizeof(struct tacc_u64));
+    u64->high = 0;
+    u64->low = val;
+
+    return u64;
+}
+
 void tacc_u64_zero(struct tacc_u64 *dst) {
     dst->high = 0;
     dst->low = 0;
@@ -49,6 +79,32 @@ uint32_t tacc_u64_add(struct tacc_u64 *to,
     }
     return 0;
 }
+uint32_t tacc_u64_add_u32(struct tacc_u64 *to,
+                          struct tacc_u64 *left,
+                          uint32_t right) {
+    /* Hacker's Delight 2-16 */
+    uint32_t carry;
+    uint32_t l_lo;
+    uint32_t r_lo;
+    uint32_t l_hi;
+    uint32_t r_hi;
+
+    l_lo = left->low;
+    r_lo = right;
+    l_hi = left->high;
+    r_hi = 0;
+
+    to->low = l_lo + r_lo;
+    carry = l_lo < to->low;
+    to->high = l_hi + r_hi + carry;
+    if (l_hi + r_hi < l_hi) {
+        return 1;
+    }
+    if ((IS_U32_MAX(l_hi + r_hi))) {
+        return carry;
+    }
+    return 0;
+}
 uint32_t tacc_u64_sub(struct tacc_u64 *to,
                       struct tacc_u64 *left,
                       struct tacc_u64 *right) {
@@ -75,12 +131,46 @@ uint32_t tacc_u64_sub(struct tacc_u64 *to,
     }
     return 0;
 }
+uint32_t tacc_u64_sub_u32(struct tacc_u64 *to,
+                          struct tacc_u64 *left,
+                          uint32_t right) {
+    /* Hacker's Delight 2-16 */
+    uint32_t carry;
+    uint32_t l_lo;
+    uint32_t r_lo;
+    uint32_t l_hi;
+    uint32_t r_hi;
+
+    l_lo = left->low;
+    r_lo = right;
+    l_hi = left->high;
+    r_hi = 0;
+
+    to->low = l_lo - r_lo;
+    carry = (uint32_t) (to->low > l_lo);
+    to->high = l_hi - r_hi - carry;
+    if (l_hi - r_hi < l_hi) {
+        return 1;
+    }
+    if (l_hi == r_hi) {
+        return carry;
+    }
+    return 0;
+}
 void tacc_u64_mul(struct tacc_u64 *to,
                   struct tacc_u64 *left,
                   struct tacc_u64 *right) {
     uint32_t low = left->low * right->low;
     to->high = (left->low >> 16) * (right->low >> 16) +
                left->high * right->low + left->low * right->high;
+    to->low = low;
+}
+
+void tacc_u64_mul_u32(struct tacc_u64 *to,
+                      struct tacc_u64 *left,
+                      uint32_t right) {
+    uint32_t low = left->low * right;
+    to->high = (left->low >> 16) * (right >> 16) + left->high * right;
     to->low = low;
 }
 
@@ -271,4 +361,8 @@ void tacc_u64_sdiv(struct tacc_u64 *quot,
         tacc_u64_neg(quot, quot);
         tacc_u64_neg(rem, rem);
     }
+}
+
+tacc_bool tacc_u64_is_zero(struct tacc_u64 *val) {
+    return (val->low == 0) && (val->high == 0);
 }

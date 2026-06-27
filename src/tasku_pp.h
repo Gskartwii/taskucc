@@ -72,6 +72,8 @@ enum pp_tok_kind {
 };
 
 enum pp_ident_kind {
+    /* Yes, we will use the lexer hack. */
+    ID_TYPEDEF_NAME,
     ID_OTHER,
 
     ID_AUTO,
@@ -144,6 +146,11 @@ struct tacc_file_iter {
 
 /* return: owning */
 struct tacc_file_iter *tacc_file_iter_new_file(struct tacc_file *file);
+struct tacc_file_iter *tacc_file_iter_new_str(char *start, char *end);
+char tacc_file_iter_consume_ch(struct tacc_file_iter *iter);
+tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter, char accept);
+char tacc_file_iter_peek_ch(struct tacc_file_iter *iter);
+tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter);
 /* iter: owning */
 void tacc_file_iter_free(struct tacc_file_iter *iter);
 
@@ -220,6 +227,9 @@ struct tacc_pp_state {
     /* owning */
     struct tacc_string_list *include_path;
     struct tacc_macro_def_list *macros;
+
+    /* borrowed */
+    struct tacc_target *target;
 };
 
 struct tacc_tok_iter {
@@ -237,6 +247,7 @@ struct tacc_tok_iter {
 
     tacc_bool in_macro_args;
     tacc_bool in_include_directive;
+    tacc_bool in_if;
 
     /* owning, possibly null */
     struct tacc_tok_iter *override;
@@ -251,10 +262,19 @@ void tacc_tok_iter_free(struct tacc_tok_iter *iter);
 struct pp_tok *tacc_tok_iter_peek(struct tacc_tok_iter *iter);
 /* return: owning, iter: borrow */
 struct pp_tok *tacc_tok_iter_next(struct tacc_tok_iter *iter);
+
+tacc_bool tacc_tok_iter_accept_tok(struct tacc_tok_iter *iter,
+                                   enum pp_tok_kind tok);
+void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
+                                enum pp_tok_kind tok);
+tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
+                                  enum pp_ident_kind kw);
+
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(void);
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_target *target);
 /* state: borrow */
-void tacc_pp_state_init(struct tacc_pp_state *state);
+void tacc_pp_state_init(struct tacc_pp_state *state,
+                        struct tacc_target *target);
 /* state: owning */
 void tacc_pp_state_free(struct tacc_pp_state *state);
 /* state: borrow, name: borrow, expansion: borrow */

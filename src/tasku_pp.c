@@ -1,6 +1,8 @@
+#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
-#include "tasku_pp.h"
+#include "expr.h"
+#include "machine.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -250,7 +252,7 @@ static char *tacc_file_iter_cur(struct tacc_file_iter *iter) {
 }
 
 /* iter: borrow */
-static tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter) {
+tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter) {
     if (tacc_file_iter_cur(iter) == iter->end) {
         return 1;
     }
@@ -258,7 +260,7 @@ static tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter) {
 }
 
 /* iter: borrow */
-static char tacc_file_iter_peek_ch(struct tacc_file_iter *iter) {
+char tacc_file_iter_peek_ch(struct tacc_file_iter *iter) {
     char *cur;
 
     cur = tacc_file_iter_cur(iter);
@@ -267,7 +269,7 @@ static char tacc_file_iter_peek_ch(struct tacc_file_iter *iter) {
 }
 
 /* iter: borrow */
-static char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
+char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
     char *cur;
     char ch;
 
@@ -291,8 +293,7 @@ static char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
 }
 
 /* iter: borrow */
-static tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter,
-                                          char accept) {
+tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter, char accept) {
     if (tacc_file_is_eof(iter)) {
         return 0;
     }
@@ -1099,8 +1100,11 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
 }
 
 /* state: borrow */
-void tacc_pp_state_init(struct tacc_pp_state *state) {
+void tacc_pp_state_init(struct tacc_pp_state *state,
+                        struct tacc_target *target) {
     struct tacc_string *thisdir_incpath;
+
+    state->target = target;
 
     state->include_path = tacc_string_list_new();
     thisdir_incpath = tacc_dynstring_new();
@@ -1112,11 +1116,11 @@ void tacc_pp_state_init(struct tacc_pp_state *state) {
 }
 
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(void) {
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_target *target) {
     struct tacc_pp_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_pp_state));
-    tacc_pp_state_init(state);
+    tacc_pp_state_init(state, target);
 
     return state;
 }
@@ -1141,6 +1145,19 @@ tacc_pp_find_macro_or_first_empty(struct tacc_pp_state *state, char *name) {
     tacc_macro_def_list_push(state->macros, NULL);
     return tacc_macro_def_list_get(state->macros,
                                    tacc_macro_def_list_len(state->macros) - 1);
+}
+
+static tacc_bool tacc_pp_macro_is_defined(struct tacc_pp_state *state,
+                                          char *name) {
+    struct tacc_macro_def_list_entry *entry;
+    entry = tacc_pp_find_macro_or_first_empty(state, name);
+    if (!entry->content) {
+        return 0;
+    }
+    if (entry->content->is_tombstone) {
+        return 0;
+    }
+    return 1;
 }
 
 static void tacc_macro_def_free(struct tacc_macro_def *macro_def) {
@@ -1271,6 +1288,7 @@ void tacc_tok_iter_init(struct tacc_tok_iter *iter,
     iter->skip_level = 0;
     iter->in_macro_args = 0;
     iter->in_include_directive = 0;
+    iter->in_if = 0;
 }
 
 /* return: owning */
@@ -1527,7 +1545,6 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
                                         struct tacc_file_iter *iter) {
     struct pp_tok *tok;
     struct tacc_tok_iter *last_iter;
-    struct tacc_macro_def_list_entry *macro_def;
 
     tok = tacc_file_iter_expect_ident(iter);
 
@@ -1536,9 +1553,8 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
-    macro_def = tacc_pp_find_macro_or_first_empty(
-        first->state, tacc_dynstring_as_str(tok->str));
-    if (macro_def->content) {
+    if (!tacc_pp_macro_is_defined(first->state,
+                                  tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
         return;
     }
@@ -1553,7 +1569,6 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
                                        struct tacc_file_iter *iter) {
     struct pp_tok *tok;
     struct tacc_tok_iter *last_iter;
-    struct tacc_macro_def_list_entry *macro_def;
 
     tok = tacc_file_iter_expect_ident(iter);
 
@@ -1562,9 +1577,8 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
-    macro_def = tacc_pp_find_macro_or_first_empty(
-        first->state, tacc_dynstring_as_str(tok->str));
-    if (!macro_def->content) {
+    if (tacc_pp_macro_is_defined(first->state,
+                                 tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
         return;
     }
@@ -1619,13 +1633,32 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
 /* first: borrow, iter: owning */
 static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
                                     struct tacc_file_iter *iter) {
-    tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_file_iter_free(iter);
+    struct tacc_tok_iter *tok_iter;
+    struct tacc_tok_iter *last_iter;
+    struct tacc_expr *expr;
+    struct tacc_val *val;
 
-    /* TODO: conditional inclusion */
-#ifdef __STDC__
-    (void) first;
-#endif
+    tacc_file_iter_eat_ws_no_newlines(iter);
+    tok_iter = tacc_tok_iter_new(iter, first->state);
+    tok_iter->in_if = 1;
+
+    expr = tacc_expr_parse_new(tok_iter, 1);
+    val = tacc_expr_const_eval(expr);
+
+    tacc_assert(tacc_val_is_integral(val),
+                "#if argument must evaluate to integer");
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (tacc_u64_is_zero(val->value.int_value)) {
+        last_iter->skip_level = last_iter->skip_level + 1;
+        return;
+    }
+    last_iter->inc_level = last_iter->inc_level + 1;
+    tacc_tok_iter_free(tok_iter);
+
+    /* tacc_val_free(val); */
+    /* tacc_expr_free(expr); */
 }
 
 /* first: borrow, iter: owning */
@@ -2265,6 +2298,71 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
     tacc_free(split_args);
 }
 
+static struct pp_tok *tacc_tok_iter_eval_defined(struct tacc_tok_iter *iter) {
+    struct pp_tok *tok;
+    tacc_bool had_paren;
+    tacc_bool is_defined;
+
+    tacc_tok_iter_drop_nomacro(iter); /* drop "defined" */
+    tok = tacc_tok_iter_consume_nomacro(iter);
+    if (tok->kind == TOK_LPAREN) {
+        had_paren = 1;
+        tacc_pp_tok_free(tok);
+        tok = tacc_tok_iter_consume_nomacro(iter);
+    } else {
+        had_paren = 0;
+    }
+    tacc_assert(tok->kind == TOK_IDENT, "expected identified after defined");
+    is_defined = tacc_pp_macro_is_defined(iter->state, tok->str->string);
+    tacc_pp_tok_free(tok);
+    tok = NULL;
+
+    if (had_paren) {
+        tok = tacc_tok_iter_consume_nomacro(iter);
+        tacc_assert(tok->kind == TOK_RPAREN, "expected ) to close defined(");
+        tacc_pp_tok_free(tok);
+        tok = NULL;
+    }
+
+    tok = tacc_pp_tok_new();
+    tok->kind = TOK_PPNUM;
+    tok->is_final = 1;
+    if (is_defined) {
+        tacc_dynstring_concat(tok->str, "1");
+    } else {
+        tacc_dynstring_concat(tok->str, "0");
+    }
+    tacc_tok_iter_push_pending(iter, tok);
+
+    return tok;
+}
+
+static struct pp_tok *tacc_tok_iter_push_0(struct tacc_tok_iter *iter) {
+    struct pp_tok *tok;
+
+    tok = tacc_pp_tok_new();
+    tok->kind = TOK_PPNUM;
+    tok->is_final = 1;
+    tacc_dynstring_concat(tok->str, "0");
+
+    tacc_tok_iter_push_pending(iter, tok);
+
+    return tok;
+}
+
+static struct pp_tok *tacc_tok_iter_maybe_nonmacro_ident(
+    struct tacc_tok_iter *iter, struct pp_tok *tok) {
+    if (!iter->in_if) {
+        return tok;
+    }
+    if (tok->ident_kind != ID_OTHER && tok->ident_kind != ID_TYPEDEF_NAME) {
+        return tok;
+    }
+    tok = NULL;
+    tacc_tok_iter_drop_nomacro(iter);
+    return tacc_tok_iter_push_0(iter);
+}
+
 /* return: borrowing, iter: borrowing */
 static struct pp_tok *
 tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
@@ -2321,17 +2419,20 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
             return tok;
         }
         if (tok->is_final) {
-            return tok;
+            return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
+        }
+        if (iter->in_if && !strcmp(tok->str->string, "defined")) {
+            return tacc_tok_iter_eval_defined(iter);
         }
 
         macro_entry = tacc_pp_find_macro_or_first_empty(
             iter->state, tacc_dynstring_as_str(tok->str));
         macro_def = macro_entry->content;
         if (!macro_def) {
-            return tok;
+            return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
         }
         if (macro_def->is_tombstone) {
-            return tok;
+            return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
         }
 
         tacc_token_list_pop(iter->pending);
@@ -2381,7 +2482,7 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
              * Also, give ownership of tok back.
              */
             tacc_tok_iter_push_pending(iter, tok);
-            return tok;
+            return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
         }
 
         /* consume new_tok (lparen) and macro name token (tok) */
@@ -2519,6 +2620,43 @@ struct pp_tok* tacc_tok_iter_next(struct tacc_tok_iter* iter) {
 
     return ret;
 }
+
+tacc_bool tacc_tok_iter_accept_tok(struct tacc_tok_iter *iter,
+                                   enum pp_tok_kind tok) {
+    struct pp_tok* peek_tok;
+
+    peek_tok = tacc_tok_iter_peek(iter);
+    if (peek_tok->kind == tok) {
+        tacc_pp_tok_free(tacc_tok_iter_next(iter));
+        return 1;
+    }
+    return 0;
+}
+void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
+                                enum pp_tok_kind tok) {
+    struct pp_tok* new_tok;
+
+    new_tok = tacc_pp_tok_new();
+    tacc_pp_tok_init(new_tok);
+    new_tok->kind = tok;
+    new_tok->is_final = 1;
+    tacc_tok_iter_push_pending(iter, new_tok);
+}
+tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
+                                  enum pp_ident_kind kw) {
+    struct pp_tok* peek_tok;
+
+    peek_tok = tacc_tok_iter_peek(iter);
+    if (peek_tok->kind != TOK_IDENT) {
+        return 0;
+    }
+    if (peek_tok->ident_kind != kw) {
+        return 0;
+    }
+    tacc_pp_tok_free(tacc_tok_iter_next(iter));
+    return 1;
+}
+
 
 void tacc_pp_state_free(struct tacc_pp_state *state) {
     tacc_string_list_free(state->include_path);
