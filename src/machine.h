@@ -15,6 +15,7 @@ struct tacc_val {
 
 struct tacc_val *tacc_val_new(void);
 struct tacc_val *tacc_val_clone(struct tacc_val *val);
+void tacc_val_free(struct tacc_val *val);
 tacc_bool tacc_val_is_integral(struct tacc_val *val);
 
 #endif

@@ -8,15 +8,17 @@
 #include "util.h"
 #include <stdio.h>
 
-struct tacc_expr *tacc_expr_new(void) {
-    return tacc_malloc(sizeof(struct tacc_expr));
-}
-
 static void tacc_expr_init(struct tacc_expr *expr) {
     expr->op1 = NULL;
     expr->op2 = NULL;
     expr->op3 = NULL;
     expr->kind = EX_UNINIT;
+}
+
+struct tacc_expr *tacc_expr_new(void) {
+    struct tacc_expr *expr = tacc_malloc(sizeof(struct tacc_expr));
+    tacc_expr_init(expr);
+    return expr;
 }
 
 static void tacc_parse_assert(struct tacc_tok_iter *iter,
@@ -43,6 +45,9 @@ void tacc_expr_free(struct tacc_expr *expr) {
     }
     if (expr->op3) {
         tacc_expr_free(expr->op3);
+    }
+    if (expr->kind == EX_NUM_LIT) {
+        tacc_val_free(expr->extra.const_val);
     }
     tacc_free(expr);
 }
@@ -117,7 +122,6 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
     val = tacc_val_new();
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
-    tacc_pp_tok_free(tok);
     tok = NULL;
 
     tacc_assert(len > 0, "invalid empty ppnumber");
@@ -129,6 +133,7 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
         tacc_u64_zero(u64);
         tacc_u64_add_u32(u64, u64, (uint32_t) (*cstr - '0'));
         val->type_kind = TYK_SINT;
+        tacc_free(cstr);
         return val;
     }
     cstr_last = cstr + len - 1;
@@ -173,6 +178,8 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
         tacc_u64_copy(&limit, target->ullong_max);
     }
     intscan(iter, base, &limit, u64);
+
+    tacc_file_iter_free(iter);
 
     if (in_if) {
         val->type_kind = TYK_ULONGLONG;
@@ -246,8 +253,6 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     int input;
 
     str = tacc_dynstring_take_str(tok->str);
-    tacc_pp_tok_free(tok);
-
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
@@ -345,20 +350,21 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
         if (tacc_tok_non_kw_ident(tok)) {
             expr->kind = EX_IDENT;
             expr->extra.name = tacc_dynstring_clone(tok->str);
-            tacc_tok_iter_next(iter);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
             expr->kind = EX_NUM_LIT;
-            expr->extra.const_val = tacc_parse_numlit(
-                iter->state->target, tacc_tok_iter_next(iter), in_if);
+            expr->extra.const_val =
+                tacc_parse_numlit(iter->state->target, tok, in_if);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
             tacc_parse_error(iter, "todo: string literals");
-            tacc_tok_iter_next(iter);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
                 tacc_parse_charlit(iter->state->target, tok, in_if);
-            tacc_tok_iter_next(iter);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(iter, "bad expression");
         }
@@ -367,10 +373,8 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
     while (1) {
         if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
             next_expr = tacc_expr_new();
-            tacc_expr_init(next_expr);
             next_expr->op1 = expr;
             next_expr->op2 = tacc_expr_new();
-            tacc_expr_init(next_expr->op2);
             next_expr->kind = EX_SUBSCRIPT;
             tacc_expr_parse(iter, next_expr->op2, in_if);
 
@@ -381,7 +385,6 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
             expr = next_expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
             next_expr = tacc_expr_new();
-            tacc_expr_init(next_expr);
             next_expr->op1 = expr;
             next_expr->kind = EX_CALL;
 

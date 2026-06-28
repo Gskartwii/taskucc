@@ -13,7 +13,16 @@ struct tacc_val *tacc_val_new(void) {
 
 struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
     struct tacc_val *val = tacc_malloc(sizeof(struct tacc_val));
-    memcpy(val, orig_val, sizeof(struct tacc_val));
+
+    val->type_kind = orig_val->type_kind;
+    val->compound_type = orig_val->compound_type;
+
+    if (tacc_val_is_integral(orig_val)) {
+        val->value.int_value = tacc_u64_clone(orig_val->value.int_value);
+    } else {
+        tacc_assert(0, "non-integral vals");
+    }
+
     return val;
 }
 
@@ -34,4 +43,11 @@ tacc_bool tacc_val_is_integral(struct tacc_val *val) {
     default:
         return 0;
     }
+}
+
+void tacc_val_free(struct tacc_val *val) {
+    if (tacc_val_is_integral(val)) {
+        tacc_free(val->value.int_value);
+    }
+    tacc_free(val);
 }

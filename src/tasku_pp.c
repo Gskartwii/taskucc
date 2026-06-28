@@ -1220,7 +1220,7 @@ void tacc_pp_insert_macro(struct tacc_pp_state *state,
     if (place->content) {
         tacc_assert(place->content->is_tombstone,
                     "macro defined twice: %s",
-                    macro->name);
+                    macro->name->string);
         tacc_macro_def_free(place->content);
     }
     place->content = macro;
@@ -1556,6 +1556,7 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
     if (!tacc_pp_macro_is_defined(first->state,
                                   tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
+        tacc_file_iter_free(iter);
         return;
     }
     last_iter->skip_level = last_iter->skip_level + 1;
@@ -1580,6 +1581,7 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
     if (tacc_pp_macro_is_defined(first->state,
                                  tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
+        tacc_file_iter_free(iter);
         return;
     }
     last_iter->skip_level = last_iter->skip_level + 1;
@@ -1599,6 +1601,7 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
 
     if (last_iter->skip_level > 0) {
         last_iter->skip_level = last_iter->skip_level - 1;
+        tacc_file_iter_free(iter);
         return;
     }
     tacc_assert(last_iter->inc_level > 0, "stray #endif");
@@ -1619,9 +1622,11 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
     if (last_iter->skip_level == 1) {
         last_iter->skip_level = 0;
         last_iter->inc_level = last_iter->inc_level + 1;
+        tacc_file_iter_free(iter);
         return;
     }
     if (last_iter->skip_level > 1) {
+        tacc_file_iter_free(iter);
         return;
     }
     tacc_assert(last_iter->inc_level > 0, "stray #else");
@@ -1637,6 +1642,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     struct tacc_tok_iter *last_iter;
     struct tacc_expr *expr;
     struct tacc_val *val;
+    struct pp_tok *tok;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tok_iter = tacc_tok_iter_new(iter, first->state);
@@ -1645,6 +1651,9 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     expr = tacc_expr_parse_new(tok_iter, 1);
     val = tacc_expr_const_eval(expr);
 
+    tok = tacc_tok_iter_next(tok_iter);
+    tacc_assert(tok->kind == TOK_EOF, "junk after #if");
+    tacc_pp_tok_free(tok);
     tacc_assert(tacc_val_is_integral(val),
                 "#if argument must evaluate to integer");
 
@@ -1652,13 +1661,12 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
 
     if (tacc_u64_is_zero(val->value.int_value)) {
         last_iter->skip_level = last_iter->skip_level + 1;
-        return;
+    } else {
+        last_iter->inc_level = last_iter->inc_level + 1;
     }
-    last_iter->inc_level = last_iter->inc_level + 1;
     tacc_tok_iter_free(tok_iter);
-
-    /* tacc_val_free(val); */
-    /* tacc_expr_free(expr); */
+    tacc_val_free(val);
+    tacc_expr_free(expr);
 }
 
 /* first: borrow, iter: owning */
@@ -1695,6 +1703,7 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     if (tacc_file_is_eof(dir_scanner) ||
         tacc_file_iter_accept_ch(dir_scanner, '\n')) {
         /* empty directive, skip */
+        tacc_file_iter_free(dir_scanner);
         return;
     }
     tok = tacc_file_iter_expect_ident(dir_scanner);
