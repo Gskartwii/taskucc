@@ -139,31 +139,39 @@ in rec {
 
     buildPhase = ''
       ok=true
-      for file in ${tinycc-src}/*.{h,c}; do
-        case "$file" in
-          */coff.h)
-            continue
-            ;;
-        esac
-
-        bn=$(basename "$file")
-        if ! timeout 1 ${lib.getExe tasku-m2} "$file" > tasku-m2-test; then
-          ok=false
-          echo "tasku-m2 failed on $file"
-          continue
-        fi
-        if ! timeout 1 ${lib.getExe tasku-gcc} "$file" > tasku-gcc-test; then
-          ok=false
-          echo "tasku-gcc failed on $file"
-          continue
-        fi
-        if ! diff -q tasku-gcc-test tasku-m2-test; then
-          ok=false
-          echo "mismatch found on $file"
-          continue
-        fi
-        echo "$bn: ok"
-      done
+      touch config.h stdarg.h stdlib.h stdio.h string.h errno.h math.h fcntl.h setjmp.h time.h unistd.h dlfcn.h windows.h io.h direct.h malloc.h stdint.h
+      mkdir sys
+      touch sys/time.h
+      flags="\
+        ${tinycc-src}/tcc.c \
+        -DONE_SOURCE \
+        -DTCC_TARGET_X86_64=1 \
+        -DBOOTSTRAP=1 \
+        -DCONFIG_TCCDIR=\"\" \
+        -DCONFIG_SYSROOT=\"\" \
+        -DCONFIG_TCC_CRTPREFIX=\"{B}\" \
+        -DCONFIG_TCC_ELFINTERP=\"\" \
+        -DCONFIG_TCC_LIBPATHS=\"{B}\" \
+        -DCONFIG_TCC_SYSINCLUDEPATHS=\"\" \
+        -DTCC_LIBGCC=\"libc.a\" \
+        -DTCC_LIBTCC1=\"libtcc1.a\" \
+        -DCONFIG_TCCBOOT=1 \
+        -DCONFIG_TCC_STATIC=1 \
+        -DCONFIG_USE_LIBGCC=1 \
+        -DTCC_VERSION=\"0.9.28\""
+      if ! timeout 1 ${lib.getExe tasku-m2} $flags > tasku-m2-test; then
+        ok=false
+        echo "tasku-m2 failed on $file"
+      fi
+      if ! timeout 1 ${lib.getExe tasku-gcc} $flags > tasku-gcc-test; then
+        ok=false
+        echo "tasku-gcc failed on $file"
+      fi
+      if ! diff -q tasku-gcc-test tasku-m2-test; then
+        ok=false
+        echo "mismatch found"
+      fi
+      echo "$bn: ok"
       if $ok; then
         touch "$out"
       fi

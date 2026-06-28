@@ -1,8 +1,8 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1218,9 +1218,9 @@ void tacc_pp_insert_macro(struct tacc_pp_state *state,
     place = tacc_pp_find_macro_or_first_empty(
         state, tacc_dynstring_as_str(macro->name));
     if (place->content) {
-        tacc_assert(place->content->is_tombstone,
-                    "macro defined twice: %s",
-                    macro->name->string);
+        if (!place->content->is_tombstone) {
+            printf("warning: macro defined twice: %s", macro->name->string);
+        }
         tacc_macro_def_free(place->content);
     }
     place->content = macro;
@@ -1652,7 +1652,10 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     val = tacc_expr_const_eval(expr);
 
     tok = tacc_tok_iter_next(tok_iter);
-    tacc_assert(tok->kind == TOK_EOF, "junk after #if");
+    tacc_assert(tok->kind == TOK_EOF,
+                "junk after #if: %s /*...*/ %s",
+                tacc_dynstring_as_str(tok->str),
+                tok_iter->file_iter->src);
     tacc_pp_tok_free(tok);
     tacc_assert(tacc_val_is_integral(val),
                 "#if argument must evaluate to integer");
@@ -1686,6 +1689,7 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
 static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
                                            struct tacc_string *directive) {
     struct tacc_file_iter *dir_scanner;
+    struct tacc_tok_iter *last;
     struct pp_tok *tok;
     char *directive_name;
     char *directive_str;
@@ -1762,6 +1766,14 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
         tacc_free(directive_name);
         return;
     }
+
+    last = tacc_tok_iter_cur_iter(first);
+    if (last->skip_level > 0) {
+        tacc_free(directive_name);
+        tacc_file_iter_free(dir_scanner);
+        return;
+    }
+
     tacc_assert(0, "unknown directive: %s", directive_name);
 }
 
