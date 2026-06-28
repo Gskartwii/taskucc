@@ -1,8 +1,8 @@
+#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
-#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>

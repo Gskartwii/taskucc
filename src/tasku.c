@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
         *define_str = 0;
         val_str = val_str + 1;
 
-        tacc_pp_define(pp_state, macro_str, define_str);
+        tacc_pp_define(pp_state, macro_str, val_str);
         tacc_free(macro_str);
     }
     tacc_string_list_free(options.defines);

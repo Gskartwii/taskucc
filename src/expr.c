@@ -6,7 +6,9 @@
 #include "tasku_pp.h"
 #include "type.h"
 #include "util.h"
+#include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 static void tacc_expr_init(struct tacc_expr *expr) {
     expr->op1 = NULL;
@@ -21,19 +23,41 @@ struct tacc_expr *tacc_expr_new(void) {
     return expr;
 }
 
+static void tacc_expr_bump_to_op1(struct tacc_expr *expr) {
+    struct tacc_expr *new_expr;
+
+    new_expr = tacc_expr_new();
+    memcpy(new_expr, expr, sizeof(struct tacc_expr));
+    tacc_expr_init(expr);
+    expr->op1 = new_expr;
+}
+
 static void tacc_parse_assert(struct tacc_tok_iter *iter,
                               tacc_bool cond,
                               char *msg) {
     if (cond) {
         return;
     }
-    printf("in %s:\n", iter->file_iter->filename);
+    if (!iter->file_iter->filename) {
+        printf("in #if %s:\n", iter->file_iter->src);
+    } else {
+        printf("in %s:\n", iter->file_iter->filename);
+    }
     tacc_assert(0, "%s", msg);
 }
 
-static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg) {
-    printf("in %s:\n", iter->file_iter->filename);
-    tacc_assert(0, "%s", msg);
+static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
+    va_list va;
+    va_start(va, msg);
+
+    if (!iter->file_iter->filename) {
+        printf("in #if %s:\n", iter->file_iter->src);
+    } else {
+        printf("in %s:\n", iter->file_iter->filename);
+    }
+    vprintf(msg, va);
+    printf("\n");
+    tacc_assert(0, "parse error", msg);
 }
 
 void tacc_expr_free(struct tacc_expr *expr) {
@@ -328,7 +352,6 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
                                     struct tacc_expr *in_expr,
                                     tacc_bool in_if) {
     struct tacc_expr *expr;
-    struct tacc_expr *next_expr;
     struct pp_tok *tok;
     struct tacc_expr_list *expr_list;
 
@@ -366,54 +389,51 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
                 tacc_parse_charlit(iter->state->target, tok, in_if);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
-            tacc_parse_error(iter, "bad expression");
+            tacc_parse_error(
+                iter, "bad expression: %s", tacc_pp_to_string(tok));
         }
     }
 
     while (1) {
         if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
-            next_expr = tacc_expr_new();
-            next_expr->op1 = expr;
-            next_expr->op2 = tacc_expr_new();
-            next_expr->kind = EX_SUBSCRIPT;
-            tacc_expr_parse(iter, next_expr->op2, in_if);
+            tacc_expr_bump_to_op1(expr);
+            expr->op2 = tacc_expr_new();
+            expr->kind = EX_SUBSCRIPT;
+            tacc_expr_parse(iter, expr->op2, in_if);
 
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
                               "unmatched lbrace");
-
-            expr = next_expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
-            next_expr = tacc_expr_new();
-            next_expr->op1 = expr;
-            next_expr->kind = EX_CALL;
+            tacc_expr_bump_to_op1(expr);
+            expr->kind = EX_CALL;
 
             expr_list = tacc_expr_list_new();
             tacc_parse_error(iter, "todo: calls");
-            next_expr->extra.op_list = expr_list;
+            expr->extra.op_list = expr_list;
 
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
                               "unmatched lbrace");
-
-            expr = next_expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_DOT)) {
             tok = tacc_tok_iter_next(iter);
-            expr->kind = EX_MEMBER;
             tacc_parse_assert(
                 iter, tok->kind == TOK_IDENT, "expected member name");
-            next_expr = tacc_expr_new();
-            next_expr->extra.name = tok->str;
-            next_expr->op1 = expr;
+            tacc_expr_bump_to_op1(expr);
+            expr->kind = EX_MEMBER;
+            expr->extra.name = tok->str;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_ARROW)) {
             tok = tacc_tok_iter_next(iter);
+            tacc_expr_bump_to_op1(expr);
             expr->kind = EX_PTR_MEMBER;
             tacc_parse_assert(
                 iter, tok->kind == TOK_IDENT, "expected member name");
             expr->extra.name = tok->str;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_PLUS_2)) {
+            tacc_expr_bump_to_op1(expr);
             expr->kind = EX_INCR_POST;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_MINUS_2)) {
+            tacc_expr_bump_to_op1(expr);
             expr->kind = EX_DECR_POST;
         } else {
             break;
@@ -421,9 +441,9 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
     }
 }
 
-static void tacc_expr_parse_unary(struct tacc_tok_iter *iter,
-                                  struct tacc_expr *in_expr,
-                                  tacc_bool in_if) {
+static struct tacc_expr *tacc_expr_parse_unary(struct tacc_tok_iter *iter,
+                                               struct tacc_expr *in_expr,
+                                               tacc_bool in_if) {
     struct tacc_expr *expr;
     struct tacc_expr *next_expr;
     struct pp_tok *tok;
@@ -454,27 +474,291 @@ static void tacc_expr_parse_unary(struct tacc_tok_iter *iter,
                 if (tacc_tok_gives_typename(tok)) {
                     expr->kind = EX_SIZEOF_TY;
                     expr->extra.type = tacc_type_parse(iter);
-                    return;
+                    return expr;
                 } else {
                     tacc_tok_iter_deaccept_tok(iter, TOK_LPAREN);
                 }
             }
         } else {
             tacc_expr_parse_postfix(iter, expr, in_if);
-            return;
+            return expr;
         }
 
         next_expr = tacc_expr_new();
         expr->op1 = next_expr;
         expr = next_expr;
     }
+
+    return expr;
+}
+
+static void tacc_expr_parse_cast(struct tacc_tok_iter *iter,
+                                 struct tacc_expr *in_expr,
+                                 tacc_bool in_if) {
+    struct pp_tok *tok;
+    struct tacc_type *ty;
+    struct tacc_expr *expr;
+
+    expr = in_expr;
+
+    if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
+        tok = tacc_tok_iter_peek(iter);
+        if (tacc_tok_gives_typename(tok)) {
+            ty = tacc_type_parse(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) to close (");
+            tok = tacc_tok_iter_peek(iter);
+            if (tok->kind == TOK_RBRACKET) {
+                tacc_parse_assert(iter, 0, "todo: compound literals");
+            }
+            expr->kind = EX_CAST;
+            expr->extra.type = ty;
+            expr->op1 = tacc_expr_new();
+            expr = expr->op1;
+
+            tacc_expr_parse_cast(iter, expr, in_if);
+
+            return;
+        } else {
+            tacc_tok_iter_deaccept_tok(iter, TOK_LPAREN);
+        }
+    }
+    tacc_expr_parse_unary(iter, expr, in_if);
+}
+
+static tacc_bool tacc_tok_is_assigning(struct pp_tok *tok) {
+    switch (tok->kind) {
+    case TOK_MINUS_EQ:
+    case TOK_AMPERSAND_EQ:
+    case TOK_ASTERISK_EQ:
+    case TOK_PLUS_EQ:
+    case TOK_CIRCUMFLEX_EQ:
+    case TOK_PIPE_EQ:
+    case TOK_SLASH_EQ:
+    case TOK_PERCENT_EQ:
+    case TOK_LT_2_EQ:
+    case TOK_GT_2_EQ:
+    case TOK_EQ:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static enum tacc_expr_kind tacc_tok_to_op(struct pp_tok *tok) {
+    switch (tok->kind) {
+    case TOK_MINUS_EQ:
+        return EX_SUB_ASSI;
+    case TOK_AMPERSAND_EQ:
+        return EX_BAND_ASSI;
+    case TOK_ASTERISK_EQ:
+        return EX_MUL_ASSI;
+    case TOK_PLUS_EQ:
+        return EX_ADD_ASSI;
+    case TOK_CIRCUMFLEX_EQ:
+        return EX_BXOR_ASSI;
+    case TOK_PIPE_EQ:
+        return EX_BOR_ASSI;
+    case TOK_SLASH_EQ:
+        return EX_DIV_ASSI;
+    case TOK_PERCENT_EQ:
+        return EX_REM_ASSI;
+    case TOK_LT_2_EQ:
+        return EX_LSH_ASSI;
+    case TOK_GT_2_EQ:
+        return EX_RSH_ASSI;
+    case TOK_EQ:
+        return EX_ASSI;
+    case TOK_MINUS:
+        return EX_SUB;
+    case TOK_AMPERSAND:
+        return EX_BAND;
+    case TOK_AMPERSAND_2:
+        return EX_AND;
+    case TOK_ASTERISK:
+        return EX_MUL;
+    case TOK_PLUS:
+        return EX_ADD;
+    case TOK_EXCLAMATION_EQ:
+        return EX_NE;
+    case TOK_CIRCUMFLEX:
+        return EX_BXOR;
+    case TOK_PIPE:
+        return EX_BOR;
+    case TOK_PIPE_2:
+        return EX_OR;
+    case TOK_SLASH:
+        return EX_DIV;
+    case TOK_PERCENT:
+        return EX_REM;
+    case TOK_LT:
+        return EX_LT;
+    case TOK_LT_EQ:
+        return EX_LE;
+    case TOK_LT_2:
+        return EX_SHL;
+    case TOK_GT:
+        return EX_GT;
+    case TOK_GT_EQ:
+        return EX_GE;
+    case TOK_GT_2:
+        return EX_SHR;
+    case TOK_EQ_2:
+        return EX_EQ;
+    default:
+        tacc_assert(
+            0, "unknown operator to convert to op: %s", tacc_pp_to_string(tok));
+        return 0;
+    }
+}
+
+enum tacc_expr_priority {
+    PRIO_INVALID,
+    PRIO_LOGICAL_OR,
+    PRIO_LOGICAL_AND,
+    PRIO_INCLUSIVE_OR,
+    PRIO_EXCLUSIVE_OR,
+    PRIO_AND,
+    PRIO_EQUALITY,
+    PRIO_RELATIONAL,
+    PRIO_SHIFT,
+    PRIO_ADDITIVE,
+    PRIO_MULTIPLICATIVE,
+    PRIO_CAST
+};
+
+static enum tacc_expr_priority tacc_tok_to_prio(struct pp_tok *tok) {
+    switch (tok->kind) {
+    case TOK_MINUS:
+        return PRIO_ADDITIVE;
+    case TOK_AMPERSAND:
+        return PRIO_AND;
+    case TOK_AMPERSAND_2:
+        return PRIO_LOGICAL_AND;
+    case TOK_ASTERISK:
+        return PRIO_MULTIPLICATIVE;
+    case TOK_PLUS:
+        return PRIO_ADDITIVE;
+    case TOK_EXCLAMATION_EQ:
+        return PRIO_EQUALITY;
+    case TOK_CIRCUMFLEX:
+        return PRIO_EXCLUSIVE_OR;
+    case TOK_PIPE:
+        return PRIO_INCLUSIVE_OR;
+    case TOK_PIPE_2:
+        return PRIO_LOGICAL_OR;
+    case TOK_SLASH:
+        return PRIO_MULTIPLICATIVE;
+    case TOK_PERCENT:
+        return PRIO_MULTIPLICATIVE;
+    case TOK_LT:
+        return PRIO_RELATIONAL;
+    case TOK_LT_EQ:
+        return PRIO_RELATIONAL;
+    case TOK_LT_2:
+        return PRIO_SHIFT;
+    case TOK_GT:
+        return PRIO_RELATIONAL;
+    case TOK_GT_EQ:
+        return PRIO_RELATIONAL;
+    case TOK_GT_2:
+        return PRIO_SHIFT;
+    case TOK_EQ_2:
+        return PRIO_EQUALITY;
+    default:
+        return PRIO_INVALID;
+    }
+}
+
+static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
+                                   struct tacc_expr *in_expr,
+                                   tacc_bool in_if,
+                                   enum tacc_expr_priority in_prio) {
+    struct pp_tok *tok;
+    struct tacc_expr *expr;
+    enum tacc_expr_priority next_op_prio;
+
+    expr = in_expr;
+    while (1) {
+        tok = tacc_tok_iter_peek(iter);
+        if (tok->kind == TOK_EOF) {
+            /* done */
+            break;
+        }
+        next_op_prio = tacc_tok_to_prio(tok);
+        if (next_op_prio == PRIO_INVALID) {
+            /* not a binary operator */
+            tacc_expr_parse_cast(iter, expr, in_if);
+            break;
+        }
+        if (next_op_prio < in_prio) {
+            /* can only be part of an outer expression */
+            break;
+        }
+        tok = tacc_tok_iter_next(iter);
+        tacc_expr_bump_to_op1(expr);
+        expr->kind = tacc_tok_to_op(tok);
+        expr->op2 = tacc_expr_new();
+        expr = expr->op2;
+        tacc_expr_parse_binary(iter, expr, in_if, next_op_prio);
+    }
+}
+
+static void tacc_expr_parse_conditional(struct tacc_tok_iter *iter,
+                                        struct tacc_expr *in_expr,
+                                        tacc_bool in_if) {
+    struct tacc_expr *expr;
+
+    expr = in_expr;
+    while (1) {
+        tacc_expr_parse_binary(iter, expr, in_if, PRIO_LOGICAL_OR);
+        if (!tacc_tok_iter_accept_tok(iter, TOK_QUESTION)) {
+            break;
+        }
+        tacc_expr_bump_to_op1(expr);
+        expr->kind = EX_SELECT;
+        expr->op2 = tacc_expr_new();
+        expr->op3 = tacc_expr_new();
+        tacc_expr_parse(iter, expr->op2, in_if);
+        expr = expr->op3;
+    }
 }
 
 static void tacc_expr_parse(struct tacc_tok_iter *iter,
-                            struct tacc_expr *expr,
+                            struct tacc_expr *in_expr,
                             tacc_bool in_if) {
-    /* TODO */
-    tacc_expr_parse_unary(iter, expr, in_if);
+    struct tacc_expr *expr;
+    struct pp_tok *tok;
+
+    expr = in_expr;
+
+    while (1) {
+        tacc_expr_parse_cast(iter, expr, in_if);
+        tok = tacc_tok_iter_peek(iter);
+        while (tacc_tok_is_assigning(tok)) {
+            tacc_assert(expr->kind != EX_CAST, "can't assign to non-lvalue");
+            tok = tacc_tok_iter_next(iter);
+            tacc_expr_bump_to_op1(expr);
+            expr->kind = tacc_tok_to_op(tok);
+            tacc_pp_tok_free(tok);
+
+            expr->op2 = tacc_expr_new();
+            expr = expr->op2;
+            tacc_expr_parse_cast(iter, expr, in_if);
+
+            tok = tacc_tok_iter_peek(iter);
+        }
+        tacc_expr_parse_conditional(iter, expr, in_if);
+
+        if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
+            break;
+        }
+        tacc_expr_bump_to_op1(expr);
+        expr->kind = EX_COMMA;
+        expr->op2 = tacc_expr_new();
+        expr = expr->op2;
+    }
 }
 
 struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter,
