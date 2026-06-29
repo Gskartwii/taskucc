@@ -689,18 +689,27 @@ static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
         next_op_prio = tacc_tok_to_prio(tok);
         if (next_op_prio == PRIO_INVALID) {
             /* not a binary operator */
-            tacc_expr_parse_cast(iter, expr, in_if);
             break;
         }
         if (next_op_prio < in_prio) {
             /* can only be part of an outer expression */
             break;
         }
+
+        /* accepted the binary operator */
         tok = tacc_tok_iter_next(iter);
         tacc_expr_bump_to_op1(expr);
         expr->kind = tacc_tok_to_op(tok);
         expr->op2 = tacc_expr_new();
         expr = expr->op2;
+
+        /*
+         * Binary operator must be followed by a cast-level expression.
+         * Mind you, the subexpression here might not be the final subexpression
+         * after lower tacc_expr_parse_binary.
+         */
+        tacc_expr_parse_cast(iter, expr, in_if);
+
         tacc_expr_parse_binary(iter, expr, in_if, next_op_prio);
     }
 }
