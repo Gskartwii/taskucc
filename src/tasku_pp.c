@@ -861,6 +861,8 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
                 return ret;
             }
 
+            tacc_file_iter_eat_ws_no_newlines(iter);
+
             ch = tacc_file_iter_peek_ch(iter);
             if (ch != '\n' && ch != '#') {
                 tacc_file_iter_consume_ch(iter);
@@ -1644,6 +1646,14 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     struct tacc_val *val;
     struct pp_tok *tok;
 
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        last_iter->skip_level = last_iter->skip_level + 1;
+        tacc_file_iter_free(iter);
+        return;
+    }
+
     tacc_file_iter_eat_ws_no_newlines(iter);
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
@@ -1659,8 +1669,6 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tacc_pp_tok_free(tok);
     tacc_assert(tacc_val_is_integral(val),
                 "#if argument must evaluate to integer");
-
-    last_iter = tacc_tok_iter_cur_iter(first);
 
     if (tacc_u64_is_zero(val->value.int_value)) {
         last_iter->skip_level = last_iter->skip_level + 1;
@@ -2613,6 +2621,8 @@ void tacc_tok_iter_free(struct tacc_tok_iter *iter) {
     if (iter->override != NULL) {
         tacc_tok_iter_free(iter->override);
     }
+
+    tacc_assert((iter->skip_level == 0) && (iter->inc_level == 0), "unclosed conditional inclusion");
 
     if (tacc_token_list_len(iter->pending) > 0) {
         tacc_assert(tacc_token_list_len(iter->pending) == 1, "tokens left pending in iterator");
