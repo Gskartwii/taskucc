@@ -2376,9 +2376,6 @@ static struct pp_tok *tacc_tok_iter_maybe_nonmacro_ident(
     if (!iter->in_if) {
         return tok;
     }
-    if (tok->ident_kind != ID_OTHER && tok->ident_kind != ID_TYPEDEF_NAME) {
-        return tok;
-    }
     tok = NULL;
     tacc_tok_iter_drop_nomacro(iter);
     return tacc_tok_iter_push_0(iter);
