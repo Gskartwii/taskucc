@@ -1,6 +1,6 @@
+#include "expr.h"
 #include "3rdparty/intscan.h"
 #include "dynstring.h"
-#include "expr.h"
 #include "soft_u64.h"
 #include "target_defs.h"
 #include "tasku_pp.h"
@@ -821,7 +821,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(tacc_val_is_scalar(l_result), "&& takes a scalar operand");
         if (!tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
-            return tacc_val_from_int(0, TYK_SLONGLONG, target);
+            return tacc_val_from_int(0, TYK_SINT, target);
         }
         tacc_val_free(l_result);
         l_result = NULL;
@@ -829,12 +829,12 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         r_result = tacc_expr_const_eval(expr->op2, target);
         if (!tacc_val_is_truthy(r_result)) {
             tacc_val_free(r_result);
-            return tacc_val_from_int(0, TYK_SLONGLONG, target);
+            return tacc_val_from_int(0, TYK_SINT, target);
         }
         tacc_val_free(r_result);
         r_result = NULL;
 
-        return tacc_val_from_int(1, TYK_SLONGLONG, target);
+        return tacc_val_from_int(1, TYK_SINT, target);
     case EX_OR:
         tacc_assert(0, "todo: || consteval");
         break;
