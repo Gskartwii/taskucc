@@ -1405,6 +1405,13 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     struct tacc_file_iter *included_file_iter;
     struct tacc_tok_iter *included_file_tok_iter;
 
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        return;
+    }
+
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_include_directive = 1;
 
@@ -1431,8 +1438,6 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     tok = NULL;
     tacc_tok_iter_free(tok_iter);
 
-    last_iter = tacc_tok_iter_cur_iter(first);
-
     tacc_assert(last_iter->file_iter != NULL,
                 "ICE: cannot use #include from floating tok_iter");
     included_file = tacc_pp_search_include_path(
@@ -1453,7 +1458,15 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
     struct tacc_macro_def *macro;
     struct tacc_string_list *params;
     struct tacc_token_list *replacement_list;
+    struct tacc_tok_iter *last_iter;
     tacc_bool terminated;
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        return;
+    }
 
     macro = tacc_malloc(sizeof(struct tacc_macro_def));
 
@@ -1535,6 +1548,14 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
 static void tacc_tok_iter_handle_undef(struct tacc_tok_iter *first,
                                        struct tacc_file_iter *iter) {
     struct pp_tok *tok;
+    struct tacc_tok_iter *last_iter;
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        return;
+    }
 
     tok = tacc_file_iter_expect_ident(iter);
     tacc_pp_undef(first->state, tacc_dynstring_as_str(tok->str));
@@ -1738,6 +1759,15 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
 /* first: borrow, iter: owning */
 static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
                                                  struct tacc_file_iter *iter) {
+    struct tacc_tok_iter *last_iter;
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 1) {
+        tacc_file_iter_free(iter);
+        return;
+    }
+
     tacc_file_iter_eat_ws_no_newlines(iter);
 
     tacc_assert(0, "#error: %s", iter->src);
