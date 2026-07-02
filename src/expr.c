@@ -836,8 +836,24 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
         return tacc_val_from_int(1, TYK_SINT, target);
     case EX_OR:
-        tacc_assert(0, "todo: || consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, target);
+        tacc_assert(tacc_val_is_scalar(l_result), "|| takes a scalar operand");
+        if (tacc_val_is_truthy(l_result)) {
+            tacc_val_free(l_result);
+            return tacc_val_from_int(1, TYK_SINT, target);
+        }
+        tacc_val_free(l_result);
+        l_result = NULL;
+
+        r_result = tacc_expr_const_eval(expr->op2, target);
+        if (tacc_val_is_truthy(r_result)) {
+            tacc_val_free(r_result);
+            return tacc_val_from_int(1, TYK_SINT, target);
+        }
+        tacc_val_free(r_result);
+        r_result = NULL;
+
+        return tacc_val_from_int(0, TYK_SINT, target);
     case EX_NOT:
         l_result = tacc_expr_const_eval(expr->op1, target);
         tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
