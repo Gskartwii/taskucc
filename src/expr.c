@@ -1,6 +1,6 @@
-#include "expr.h"
 #include "3rdparty/intscan.h"
 #include "dynstring.h"
+#include "expr.h"
 #include "soft_u64.h"
 #include "target_defs.h"
 #include "tasku_pp.h"
@@ -129,8 +129,7 @@ static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
 }
 
 static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
-                                          struct pp_tok *tok,
-                                          tacc_bool in_if) {
+                                          struct pp_tok *tok) {
     struct tacc_val *val;
     struct tacc_u64 *u64;
     char *cstr;
@@ -197,25 +196,20 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
 
     can_be_unsigned = specified_u || (base != 10);
     if (can_be_unsigned) {
-        tacc_u64_copy(&limit, target->llong_max);
+        tacc_u64_copy(&limit, target->sllong->max);
     } else {
-        tacc_u64_copy(&limit, target->ullong_max);
+        tacc_u64_copy(&limit, target->ullong->max);
     }
     intscan(iter, base, &limit, u64);
 
     tacc_file_iter_free(iter);
-
-    if (in_if) {
-        val->type_kind = TYK_ULONGLONG;
-        return val;
-    }
 
     if (count_l == 2) {
         if (specified_u) {
             val->type_kind = TYK_ULONGLONG;
             return val;
         }
-        if (tacc_u64_ugt(u64, target->llong_max)) {
+        if (tacc_u64_ugt(u64, target->sllong->max)) {
             val->type_kind = TYK_ULONGLONG;
             return val;
         }
@@ -224,16 +218,16 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
     }
     if (count_l == 1) {
         if (specified_u) {
-            if (tacc_u64_ule(u64, target->ulong_max)) {
+            if (tacc_u64_ule(u64, target->ulong->max)) {
                 val->type_kind = TYK_ULONG;
                 return val;
             }
             val->type_kind = TYK_ULONGLONG;
-        } else if (tacc_u64_ule(u64, target->long_max)) {
+        } else if (tacc_u64_ule(u64, target->slong->max)) {
             val->type_kind = TYK_SLONG;
-        } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong_max)) {
+        } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
             val->type_kind = TYK_ULONG;
-        } else if (tacc_u64_ule(u64, target->llong_max)) {
+        } else if (tacc_u64_ule(u64, target->sllong->max)) {
             val->type_kind = TYK_SLONGLONG;
         } else {
             val->type_kind = TYK_ULONGLONG;
@@ -242,9 +236,9 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
     }
 
     if (specified_u) {
-        if (tacc_u64_ule(u64, target->uint_max)) {
+        if (tacc_u64_ule(u64, target->uint->max)) {
             val->type_kind = TYK_UINT;
-        } else if (tacc_u64_ule(u64, target->ulong_max)) {
+        } else if (tacc_u64_ule(u64, target->ulong->max)) {
             val->type_kind = TYK_ULONG;
         } else {
             val->type_kind = TYK_ULONGLONG;
@@ -252,15 +246,15 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
         return val;
     }
 
-    if (tacc_u64_ule(u64, target->int_max)) {
+    if (tacc_u64_ule(u64, target->sint->max)) {
         val->type_kind = TYK_SINT;
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->uint_max)) {
+    } else if (can_be_unsigned && tacc_u64_ule(u64, target->uint->max)) {
         val->type_kind = TYK_UINT;
-    } else if (tacc_u64_ule(u64, target->long_max)) {
+    } else if (tacc_u64_ule(u64, target->slong->max)) {
         val->type_kind = TYK_SLONG;
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong_max)) {
+    } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
         val->type_kind = TYK_ULONG;
-    } else if (tacc_u64_ule(u64, target->llong_max)) {
+    } else if (tacc_u64_ule(u64, target->sllong->max)) {
         val->type_kind = TYK_SLONGLONG;
     } else {
         val->type_kind = TYK_ULONGLONG;
@@ -269,8 +263,7 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
 }
 
 static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
-                                           struct pp_tok *tok,
-                                           tacc_bool in_if) {
+                                           struct pp_tok *tok) {
     struct tacc_u64 *u64;
     struct tacc_val *val;
     char *str;
@@ -280,7 +273,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
-        tacc_u64_lsh_n(u64, u64, target->char_bit);
+        tacc_u64_lsh_n(u64, u64, (int) (target->schar->bit_width));
         input = *str;
         if (*str == '\\') {
             str = str + 1;
@@ -336,21 +329,15 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
 
     val = tacc_val_new();
     val->value.int_value = u64;
-    if (in_if) {
-        val->type_kind = TYK_ULONGLONG;
-    } else {
-        val->type_kind = TYK_SINT;
-    }
+    val->type_kind = TYK_SINT;
 
     return val;
 }
 
 static void tacc_expr_parse(struct tacc_tok_iter *iter,
-                            struct tacc_expr *in_expr,
-                            tacc_bool in_if);
+                            struct tacc_expr *in_expr);
 static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
-                                    struct tacc_expr *in_expr,
-                                    tacc_bool in_if) {
+                                    struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
     struct pp_tok *tok;
     struct tacc_expr_list *expr_list;
@@ -364,7 +351,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
             /* TODO */
             tacc_assert(0, "todo compound literals");
         }
-        tacc_expr_parse(iter, expr, in_if);
+        tacc_expr_parse(iter, expr);
         tacc_parse_assert(iter,
                           tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                           "unmatched lparen");
@@ -376,8 +363,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
             expr->kind = EX_NUM_LIT;
-            expr->extra.const_val =
-                tacc_parse_numlit(iter->state->target, tok, in_if);
+            expr->extra.const_val = tacc_parse_numlit(iter->state->target, tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
@@ -386,7 +372,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
-                tacc_parse_charlit(iter->state->target, tok, in_if);
+                tacc_parse_charlit(iter->state->target, tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(
@@ -399,7 +385,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
             tacc_expr_bump_to_op1(expr);
             expr->op2 = tacc_expr_new();
             expr->kind = EX_SUBSCRIPT;
-            tacc_expr_parse(iter, expr->op2, in_if);
+            tacc_expr_parse(iter, expr->op2);
 
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
@@ -442,8 +428,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
 }
 
 static struct tacc_expr *tacc_expr_parse_unary(struct tacc_tok_iter *iter,
-                                               struct tacc_expr *in_expr,
-                                               tacc_bool in_if) {
+                                               struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
     struct tacc_expr *next_expr;
     struct pp_tok *tok;
@@ -480,7 +465,7 @@ static struct tacc_expr *tacc_expr_parse_unary(struct tacc_tok_iter *iter,
                 }
             }
         } else {
-            tacc_expr_parse_postfix(iter, expr, in_if);
+            tacc_expr_parse_postfix(iter, expr);
             return expr;
         }
 
@@ -493,8 +478,7 @@ static struct tacc_expr *tacc_expr_parse_unary(struct tacc_tok_iter *iter,
 }
 
 static void tacc_expr_parse_cast(struct tacc_tok_iter *iter,
-                                 struct tacc_expr *in_expr,
-                                 tacc_bool in_if) {
+                                 struct tacc_expr *in_expr) {
     struct pp_tok *tok;
     struct tacc_type *ty;
     struct tacc_expr *expr;
@@ -517,14 +501,14 @@ static void tacc_expr_parse_cast(struct tacc_tok_iter *iter,
             expr->op1 = tacc_expr_new();
             expr = expr->op1;
 
-            tacc_expr_parse_cast(iter, expr, in_if);
+            tacc_expr_parse_cast(iter, expr);
 
             return;
         } else {
             tacc_tok_iter_deaccept_tok(iter, TOK_LPAREN);
         }
     }
-    tacc_expr_parse_unary(iter, expr, in_if);
+    tacc_expr_parse_unary(iter, expr);
 }
 
 static tacc_bool tacc_tok_is_assigning(struct pp_tok *tok) {
@@ -673,7 +657,6 @@ static enum tacc_expr_priority tacc_tok_to_prio(struct pp_tok *tok) {
 
 static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
                                    struct tacc_expr *in_expr,
-                                   tacc_bool in_if,
                                    enum tacc_expr_priority in_prio) {
     struct pp_tok *tok;
     struct tacc_expr *expr;
@@ -708,20 +691,19 @@ static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
          * Mind you, the subexpression here might not be the final subexpression
          * after lower tacc_expr_parse_binary.
          */
-        tacc_expr_parse_cast(iter, expr, in_if);
+        tacc_expr_parse_cast(iter, expr);
 
-        tacc_expr_parse_binary(iter, expr, in_if, next_op_prio);
+        tacc_expr_parse_binary(iter, expr, next_op_prio);
     }
 }
 
 static void tacc_expr_parse_conditional(struct tacc_tok_iter *iter,
-                                        struct tacc_expr *in_expr,
-                                        tacc_bool in_if) {
+                                        struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
 
     expr = in_expr;
     while (1) {
-        tacc_expr_parse_binary(iter, expr, in_if, PRIO_LOGICAL_OR);
+        tacc_expr_parse_binary(iter, expr, PRIO_LOGICAL_OR);
         if (!tacc_tok_iter_accept_tok(iter, TOK_QUESTION)) {
             break;
         }
@@ -729,21 +711,20 @@ static void tacc_expr_parse_conditional(struct tacc_tok_iter *iter,
         expr->kind = EX_SELECT;
         expr->op2 = tacc_expr_new();
         expr->op3 = tacc_expr_new();
-        tacc_expr_parse(iter, expr->op2, in_if);
+        tacc_expr_parse(iter, expr->op2);
         expr = expr->op3;
     }
 }
 
 static void tacc_expr_parse(struct tacc_tok_iter *iter,
-                            struct tacc_expr *in_expr,
-                            tacc_bool in_if) {
+                            struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
     struct pp_tok *tok;
 
     expr = in_expr;
 
     while (1) {
-        tacc_expr_parse_cast(iter, expr, in_if);
+        tacc_expr_parse_cast(iter, expr);
         tok = tacc_tok_iter_peek(iter);
         while (tacc_tok_is_assigning(tok)) {
             tacc_assert(expr->kind != EX_CAST, "can't assign to non-lvalue");
@@ -754,11 +735,11 @@ static void tacc_expr_parse(struct tacc_tok_iter *iter,
 
             expr->op2 = tacc_expr_new();
             expr = expr->op2;
-            tacc_expr_parse_cast(iter, expr, in_if);
+            tacc_expr_parse_cast(iter, expr);
 
             tok = tacc_tok_iter_peek(iter);
         }
-        tacc_expr_parse_conditional(iter, expr, in_if);
+        tacc_expr_parse_conditional(iter, expr);
 
         if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
             break;
@@ -770,17 +751,20 @@ static void tacc_expr_parse(struct tacc_tok_iter *iter,
     }
 }
 
-struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter,
-                                      tacc_bool in_if) {
+struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter) {
     struct tacc_expr *to_parse;
 
     to_parse = tacc_expr_new();
-    tacc_expr_parse(iter, to_parse, in_if);
+    tacc_expr_parse(iter, to_parse);
 
     return to_parse;
 }
 
-struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr) {
+struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
+                                      struct tacc_target *target) {
+    struct tacc_val *l_result;
+    struct tacc_val *r_result;
+
     switch (expr->kind) {
     case EX_UNINIT:
         tacc_assert(0, "invalid uninitialized expr");
@@ -833,16 +817,51 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr) {
         tacc_assert(0, "todo: >> consteval");
         break;
     case EX_AND:
-        tacc_assert(0, "todo: && consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, target);
+        tacc_assert(tacc_val_is_scalar(l_result), "&& takes a scalar operand");
+        if (!tacc_val_is_truthy(l_result)) {
+            tacc_val_free(l_result);
+            return tacc_val_from_int(0, TYK_SLONGLONG, target);
+        }
+        tacc_val_free(l_result);
+        l_result = NULL;
+
+        r_result = tacc_expr_const_eval(expr->op2, target);
+        if (!tacc_val_is_truthy(r_result)) {
+            tacc_val_free(r_result);
+            return tacc_val_from_int(0, TYK_SLONGLONG, target);
+        }
+        tacc_val_free(r_result);
+        r_result = NULL;
+
+        return tacc_val_from_int(1, TYK_SLONGLONG, target);
     case EX_OR:
         tacc_assert(0, "todo: || consteval");
         break;
     case EX_NOT:
-        tacc_assert(0, "todo: ! consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, target);
+        tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
+        if (!tacc_val_is_truthy(l_result)) {
+            tacc_val_free(l_result);
+            return tacc_val_from_int(0, TYK_SINT, target);
+        }
+        tacc_val_free(l_result);
+        return tacc_val_from_int(1, TYK_SINT, target);
     case EX_EQ:
-        tacc_assert(0, "todo: == consteval");
+        l_result = tacc_expr_const_eval(expr->op1, target);
+        r_result = tacc_expr_const_eval(expr->op2, target);
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    "todo: non-arithmetic eq consteval");
+        tacc_val_usual_arithmetic_conversions(l_result, r_result, target);
+        if (!tacc_val_is_eq(l_result, r_result)) {
+            tacc_val_free(l_result);
+            tacc_val_free(r_result);
+            return tacc_val_from_int(0, TYK_SINT, target);
+        }
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return tacc_val_from_int(1, TYK_SINT, target);
         break;
     case EX_NE:
         tacc_assert(0, "todo: != consteval");

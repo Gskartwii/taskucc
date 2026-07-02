@@ -3,6 +3,8 @@
 
 #include "dynarray.h"
 #include "dynstring.h"
+#include "target_defs.h"
+#include "util.h"
 
 enum tacc_compound_type_kind {
     TYC_PTR,
@@ -38,6 +40,15 @@ enum tacc_type_kind {
     TYK_COMPOUND
 };
 
+enum tacc_int_rank {
+    IRANK_BOOL,
+    IRANK_CHAR,
+    IRANK_SHORT,
+    IRANK_INT,
+    IRANK_LONG,
+    IRANK_LLONG
+};
+
 DECL_DYNARRAY_OVER(tacc_struct_declaration_list,
                    tacc_struct_declaration_list_entry,
                    struct tacc_struct_declaration *,
@@ -61,7 +72,7 @@ DECL_DYNARRAY_OVER(tacc_enum_declaration_list,
                    tacc_enum_declaration_list_free)
 
 struct tacc_compound_type {
-    enum tacc_type_kind kind;
+    enum tacc_compound_type_kind kind;
     struct tacc_type *contained;
 
     struct tacc_string *name;
@@ -88,5 +99,15 @@ struct tacc_type_registry {
     struct tacc_compound_type_list *structs;
     struct tacc_compound_type_list *unions;
 };
+
+tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
+                                   struct tacc_target *target);
+tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
+                              enum tacc_type_kind superset,
+                              struct tacc_target *target);
+size_t tacc_type_bit_width(struct tacc_target *target,
+                           enum tacc_type_kind kind);
+enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
+enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 
 #endif

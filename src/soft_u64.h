@@ -80,5 +80,7 @@ tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_sge(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_sign(struct tacc_u64 *src);
+void tacc_u64_sext(struct tacc_u64 *dst, struct tacc_u64 *src, int to_width);
+void tacc_u64_zext(struct tacc_u64 *dst, struct tacc_u64 *src, int to_width);
 
 #endif

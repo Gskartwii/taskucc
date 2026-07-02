@@ -99,9 +99,9 @@ struct tacc_expr {
     } extra;
 };
 
-struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter,
-                                      tacc_bool in_if);
-struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr);
+struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter);
+struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
+                                      struct tacc_target *target);
 void tacc_expr_free(struct tacc_expr *expr);
 
 #endif

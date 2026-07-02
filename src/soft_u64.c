@@ -180,6 +180,12 @@ void tacc_u64_lsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
     uint32_t low;
 
     count = n & 63;
+
+    if (count == 0) {
+        tacc_u64_copy(to, left);
+        return;
+    }
+
     high = left->high;
     low = left->low;
     if (count == 0) {
@@ -204,6 +210,12 @@ void tacc_u64_rsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
     uint32_t low;
 
     count = n & 63;
+
+    if (count == 0) {
+        tacc_u64_copy(to, left);
+        return;
+    }
+
     high = left->high;
     low = left->low;
     if (count > 31) {
@@ -225,6 +237,12 @@ void tacc_u64_arsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
     uint32_t low;
 
     count = n & 63;
+
+    if (count == 0) {
+        tacc_u64_copy(to, left);
+        return;
+    }
+
     high = left->high;
     low = left->low;
     if (count > 31) {
@@ -365,4 +383,13 @@ void tacc_u64_sdiv(struct tacc_u64 *quot,
 
 tacc_bool tacc_u64_is_zero(struct tacc_u64 *val) {
     return (val->low == 0) && (val->high == 0);
+}
+
+void tacc_u64_sext(struct tacc_u64 *dst, struct tacc_u64 *src, int to_width) {
+    tacc_u64_lsh_n(dst, src, 64 - to_width);
+    tacc_u64_arsh_n(dst, dst, to_width);
+}
+void tacc_u64_zext(struct tacc_u64 *dst, struct tacc_u64 *src, int to_width) {
+    tacc_u64_lsh_n(dst, src, 64 - to_width);
+    tacc_u64_rsh_n(dst, dst, to_width);
 }

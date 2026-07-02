@@ -1648,8 +1648,8 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
 
-    expr = tacc_expr_parse_new(tok_iter, 1);
-    val = tacc_expr_const_eval(expr);
+    expr = tacc_expr_parse_new(tok_iter);
+    val = tacc_expr_const_eval(expr, first->state->target);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -1665,6 +1665,61 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     if (tacc_u64_is_zero(val->value.int_value)) {
         last_iter->skip_level = last_iter->skip_level + 1;
     } else {
+        last_iter->inc_level = last_iter->inc_level + 1;
+    }
+    tacc_tok_iter_free(tok_iter);
+    tacc_val_free(val);
+    tacc_expr_free(expr);
+}
+
+/* first: borrow, iter: owning */
+static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
+                                      struct tacc_file_iter *iter) {
+    struct tacc_tok_iter *tok_iter;
+    struct tacc_tok_iter *last_iter;
+    struct tacc_expr *expr;
+    struct tacc_val *val;
+    struct pp_tok *tok;
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 1) {
+        tacc_file_iter_free(iter);
+        return;
+    }
+    if (last_iter->skip_level == 0) {
+        tacc_assert(last_iter->inc_level > 0,
+                    "encountered #elif without corresponding #if/ifndef/ifdef");
+        last_iter->skip_level = 1;
+        last_iter->inc_level = last_iter->inc_level - 1;
+        tacc_file_iter_free(iter);
+        return;
+    }
+    /*
+     * we are skipping, and should evaluate whether to stop skipping
+     */
+    tacc_assert(last_iter->skip_level == 1,
+                "encountered #elif without corresponding #if/ifndef/ifdef");
+
+    tacc_file_iter_eat_ws_no_newlines(iter);
+
+    tok_iter = tacc_tok_iter_new(iter, first->state);
+    tok_iter->in_if = 1;
+
+    expr = tacc_expr_parse_new(tok_iter);
+    val = tacc_expr_const_eval(expr, first->state->target);
+
+    tok = tacc_tok_iter_next(tok_iter);
+    tacc_assert(tok->kind == TOK_EOF,
+                "junk after #elif: %s /*...*/ %s",
+                tacc_dynstring_as_str(tok->str),
+                tok_iter->file_iter->src);
+    tacc_pp_tok_free(tok);
+    tacc_assert(tacc_val_is_integral(val),
+                "#elif argument must evaluate to integer");
+
+    if (!tacc_u64_is_zero(val->value.int_value)) {
+        last_iter->skip_level = 0;
         last_iter->inc_level = last_iter->inc_level + 1;
     }
     tacc_tok_iter_free(tok_iter);
@@ -1753,6 +1808,12 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     }
     if (!strcmp(directive_name, "endif")) {
         tacc_tok_iter_handle_endif(first, dir_scanner);
+        tacc_free(directive_name);
+        return;
+    }
+    if (!strcmp(directive_name, "elif")) {
+        tacc_assert(dir_scanner->is_ws, "expected whitespace after #ifndef");
+        tacc_tok_iter_handle_elif(first, dir_scanner);
         tacc_free(directive_name);
         return;
     }
