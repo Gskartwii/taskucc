@@ -244,6 +244,7 @@ struct tacc_tok_iter {
 
     size_t skip_level;
     size_t inc_level;
+    tacc_bool skip_till_endif;
 
     tacc_bool in_macro_args;
     tacc_bool in_include_directive;

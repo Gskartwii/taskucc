@@ -1291,6 +1291,7 @@ void tacc_tok_iter_init(struct tacc_tok_iter *iter,
     iter->in_macro_args = 0;
     iter->in_include_directive = 0;
     iter->in_if = 0;
+    iter->skip_till_endif = 0;
 }
 
 /* return: owning */
@@ -1630,6 +1631,8 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
     tacc_assert(last_iter->inc_level > 0, "stray #endif");
     last_iter->inc_level = last_iter->inc_level - 1;
     tacc_file_iter_free(iter);
+
+    last_iter->skip_till_endif = 0;
 }
 
 /* first: borrow, iter: owning */
@@ -1641,6 +1644,13 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
     tacc_assert(tacc_file_is_eof(iter), "junk after #else");
 
     last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_till_endif) {
+        /* Skip level should already be set. Don't re-evaluate skipping here, do
+         * skip till endif. */
+        tacc_file_iter_free(iter);
+        return;
+    }
 
     if (last_iter->skip_level == 1) {
         last_iter->skip_level = 0;
@@ -1712,6 +1722,10 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
+    if (last_iter->skip_till_endif) {
+        tacc_file_iter_free(iter);
+        return;
+    }
     if (last_iter->skip_level > 1) {
         tacc_file_iter_free(iter);
         return;
@@ -1721,6 +1735,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
                     "encountered #elif without corresponding #if/ifndef/ifdef");
         last_iter->skip_level = 1;
         last_iter->inc_level = last_iter->inc_level - 1;
+        last_iter->skip_till_endif = 1;
         tacc_file_iter_free(iter);
         return;
     }
@@ -1763,7 +1778,7 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
-    if (last_iter->skip_level > 1) {
+    if (last_iter->skip_level > 0) {
         tacc_file_iter_free(iter);
         return;
     }
