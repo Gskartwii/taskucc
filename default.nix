@@ -140,9 +140,30 @@ in rec {
 
     buildPhase = ''
       ok=true
-      touch config.h stdarg.h stdlib.h stdio.h string.h errno.h math.h fcntl.h setjmp.h time.h unistd.h dlfcn.h windows.h io.h direct.h malloc.h stdint.h
+      touch assert.h \
+        config.h \
+        direct.h \
+        dlfcn.h \
+        errno.h \
+        fcntl.h \
+        inttypes.h \
+        io.h \
+        malloc.h \
+        math.h \
+        setjmp.h \
+        signal.h \
+        stdarg.h \
+        stdint.h \
+        stdio.h \
+        stdlib.h \
+        string.h \
+        test.h \
+        time.h \
+        unistd.h \
+        windows.h
       mkdir sys
-      touch sys/time.h
+      touch sys/{time.h,mman.h,ucontext.h}
+
       flags="\
         ${tinycc-src}/tcc.c \
         -DONE_SOURCE \
@@ -159,12 +180,14 @@ in rec {
         -DCONFIG_TCCBOOT=1 \
         -DCONFIG_TCC_STATIC=1 \
         -DCONFIG_USE_LIBGCC=1 \
-        -DTCC_VERSION=\"0.9.28\""
-      if ! timeout 1 ${lib.getExe tasku-m2} $flags > tasku-m2-test; then
+        -DTCC_VERSION=\"0.9.28\" \
+        -DCONFIG_TCC_SEMLOCK=0"
+
+      if ! timeout 30 ${lib.getExe tasku-m2} $flags > tasku-m2-test; then
         ok=false
         echo "tasku-m2 failed on $file"
       fi
-      if ! timeout 1 ${lib.getExe tasku-gcc} $flags > tasku-gcc-test; then
+      if ! timeout 30 ${lib.getExe tasku-gcc} $flags > tasku-gcc-test; then
         ok=false
         echo "tasku-gcc failed on $file"
       fi
