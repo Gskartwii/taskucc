@@ -1,9 +1,9 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1307,6 +1307,8 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         }
         /* Allow the character, for the sake of stringification */
         kind = TOK_OTHER;
+        tacc_pp_tok_assign_str(ret, "");
+        tacc_dynstring_push(ret->str, first);
         break;
     }
 
@@ -2904,7 +2906,13 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
             }
             continue;
         }
-        new_tok = tacc_tok_iter_peek_nomacro(iter);
+        while (1) {
+            new_tok = tacc_tok_iter_peek_nomacro(iter);
+            if (new_tok->kind != TOK_FAKE_TRIVIA) {
+                break;
+            }
+            tacc_tok_iter_drop_nomacro(iter);
+        }
         if (new_tok->kind != TOK_LPAREN) {
             /*
              * Not matched as a function-like macro; push `tok` back into queue.
