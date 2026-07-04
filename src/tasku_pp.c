@@ -573,6 +573,19 @@ static struct pp_tok *tacc_file_iter_lex_string(struct tacc_file_iter *iter,
     return ret;
 }
 
+static void tacc_file_iter_eat_literal(struct tacc_file_iter *iter) {
+    struct pp_tok to_forget;
+
+    if (tacc_file_iter_accept_ch(iter, '\'')) {
+        tacc_file_iter_lex_char(iter, &to_forget);
+        return;
+    }
+    if (tacc_file_iter_accept_ch(iter, '\"')) {
+        tacc_file_iter_lex_string(iter, &to_forget);
+        return;
+    }
+}
+
 /* return: owning, iter: borrow, tok_out: owning */
 static struct pp_tok *tacc_file_iter_lex_incfile(struct tacc_file_iter *iter,
                                                  struct pp_tok *tok_out,
@@ -864,6 +877,10 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
             tacc_file_iter_eat_ws_no_newlines(iter);
 
             ch = tacc_file_iter_peek_ch(iter);
+            if (ch == '"' || ch == '\'') {
+                tacc_file_iter_eat_literal(iter);
+                continue;
+            }
             if (ch != '\n' && ch != '#') {
                 tacc_file_iter_consume_ch(iter);
                 continue;
@@ -872,6 +889,8 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
             if (tacc_file_iter_lex_directive(iter, ret)) {
                 return ret;
             }
+            /* encountered a # that was not in a valid directive? */
+            tacc_file_iter_accept_ch(iter, '#');
         }
     }
     if (tacc_file_is_eof(iter)) {
@@ -1581,6 +1600,7 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
                                   tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
         tacc_file_iter_free(iter);
+        tacc_pp_tok_free(tok);
         return;
     }
     last_iter->skip_level = last_iter->skip_level + 1;
@@ -1606,6 +1626,7 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
                                  tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
         tacc_file_iter_free(iter);
+        tacc_pp_tok_free(tok);
         return;
     }
     last_iter->skip_level = last_iter->skip_level + 1;
@@ -2699,6 +2720,11 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
         /* ensure there is a token saved in peek buffer */
         peek_tok = tacc_tok_iter_peek_handle_macros(last_iter);
         if (peek_tok->kind == TOK_EOF) {
+            if (last_iter->file_iter) {
+                printf("hit eof in %s\n", last_iter->file_iter->filename);
+            } else {
+                printf("hit eof in unnamed file\n");
+            }
             tacc_assert(last_iter->inc_level == 0,
                         "missing #endif, including at level %d",
                         last_iter->inc_level);
