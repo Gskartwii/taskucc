@@ -1,9 +1,9 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -111,6 +111,7 @@ char *tacc_pp_tok_content(struct pp_tok *tok) {
     case TOK_OTHER:
     case TOK_INCDIR_ANGLE:
     case TOK_INCDIR_STRING:
+    case TOK_FAKE_TRIVIA:
         tacc_assert(
             tok->str != NULL,
             "ICE: cannot create token content from thin air for token %d",
@@ -358,6 +359,8 @@ char *tacc_pp_to_string(struct pp_tok *tok) {
         return "TOK_FAKE_END_OF_MACRO";
     case TOK_FAKE_PMARK:
         return "TOK_FAKE_PMARK";
+    case TOK_FAKE_TRIVIA:
+        return "TOK_FAKE_TRIVIA";
     }
     return "UNRECOGNIZED";
 }
@@ -414,13 +417,12 @@ char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
 
     if (ch == '\n') {
         iter->is_bol = 1;
-    } else {
-        iter->is_bol = 0;
     }
-    if (ch == '\n' || ch == 9 || ch == ' ') {
+    if (ch == '\n' || ch == 9 || ch == 12 || ch == ' ') {
         iter->is_ws = 1;
     } else {
         iter->is_ws = 0;
+        iter->is_bol = 0;
     }
 
     iter->src = iter->src + 1;
@@ -461,6 +463,35 @@ static void tacc_file_iter_eat_comment(struct tacc_file_iter *iter) {
     iter->is_ws = 1;
 }
 
+static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
+                                       struct pp_tok *tok) {
+    char ch;
+
+    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+                "error while scanning comment");
+    tacc_assert(tacc_file_iter_accept_ch(iter, '*'),
+                "error while scanning comment");
+
+    tok->kind = TOK_FAKE_TRIVIA;
+    if (!tok->str) {
+        tok->str = tacc_dynstring_new();
+    }
+    tacc_dynstring_concat(tok->str, "/*");
+    while (1) {
+        tacc_assert(!tacc_file_is_eof(iter), "eof in comment");
+        ch = tacc_file_iter_consume_ch(iter);
+        tacc_dynstring_push(tok->str, ch);
+        if (ch == '*') {
+            if (tacc_file_iter_accept_ch(iter, '/')) {
+                tacc_dynstring_push(tok->str, '/');
+                break;
+            }
+        }
+    }
+    /* per standard, replaced by single space */
+    iter->is_ws = 1;
+}
+
 /* iter: borrow */
 static void tacc_file_iter_eat_new_comment(struct tacc_file_iter *iter) {
     char ch;
@@ -472,6 +503,31 @@ static void tacc_file_iter_eat_new_comment(struct tacc_file_iter *iter) {
 
     ch = tacc_file_iter_peek_ch(iter);
     while (ch != '\n') {
+        tacc_file_iter_consume_ch(iter);
+        ch = tacc_file_iter_peek_ch(iter);
+    }
+    /* per standard, replaced by single space */
+    iter->is_ws = 1;
+}
+
+/* iter: borrow */
+static void tacc_file_iter_lex_new_comment(struct tacc_file_iter *iter,
+                                           struct pp_tok *tok) {
+    char ch;
+
+    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+                "error while scanning new comment");
+    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+                "error while scanning new comment");
+
+    tok->kind = TOK_FAKE_TRIVIA;
+    if (!tok->str) {
+        tok->str = tacc_dynstring_new();
+    }
+    tacc_dynstring_concat(tok->str, "//");
+    ch = tacc_file_iter_peek_ch(iter);
+    while (ch != '\n') {
+        tacc_dynstring_push(tok->str, ch);
         tacc_file_iter_consume_ch(iter);
         ch = tacc_file_iter_peek_ch(iter);
     }
@@ -509,40 +565,64 @@ static void tacc_file_iter_eat_ws_no_newlines(struct tacc_file_iter *iter) {
     }
 }
 
+/* tok: borrow, str: borrow */
+static void tacc_pp_tok_assign_str(struct pp_tok *tok, char *str) {
+    if (tok->str == NULL) {
+        tok->str = tacc_dynstring_new();
+    } else {
+        tacc_dynstring_reset(tok->str);
+    }
+    tacc_dynstring_concat(tok->str, str);
+}
+
 /* iter: borrow */
-static void tacc_file_iter_eat_all_ws(struct tacc_file_iter *iter) {
+static void tacc_file_iter_lex_all_ws(struct tacc_file_iter *iter,
+                                      struct pp_tok *tok_out) {
     char ch;
     char *src;
+
     while (1) {
-        if (tacc_file_iter_accept_ch(iter, ' ')) {
+        if (tacc_file_is_eof(iter)) {
+            tok_out->kind = TOK_EOF;
+            tacc_pp_tok_assign_str(tok_out, "");
+            return;
+        }
+        ch = tacc_file_iter_peek_ch(iter);
+        if ((ch == ' ') || (ch == 9) || (ch == 10) || (ch == 12)) {
+            tok_out->kind = TOK_FAKE_TRIVIA;
+            if (tok_out->str == NULL) {
+                tok_out->str = tacc_dynstring_new();
+            }
+            tacc_dynstring_push(tok_out->str, ch);
+            tacc_file_iter_consume_ch(iter);
             continue;
         }
-        if (tacc_file_iter_accept_ch(iter, 9)) {
-            continue;
-        }
-        if (tacc_file_iter_accept_ch(iter, 10)) {
-            continue;
-        }
-        /* formfeed, present in stab.def from tinycc */
-        if (tacc_file_iter_accept_ch(iter, 12)) {
-            continue;
-        }
+        /*
+         * behavior differs from gcc when encountering multi-line comments.
+         * hmm...
+         */
         if ((iter->end - iter->src) >= 2) {
             src = iter->src;
             ch = *src;
             if (ch == '/') {
                 ch = src[1];
                 if (ch == '*') {
-                    tacc_file_iter_eat_comment(iter);
+                    tacc_file_iter_lex_comment(iter, tok_out);
                     continue;
                 }
                 if (ch == '/') {
-                    tacc_file_iter_eat_new_comment(iter);
+                    tacc_file_iter_lex_new_comment(iter, tok_out);
                     continue;
                 }
             }
         }
         break;
+    }
+    if (tok_out->kind == TOK_FAKE_TRIVIA) {
+        if (!strchr(tok_out->str->string, '\n')) {
+            tok_out->kind = TOK_UNRECOGNIZED;
+            tacc_dynstring_reset(tok_out->str);
+        }
     }
 }
 
@@ -599,28 +679,15 @@ static void tacc_pp_tok_assign_tstr(struct pp_tok *tok,
     tok->str = str;
 }
 
-/* tok: borrow, str: borrow */
-static void tacc_pp_tok_assign_str(struct pp_tok *tok, char *str) {
-    if (tok->str == NULL) {
-        tok->str = tacc_dynstring_new();
-    } else {
-        tacc_dynstring_reset(tok->str);
-    }
-    tacc_dynstring_concat(tok->str, str);
-}
-
 /* iter: borrow, tok_out: borrow */
 static tacc_bool tacc_file_iter_lex_directive(struct tacc_file_iter *iter,
                                               struct pp_tok *tok_out) {
     struct tacc_string *directive_str;
-    tacc_bool was_bol, was_ws;
+    tacc_bool was_ws;
 
-    was_bol = iter->is_bol;
-    tacc_file_iter_eat_ws_no_newlines(iter);
-    if (!was_bol && !tacc_file_iter_accept_ch(iter, '\n')) {
+    if (!iter->is_bol) {
         return 0;
     }
-    tacc_file_iter_eat_all_ws(iter);
     if (!tacc_file_iter_accept_ch(iter, '#')) {
         return 0;
     }
@@ -983,6 +1050,7 @@ static tacc_bool tacc_file_iter_maybe_special(struct tacc_file_iter *iter,
 enum tacc_lex_context {
     LEX_TOP_LEVEL,
     LEX_IN_MACRO_ARGS,
+    LEX_IN_IF,
     LEX_IN_REPLACEMENT_LIST,
     LEX_IN_INCLUDE,
     LEX_SKIPPING
@@ -1012,6 +1080,10 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
                 tacc_file_iter_eat_literal(iter);
                 continue;
             }
+
+            tacc_file_iter_lex_all_ws(iter, ret);
+            ret->kind = TOK_UNRECOGNIZED;
+
             if (ch != '\n' && ch != '#') {
                 tacc_file_iter_consume_ch(iter);
                 continue;
@@ -1029,12 +1101,19 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         return ret;
     }
 
+    tacc_file_iter_lex_all_ws(iter, ret);
+    if (ret->kind == TOK_EOF) {
+        return ret;
+    }
+    if (ret->kind == TOK_FAKE_TRIVIA && ctx == LEX_TOP_LEVEL) {
+        return ret;
+    }
+    ret->kind = TOK_UNRECOGNIZED;
     if (ctx == LEX_TOP_LEVEL) {
         if (tacc_file_iter_lex_directive(iter, ret)) {
             return ret;
         }
     }
-    tacc_file_iter_eat_all_ws(iter);
 
     /*
      * used for correct expansion under # stringification
@@ -1347,7 +1426,9 @@ void tacc_pp_insert_macro(struct tacc_pp_state *state,
     place = tacc_pp_find_macro(state, tacc_dynstring_as_str(macro->name));
     if (place) {
         if (!place->content->is_tombstone) {
-            printf("warning: macro defined twice: %s", macro->name->string);
+            fprintf(stderr,
+                    "warning: macro defined twice: %s\n",
+                    macro->name->string);
         }
         tacc_macro_def_free(place->content);
         place->content = macro;
@@ -1943,7 +2024,7 @@ static void tacc_tok_iter_handle_warning_directive(
 
     tacc_file_iter_eat_ws_no_newlines(iter);
 
-    fprintf(stderr, "#warning: %s", iter->src);
+    fprintf(stderr, "#warning: %s\n", iter->src);
     tacc_file_iter_free(iter);
 
 #ifdef __STDC__
@@ -2095,6 +2176,8 @@ static struct pp_tok *tacc_tok_iter_peek_nomacro(struct tacc_tok_iter *iter) {
             tok = tacc_file_iter_lex(iter->file_iter, LEX_SKIPPING);
         } else if (iter->in_include_directive) {
             tok = tacc_file_iter_lex(iter->file_iter, LEX_IN_INCLUDE);
+        } else if (iter->in_if) {
+            tok = tacc_file_iter_lex(iter->file_iter, LEX_IN_IF);
         } else {
             tok = tacc_file_iter_lex(iter->file_iter, LEX_TOP_LEVEL);
         }

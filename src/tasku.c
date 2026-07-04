@@ -48,6 +48,23 @@ static void tacc_parse_options(struct tacc_options *options,
     }
 }
 
+void tacc_print_trivia(char *trivia_content) {
+    char *line_start;
+    size_t i;
+
+    line_start = strrchr(trivia_content, '\n');
+    if (line_start == NULL) {
+        printf(" ");
+    } else {
+        printf("\n");
+        for (i = 0; i < strlen(trivia_content) -
+                            (size_t) (line_start - trivia_content) - 1;
+             i = i + 1) {
+            printf(" ");
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     size_t i;
     struct tacc_file *input_file;
@@ -56,6 +73,7 @@ int main(int argc, char **argv) {
     struct tacc_pp_state *pp_state;
     struct tacc_target *target;
     struct pp_tok *token;
+    struct pp_tok *pending_trivia;
     struct tacc_options options;
     struct tacc_string_list_entry *str_entry;
     struct tacc_string *str;
@@ -100,16 +118,31 @@ int main(int argc, char **argv) {
     tok_iter = tacc_tok_iter_new(file_iter, pp_state);
     file_iter = NULL;
 
+    pending_trivia = NULL;
     while (1) {
         token = tacc_tok_iter_next(tok_iter);
         if (token->kind == TOK_EOF) {
             tacc_pp_tok_free(token);
             break;
         }
-        printf(
-            "%s: %s\n", tacc_pp_to_string(token), tacc_pp_tok_content(token));
-        tacc_pp_tok_free(token);
+        if (token->kind == TOK_FAKE_TRIVIA) {
+            if (pending_trivia) {
+                tacc_pp_tok_free(pending_trivia);
+            }
+            pending_trivia = token;
+        } else {
+            if (pending_trivia) {
+                tacc_print_trivia(pending_trivia->str->string);
+                tacc_pp_tok_free(pending_trivia);
+                pending_trivia = NULL;
+            } else if (token->preceded_by_ws) {
+                printf(" ");
+            }
+            printf("%s", tacc_pp_tok_content(token));
+            tacc_pp_tok_free(token);
+        }
     }
+    puts("");
 
     tacc_tok_iter_free(tok_iter);
     tacc_target_free(target);

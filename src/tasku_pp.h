@@ -69,7 +69,8 @@ enum pp_tok_kind {
     TOK_INCDIR_STRING,
 
     TOK_FAKE_END_OF_MACRO,
-    TOK_FAKE_PMARK
+    TOK_FAKE_PMARK,
+    TOK_FAKE_TRIVIA
 };
 
 enum pp_ident_kind {
