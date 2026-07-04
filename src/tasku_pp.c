@@ -574,16 +574,15 @@ static struct pp_tok *tacc_file_iter_lex_string(struct tacc_file_iter *iter,
 }
 
 static void tacc_file_iter_eat_literal(struct tacc_file_iter *iter) {
-    struct pp_tok to_forget;
+    struct pp_tok *to_forget;
 
+    to_forget = tacc_pp_tok_new();
     if (tacc_file_iter_accept_ch(iter, '\'')) {
-        tacc_file_iter_lex_char(iter, &to_forget);
-        return;
+        tacc_file_iter_lex_char(iter, to_forget);
+    } else if (tacc_file_iter_accept_ch(iter, '\"')) {
+        tacc_file_iter_lex_string(iter, to_forget);
     }
-    if (tacc_file_iter_accept_ch(iter, '\"')) {
-        tacc_file_iter_lex_string(iter, &to_forget);
-        return;
-    }
+    tacc_pp_tok_free(to_forget);
 }
 
 /* return: owning, iter: borrow, tok_out: owning */
@@ -2819,7 +2818,6 @@ void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
     struct pp_tok* new_tok;
 
     new_tok = tacc_pp_tok_new();
-    tacc_pp_tok_init(new_tok);
     new_tok->kind = tok;
     new_tok->is_final = 1;
     tacc_tok_iter_push_pending(iter, new_tok);
