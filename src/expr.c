@@ -407,14 +407,18 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
                 iter, tok->kind == TOK_IDENT, "expected member name");
             tacc_expr_bump_to_op1(expr);
             expr->kind = EX_MEMBER;
-            expr->extra.name = tok->str;
+            expr->extra.name = tacc_dynstring_clone(tok->str);
+            tacc_pp_tok_free(tok);
+            tok = NULL;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_ARROW)) {
             tok = tacc_tok_iter_next(iter);
             tacc_expr_bump_to_op1(expr);
             expr->kind = EX_PTR_MEMBER;
             tacc_parse_assert(
                 iter, tok->kind == TOK_IDENT, "expected member name");
-            expr->extra.name = tok->str;
+            expr->extra.name = tacc_dynstring_clone(tok->str);
+            tacc_pp_tok_free(tok);
+            tok = NULL;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_PLUS_2)) {
             tacc_expr_bump_to_op1(expr);
             expr->kind = EX_INCR_POST;
@@ -683,6 +687,9 @@ static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
         tok = tacc_tok_iter_next(iter);
         tacc_expr_bump_to_op1(expr);
         expr->kind = tacc_tok_to_op(tok);
+        tacc_pp_tok_free(tok);
+        tok = NULL;
+
         expr->op2 = tacc_expr_new();
         expr = expr->op2;
 
@@ -732,6 +739,7 @@ static void tacc_expr_parse(struct tacc_tok_iter *iter,
             tacc_expr_bump_to_op1(expr);
             expr->kind = tacc_tok_to_op(tok);
             tacc_pp_tok_free(tok);
+            tok = NULL;
 
             expr->op2 = tacc_expr_new();
             expr = expr->op2;
