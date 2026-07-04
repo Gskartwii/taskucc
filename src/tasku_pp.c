@@ -1,8 +1,8 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1814,6 +1814,28 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
 #endif
 }
 
+/* first: borrow, iter: owning */
+static void tacc_tok_iter_handle_warning_directive(
+    struct tacc_tok_iter *first, struct tacc_file_iter *iter) {
+    struct tacc_tok_iter *last_iter;
+
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        return;
+    }
+
+    tacc_file_iter_eat_ws_no_newlines(iter);
+
+    fprintf(stderr, "#warning: %s", iter->src);
+    tacc_file_iter_free(iter);
+
+#ifdef __STDC__
+    (void) first;
+#endif
+}
+
 /* first: borrow, directive: owning */
 static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
                                            struct tacc_string *directive) {
@@ -1898,6 +1920,11 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     }
     if (!strcmp(directive_name, "error")) {
         tacc_tok_iter_handle_error_directive(first, dir_scanner);
+        tacc_free(directive_name);
+        return;
+    }
+    if (!strcmp(directive_name, "warning")) {
+        tacc_tok_iter_handle_warning_directive(first, dir_scanner);
         tacc_free(directive_name);
         return;
     }
