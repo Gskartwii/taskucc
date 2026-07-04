@@ -21,7 +21,8 @@ for case_dir in cases/*; do
         continue
     fi
     if ! diff -q "$RUN_TMP/test.log" "$case_dir/out.log"; then
-        echo "$case_dir/out.log: fail"
+        echo "$case_dir/out.log: fail:"
+        diff "$RUN_TMP/test.log" "$case_dir/out.log"
         ok=false
         continue
     fi

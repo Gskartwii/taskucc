@@ -1,25 +1,5 @@
-TOK_IDENT: printf
-TOK_LPAREN: (
-TOK_STRING: "x"
-TOK_STRING: "1"
-TOK_STRING: "= %d, x"
-TOK_STRING: "2"
-TOK_STRING: "= %s"
-TOK_COMMA: ,
-TOK_IDENT: x1
-TOK_COMMA: ,
-TOK_IDENT: x2
-TOK_RPAREN: )
-TOK_SEMICOLON: ;
-TOK_IDENT: fputs
-TOK_LPAREN: (
-TOK_STRING: "strncmp(\"abc\\0d\", \"abc\", '\\4') == 0"
-TOK_STRING: ": @\n"
-TOK_COMMA: ,
-TOK_IDENT: s
-TOK_RPAREN: )
-TOK_SEMICOLON: ;
-TOK_STRING: "hello"
-TOK_SEMICOLON: ;
-TOK_STRING: "hello"
-TOK_STRING: ", world"
+
+printf("x" "1" "= %d, x" "2" "= %s", x1, x2);
+fputs("strncmp(\"abc\\0d\", \"abc\", '\\4') == 0" ": @\n", s);
+"hello";
+"hello" ", world"
