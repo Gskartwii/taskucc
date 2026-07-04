@@ -880,7 +880,20 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_val_from_int(1, TYK_SINT, target);
         break;
     case EX_NE:
-        tacc_assert(0, "todo: != consteval");
+        l_result = tacc_expr_const_eval(expr->op1, target);
+        r_result = tacc_expr_const_eval(expr->op2, target);
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    "todo: non-arithmetic ne consteval");
+        tacc_val_usual_arithmetic_conversions(l_result, r_result, target);
+        if (tacc_val_is_eq(l_result, r_result)) {
+            tacc_val_free(l_result);
+            tacc_val_free(r_result);
+            return tacc_val_from_int(0, TYK_SINT, target);
+        }
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return tacc_val_from_int(1, TYK_SINT, target);
         break;
     case EX_LE:
         tacc_assert(0, "todo: <= consteval");
