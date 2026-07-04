@@ -1,8 +1,8 @@
+#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
-#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -2747,11 +2747,6 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
         /* ensure there is a token saved in peek buffer */
         peek_tok = tacc_tok_iter_peek_handle_macros(last_iter);
         if (peek_tok->kind == TOK_EOF) {
-            if (last_iter->file_iter) {
-                printf("hit eof in %s\n", last_iter->file_iter->filename);
-            } else {
-                printf("hit eof in unnamed file\n");
-            }
             tacc_assert(last_iter->inc_level == 0,
                         "missing #endif, including at level %d",
                         last_iter->inc_level);
