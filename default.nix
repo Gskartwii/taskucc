@@ -40,8 +40,8 @@ let
     "test.h"
   ];
   src = [
-    "3rdparty/intscan.c"
     "util.c"
+    "3rdparty/intscan.c"
     "dynarray.c"
     "dynhash.c"
     "dynstring.c"
@@ -153,6 +153,7 @@ in rec {
     pname = "compare-taskucc-across-m2-gcc";
     version = "0.1.0";
     dontUnpack = true;
+    nativeBuildInputs = [pkgs.pv];
 
     buildPhase = ''
       ok=true
@@ -180,8 +181,9 @@ in rec {
       mkdir sys
       touch sys/{time.h,mman.h,ucontext.h}
 
+      file=${tinycc-src}/tcc.c
       flags="\
-        ${tinycc-src}/tcc.c \
+        $file \
         -DONE_SOURCE \
         -DTCC_TARGET_X86_64=1 \
         -DBOOTSTRAP=1 \
@@ -199,13 +201,13 @@ in rec {
         -DTCC_VERSION=\"0.9.28\" \
         -DCONFIG_TCC_SEMLOCK=0"
 
-      if ! timeout 30 ${lib.getExe tasku-m2} $flags > tasku-m2-test; then
-        ok=false
-        echo "tasku-m2 failed on $file"
-      fi
-      if ! timeout 30 ${lib.getExe tasku-gcc} $flags > tasku-gcc-test; then
+      if ! timeout 5 ${lib.getExe tasku-gcc} $flags | pv -r  > tasku-gcc-test; then
         ok=false
         echo "tasku-gcc failed on $file"
+      fi
+      if ! timeout 90 ${lib.getExe tasku-m2} $flags | pv -r > tasku-m2-test; then
+        ok=false
+        echo "tasku-m2 failed on $file; timeout"
       fi
       if ! diff -q tasku-gcc-test tasku-m2-test; then
         ok=false

@@ -8,5 +8,9 @@
 #define kill_io()   \
     fflush(stderr); \
     fflush(stdout);
+#define tacc_assert(cond, ...) \
+    if (!(cond)) {             \
+        tacc_die(__VA_ARGS__); \
+    }
 
 #endif

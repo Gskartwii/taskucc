@@ -196,6 +196,7 @@
  */
 
 #include "intscan.h"
+#include "../util.h"
 
 #ifdef __M2__
 #define M1 127
