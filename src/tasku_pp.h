@@ -2,6 +2,7 @@
 #define TASKU_PP_H
 
 #include "dynarray.h"
+#include "dynhash.h"
 #include "dynstring.h"
 #include "tasku_file.h"
 #include "util.h"
@@ -216,16 +217,15 @@ DECL_DYNARRAY_OVER(tacc_token_list,
                    tacc_token_list_len,
                    tacc_token_list_free)
 
-DECL_DYNARRAY_OVER(tacc_macro_def_list,
-                   tacc_macro_def_list_entry,
-                   struct tacc_macro_def *,
-                   tacc_macro_def_list_new,
-                   tacc_macro_def_list_init,
-                   tacc_macro_def_list_get,
-                   tacc_macro_def_list_push,
-                   tacc_macro_def_list_pop,
-                   tacc_macro_def_list_len,
-                   tacc_macro_def_list_free)
+DECL_DYNHASH_OVER(tacc_macro_def_list,
+                  tacc_macro_def_list_entry,
+                  struct tacc_macro_def *,
+                  tacc_macro_def_list_new,
+                  tacc_macro_def_list_init,
+                  tacc_macro_def_list_get,
+                  tacc_macro_def_list_insert,
+                  tacc_macro_def_list_count,
+                  tacc_macro_def_list_free)
 
 struct tacc_pp_state {
     /* owning */
@@ -234,8 +234,6 @@ struct tacc_pp_state {
 
     /* borrowed */
     struct tacc_target *target;
-
-    char *claims_macro;
 };
 
 struct tacc_tok_iter {
@@ -290,7 +288,7 @@ void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion);
 void tacc_pp_undef(struct tacc_pp_state *state, char *name);
 /* return: borrow, state: borrow, name: borrow */
 struct tacc_macro_def_list_entry *
-tacc_pp_find_macro_or_first_empty(struct tacc_pp_state *state, char *name);
+tacc_pp_find_macro(struct tacc_pp_state *state, char *name);
 /* state: borrow, macro: owning */
 void tacc_pp_insert_macro(struct tacc_pp_state *state,
                           struct tacc_macro_def *macro);
