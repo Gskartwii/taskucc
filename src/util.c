@@ -16,19 +16,6 @@ void tacc_die(char *err, ...) {
     exit(1);
 }
 
-void tacc_assert(tacc_bool cond, char *err, ...) {
-    va_list args;
-    if (!cond) {
-        va_start(args, err);
-
-        vfprintf(stderr, err, args);
-        fputs("", stderr);
-        kill_io();
-        exit(1);
-    }
-    va_end(args);
-}
-
 void *tacc_malloc(size_t sz) {
     void *out;
     out = malloc(sz);

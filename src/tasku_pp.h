@@ -180,6 +180,8 @@ struct tacc_macro_def {
     /* owning */
     struct tacc_string *name;
 
+    uint32_t n_hash;
+
     /* owning */
     struct tacc_token_list *replacement_list;
     tacc_bool is_function_like;
@@ -232,6 +234,8 @@ struct tacc_pp_state {
 
     /* borrowed */
     struct tacc_target *target;
+
+    char *claims_macro;
 };
 
 struct tacc_tok_iter {

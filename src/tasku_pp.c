@@ -1248,6 +1248,9 @@ void tacc_pp_state_init(struct tacc_pp_state *state,
 
     state->target = target;
 
+    state->claims_macro = tacc_malloc(8192);
+    memset(state->claims_macro, 0, 8192);
+
     state->include_path = tacc_string_list_new();
     thisdir_incpath = tacc_dynstring_new();
     tacc_dynstring_concat(thisdir_incpath, ".");
@@ -1267,26 +1270,58 @@ struct tacc_pp_state *tacc_pp_state_new(struct tacc_target *target) {
     return state;
 }
 
+uint32_t tacc_str_hash(char *name) {
+    uint32_t h1;
+    uint32_t h2;
+    uint32_t ch;
+    size_t i;
+    size_t len;
+
+    /* https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781 */
+    len = strlen(name);
+    h1 = 0xdeadbeef;
+    h2 = 0x41c6ce57;
+    for (i = 0; i < len; i = i + 1) {
+        ch = (uint32_t) (unsigned char) *name;
+        h1 = (h1 ^ ch) * 2654435761U;
+        h2 = (h2 ^ ch) * 1597334677U;
+    }
+    h1 = (h1 ^ (h1 >> 16)) * 2246822507U;
+    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * 3266489909U);
+    return h1;
+}
+
 /* return: borrow, state: borrow, name: borrow */
 struct tacc_macro_def_list_entry *
 tacc_pp_find_macro_or_first_empty(struct tacc_pp_state *state, char *name) {
     size_t i;
+    uint32_t my_hash;
+    size_t len;
+    char *bloom_bit;
     struct tacc_macro_def_list_entry *entry;
 
-    for (i = 0; i < tacc_macro_def_list_len(state->macros); i = i + 1) {
-        entry = tacc_macro_def_list_get(state->macros, i);
-        if (!entry->content) {
-            /* first empty */
-            return entry;
-        }
-        if (!strcmp(tacc_dynstring_as_str(entry->content->name), name)) {
-            /* match, possibly tombstone */
-            return entry;
+    my_hash = tacc_str_hash(name);
+
+    bloom_bit = state->claims_macro + (my_hash & 8191);
+    len = tacc_macro_def_list_len(state->macros);
+    if (*bloom_bit) {
+        for (i = 0; i < len; i = i + 1) {
+            entry = tacc_macro_def_list_get(state->macros, i);
+            if (!entry->content) {
+                /* first empty */
+                return entry;
+            }
+            if (entry->content->n_hash != my_hash) {
+                continue;
+            }
+            if (!strcmp(tacc_dynstring_as_str(entry->content->name), name)) {
+                /* match, possibly tombstone */
+                return entry;
+            }
         }
     }
     tacc_macro_def_list_push(state->macros, NULL);
-    return tacc_macro_def_list_get(state->macros,
-                                   tacc_macro_def_list_len(state->macros) - 1);
+    return tacc_macro_def_list_get(state->macros, len);
 }
 
 static tacc_bool tacc_pp_macro_is_defined(struct tacc_pp_state *state,
@@ -1356,6 +1391,9 @@ MK_DYNARRAY_OVER(tacc_macro_def_list,
 void tacc_pp_insert_macro(struct tacc_pp_state *state,
                           struct tacc_macro_def *macro) {
     struct tacc_macro_def_list_entry *place;
+    char *bloom_bit;
+
+    macro->n_hash = tacc_str_hash(macro->name->string);
 
     place = tacc_pp_find_macro_or_first_empty(
         state, tacc_dynstring_as_str(macro->name));
@@ -1366,6 +1404,9 @@ void tacc_pp_insert_macro(struct tacc_pp_state *state,
         tacc_macro_def_free(place->content);
     }
     place->content = macro;
+
+    bloom_bit = state->claims_macro + (macro->n_hash & 8191);
+    *bloom_bit = 1;
 }
 
 /* state: borrow, name: borrow, expansion: borrow */
@@ -2975,7 +3016,6 @@ tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
     tacc_pp_tok_free(tacc_tok_iter_next(iter));
     return 1;
 }
-
 
 void tacc_pp_state_free(struct tacc_pp_state *state) {
     tacc_string_list_free(state->include_path);

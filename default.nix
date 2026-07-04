@@ -64,32 +64,46 @@ let
 
   cflags = [
     "-std=c90"
-    "-g3"
-    "-Og"
     "-Wall"
     "-Wextra"
     "-Wpedantic"
     "-Werror"
     "-Wconversion"
     "-Warith-conversion"
-    "-fsanitize=address,undefined"
+    "-Wno-variadic-macros"
   ];
+  cflags-debug =
+    cflags
+    ++ [
+      "-g3"
+      "-Og"
+      "-fsanitize=address,undefined"
+    ];
+  cflags-opt =
+    cflags
+    ++ [
+      "-O3"
+      "-pg"
+    ];
+  mk-tasku-gcc = cf:
+    pkgs.stdenv.mkDerivation {
+      pname = "tasku-cc-gcc";
+      version = "0.1.0";
+      src = ./src;
+      buildPhase = ''
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cf} -c ${file}") src}
+        $CC ${builtins.concatStringsSep " " cf} -o tasku $(basename --multiple ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src})
+      '';
+      installPhase = ''
+        mkdir -p $out/bin
+        cp tasku $out/bin/tasku-gcc
+      '';
+      dontStrip = true;
+      meta.mainProgram = "tasku-gcc";
+    };
 in rec {
-  tasku-gcc = pkgs.stdenv.mkDerivation {
-    pname = "tasku-cc-gcc";
-    version = "0.1.0";
-    src = ./src;
-    buildPhase = ''
-      ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cflags} -c ${file}") src}
-      $CC -fsanitize=address,undefined -o tasku $(basename --multiple ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src})
-    '';
-    installPhase = ''
-      mkdir -p $out/bin
-      cp tasku $out/bin/tasku-gcc
-    '';
-    dontStrip = true;
-    meta.mainProgram = "tasku-gcc";
-  };
+  tasku-gcc = mk-tasku-gcc cflags-debug;
+  tasku-gcc-opt = mk-tasku-gcc cflags-opt;
   tasku-m2 = pkgs.stdenvNoCC.mkDerivation {
     pname = "tasku-cc";
     version = "0.1.0";
