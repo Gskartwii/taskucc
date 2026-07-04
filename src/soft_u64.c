@@ -69,7 +69,7 @@ uint32_t tacc_u64_add(struct tacc_u64 *to,
     r_hi = right->high;
 
     to->low = l_lo + r_lo;
-    carry = l_lo < to->low;
+    carry = to->low < l_lo;
     to->high = l_hi + r_hi + carry;
     if (l_hi + r_hi < l_hi) {
         return 1;
@@ -95,7 +95,7 @@ uint32_t tacc_u64_add_u32(struct tacc_u64 *to,
     r_hi = 0;
 
     to->low = l_lo + r_lo;
-    carry = l_lo < to->low;
+    carry = to->low < l_lo;
     to->high = l_hi + r_hi + carry;
     if (l_hi + r_hi < l_hi) {
         return 1;
