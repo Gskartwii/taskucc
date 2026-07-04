@@ -30,6 +30,10 @@ static void tacc_expr_bump_to_op1(struct tacc_expr *expr) {
     memcpy(new_expr, expr, sizeof(struct tacc_expr));
     tacc_expr_init(expr);
     expr->op1 = new_expr;
+    expr->extra.const_val = NULL;
+    expr->extra.name = NULL;
+    expr->extra.op_list = NULL;
+    expr->extra.type = NULL;
 }
 
 static void tacc_parse_assert(struct tacc_tok_iter *iter,
@@ -696,16 +700,19 @@ static void tacc_expr_parse_binary(struct tacc_tok_iter *iter,
         tok = NULL;
 
         expr->op2 = tacc_expr_new();
-        expr = expr->op2;
 
         /*
          * Binary operator must be followed by a cast-level expression.
          * Mind you, the subexpression here might not be the final subexpression
          * after lower tacc_expr_parse_binary.
          */
-        tacc_expr_parse_cast(iter, expr);
+        tacc_expr_parse_cast(iter, expr->op2);
+        tacc_expr_parse_binary(iter, expr->op2, next_op_prio);
 
-        tacc_expr_parse_binary(iter, expr, next_op_prio);
+        /*
+         * Keep outer expression in expr; it might be the op1
+         * of the next expression.
+         */
     }
 }
 
@@ -870,7 +877,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
     case EX_NOT:
         l_result = tacc_expr_const_eval(expr->op1, target);
         tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
-        if (!tacc_val_is_truthy(l_result)) {
+        if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
             return tacc_val_from_int(0, TYK_SINT, target);
         }
