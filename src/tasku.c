@@ -81,9 +81,12 @@ int main(int argc, char **argv) {
     struct tacc_options options;
     struct tacc_string_list_entry *str_entry;
     struct tacc_string *str;
+    enum pp_tok_kind last_tok_kind;
+    char *content;
     char *define_str;
     char *macro_str;
     char *val_str;
+    tacc_bool ws_acked;
 
     init_io();
 
@@ -123,7 +126,9 @@ int main(int argc, char **argv) {
     file_iter = NULL;
 
     pending_trivia = NULL;
+    last_tok_kind = TOK_UNRECOGNIZED;
     while (1) {
+        ws_acked = 0;
         token = tacc_tok_iter_next(tok_iter);
         if (token->kind == TOK_EOF) {
             tacc_pp_tok_free(token);
@@ -139,13 +144,29 @@ int main(int argc, char **argv) {
                 if (!tacc_print_trivia(pending_trivia->str->string) &&
                     token->preceded_by_ws) {
                     printf(" ");
+                    ws_acked = 1;
                 }
                 tacc_pp_tok_free(pending_trivia);
                 pending_trivia = NULL;
             } else if (token->preceded_by_ws) {
                 printf(" ");
+                ws_acked = 1;
             }
-            printf("%s", tacc_pp_tok_content(token));
+
+            content = tacc_pp_tok_content(token);
+            if (!ws_acked) {
+                if (last_tok_kind == TOK_PPNUM) {
+                    if ((*content) >= '0' && (*content) <= '9') {
+                        printf(" ");
+                    }
+                    if ((*content) == '.' || (*content) == '-') {
+                        printf(" ");
+                    }
+                }
+            }
+
+            printf("%s", content);
+            last_tok_kind = token->kind;
             tacc_pp_tok_free(token);
         }
     }

@@ -1470,6 +1470,8 @@ void tacc_pp_define(struct tacc_pp_state *state, char *name, char *expansion) {
     strcpy(expansion_owned, expansion);
     iter = tacc_file_iter_new_str(expansion_owned,
                                   expansion_owned + strlen(expansion));
+    iter->is_bol = 0;
+    iter->is_ws = 0;
 
     while (1) {
         tok = tacc_file_iter_lex(iter, LEX_IN_REPLACEMENT_LIST);
@@ -2570,6 +2572,7 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
     size_t i;
     size_t max_param;
     size_t par_position;
+    tacc_bool sharp_preceded_by_ws;
     struct tacc_token_list *split_args;
     struct tacc_token_list *arg_entry;
     struct tacc_token_list_entry *arg_last_tok;
@@ -2683,8 +2686,12 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
             continue;
         }
         if (next_tok->kind == TOK_SHARP) {
+            sharp_preceded_by_ws = next_tok->preceded_by_ws;
             /* borrows arg */
             next_tok = tacc_pp_stringify(arg_entry);
+            if (sharp_preceded_by_ws) {
+                next_tok->preceded_by_ws = 1;
+            }
             if (iter_within->in_include_directive) {
                 next_tok->kind = TOK_INCDIR_STRING;
             }
@@ -2971,6 +2978,12 @@ void tacc_tok_iter_free(struct tacc_tok_iter *iter) {
     tacc_free(iter);
 }
 
+static struct pp_tok *tacc_tok_iter_eval_line(struct tacc_tok_iter *last_iter) {
+    /* TODO: actually eval the line */
+    tacc_tok_iter_push_0(last_iter);
+    return tacc_tok_iter_peek_nomacro(last_iter);
+}
+
 /* return: borrow, first: borrow */
 static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter* first) {
     struct tacc_tok_iter* last_iter;
@@ -3014,6 +3027,13 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
         if (last_iter->pending_ws) {
             peek_tok->preceded_by_ws = 1;
             last_iter->pending_ws = 0;
+        }
+        if (peek_tok->kind == TOK_IDENT) {
+            if (!strcmp(peek_tok->str->string, "__LINE__")) {
+                tacc_tok_iter_drop_nomacro(last_iter);
+                peek_tok = tacc_tok_iter_eval_line(last_iter);
+                return peek_tok;
+            }
         }
         if (peek_tok->kind != TOK_DIRECTIVE) {
             /* not a directive, pass through */
