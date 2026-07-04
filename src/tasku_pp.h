@@ -163,6 +163,7 @@ struct pp_tok {
     struct tacc_string *str;
 
     tacc_bool preceded_by_ws;
+    tacc_bool preceded_by_bol;
     tacc_bool is_final;
 };
 /* return: static, tok: borrow */
@@ -254,6 +255,7 @@ struct tacc_tok_iter {
     tacc_bool in_macro_args;
     tacc_bool in_include_directive;
     tacc_bool in_if;
+    tacc_bool pending_ws;
 
     /* owning, possibly null */
     struct tacc_tok_iter *override;

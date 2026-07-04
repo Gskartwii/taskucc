@@ -1,9 +1,9 @@
+#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
-#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -91,6 +91,7 @@ struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok) {
     new_tok->ident_kind = tok->ident_kind;
     new_tok->is_final = tok->is_final;
     new_tok->preceded_by_ws = tok->preceded_by_ws;
+    new_tok->preceded_by_bol = tok->preceded_by_bol;
     if (tok->str) {
         new_tok->str = tacc_dynstring_clone(tok->str);
     } else {
@@ -415,10 +416,15 @@ char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
     tacc_assert(!tacc_file_is_eof(iter), "unexpected eof");
     ch = *cur;
 
+    /*
+     * newline -> set bol flag, unset ws flag
+     * whitespace -> keep bol flag, set ws flag
+     * otherwise -> unset both
+     */
     if (ch == '\n') {
         iter->is_bol = 1;
-    }
-    if (ch == '\n' || ch == 9 || ch == 12 || ch == ' ') {
+        iter->is_ws = 0;
+    } else if (ch == 9 || ch == 12 || ch == ' ') {
         iter->is_ws = 1;
     } else {
         iter->is_ws = 0;
@@ -696,7 +702,7 @@ static tacc_bool tacc_file_iter_lex_directive(struct tacc_file_iter *iter,
 
     /* file must end in newline, no need to check for eof */
     was_ws = 0;
-    while (!tacc_file_iter_accept_ch(iter, '\n')) {
+    while (tacc_file_iter_peek_ch(iter) != '\n') {
         if (!was_ws) {
             tacc_file_iter_eat_ws_no_newlines(iter);
             if (iter->is_ws) {
@@ -1116,11 +1122,12 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     }
 
     /*
-     * used for correct expansion under # stringification
-     * also used for detecting an lparen token invokes a
-     * function-like macro
+     * Used for correct expansion under # stringification, and for
+     * preprocessor output. Setting precedence by ws only if preceded by
+     * non-newlines. Newlines are encoded in FAKE_TRIVIA.
      */
     ret->preceded_by_ws = iter->is_ws;
+    ret->preceded_by_bol = iter->is_bol;
 
     if (tacc_file_is_eof(iter)) {
         ret->kind = TOK_EOF;
@@ -1175,6 +1182,8 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         if (first == '.' && ((iter->end - iter->src) >= 2) &&
             iter->src[1] == '.') {
             ret->kind = TOK_DOT_3;
+            tacc_file_iter_consume_ch(iter);
+            tacc_file_iter_consume_ch(iter);
             return ret;
         }
         first = '.';
@@ -1500,6 +1509,7 @@ void tacc_tok_iter_init(struct tacc_tok_iter *iter,
     iter->in_macro_args = 0;
     iter->in_include_directive = 0;
     iter->in_if = 0;
+    iter->pending_ws = 0;
     iter->skip_till_endif = 0;
 }
 
@@ -1743,6 +1753,12 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
     }
     /* no ws necessarily required here!!! huh??? */
 
+    /*
+     * force no ws for replacement list; ws is determined by replacement site
+     * instead
+     */
+    iter->is_ws = 0;
+
     replacement_list = tacc_token_list_new();
     macro->replacement_list = replacement_list;
     while (1) {
@@ -1783,12 +1799,18 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
     struct pp_tok *tok;
     struct tacc_tok_iter *last_iter;
 
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        last_iter->skip_level = last_iter->skip_level + 1;
+        return;
+    }
+
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #ifndef");
-
-    last_iter = tacc_tok_iter_cur_iter(first);
 
     tacc_assert(tok->str != NULL, "need content for ifndef");
     if (!tacc_pp_macro_is_defined(first->state,
@@ -1810,12 +1832,18 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
     struct pp_tok *tok;
     struct tacc_tok_iter *last_iter;
 
+    last_iter = tacc_tok_iter_cur_iter(first);
+
+    if (last_iter->skip_level > 0) {
+        tacc_file_iter_free(iter);
+        last_iter->skip_level = last_iter->skip_level + 1;
+        return;
+    }
+
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_assert(tacc_file_is_eof(iter), "junk after #ifdef");
-
-    last_iter = tacc_tok_iter_cur_iter(first);
 
     tacc_assert(tok->str != NULL, "need content for ifdef");
     if (tacc_pp_macro_is_defined(first->state,
@@ -1842,14 +1870,15 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
 
     if (last_iter->skip_level > 0) {
         last_iter->skip_level = last_iter->skip_level - 1;
+        if (last_iter->skip_level == 0) {
+            last_iter->skip_till_endif = 0;
+        }
         tacc_file_iter_free(iter);
         return;
     }
     tacc_assert(last_iter->inc_level > 0, "stray #endif");
     last_iter->inc_level = last_iter->inc_level - 1;
     tacc_file_iter_free(iter);
-
-    last_iter->skip_till_endif = 0;
 }
 
 /* first: borrow, iter: owning */
@@ -2276,6 +2305,7 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
 
     new_tok = tacc_file_iter_lex(file_iter, LEX_IN_REPLACEMENT_LIST);
     new_tok->preceded_by_ws = tok->preceded_by_ws;
+    new_tok->preceded_by_bol = tok->preceded_by_bol;
     tacc_file_iter_eat_ws_no_newlines(file_iter);
     tacc_assert(tacc_file_is_eof(file_iter),
                 "multiple tokens produced by joining: %s",
@@ -2401,7 +2431,7 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_list *tokens) {
     for (i = 0; i < tacc_token_list_len(tokens); i = i + 1) {
         tok_entry = tacc_token_list_get(tokens, i);
         tok = tok_entry->content;
-        if ((i != 0) && tok->preceded_by_ws) {
+        if ((i != 0) && (tok->preceded_by_ws || tok->preceded_by_bol)) {
             tacc_dynstring_push(ret_tok_str, ' ');
         }
         if ((tok->kind == TOK_STRING) || (tok->kind == TOK_CHAR)) {
@@ -2597,7 +2627,7 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                     arg_entry,
                     0,
                     tacc_token_list_len(arg_entry) - 1,
-                    next_tok->preceded_by_ws,
+                    next_tok->preceded_by_ws || next_tok->preceded_by_bol,
                     macro_def);
             }
             continue;
@@ -2644,7 +2674,8 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                                              arg_entry,
                                              1,
                                              tacc_token_list_len(arg_entry) - 1,
-                                             replacing_tok->preceded_by_ws,
+                                             replacing_tok->preceded_by_ws ||
+                                                 replacing_tok->preceded_by_bol,
                                              macro_def);
             next_tok_entry = tacc_token_list_get(arg_entry, 0);
             tacc_tok_iter_push_pending(
@@ -2671,7 +2702,8 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                                          arg_entry,
                                          0,
                                          tacc_token_list_len(arg_entry),
-                                         replacing_tok->preceded_by_ws,
+                                         replacing_tok->preceded_by_ws ||
+                                             replacing_tok->preceded_by_bol,
                                          macro_def);
     }
 
@@ -2807,6 +2839,9 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
         }
         if (tok->is_final) {
             return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
+        }
+        if (tok->preceded_by_ws) {
+            iter->pending_ws = 1;
         }
         tacc_assert(tok->str != NULL, "need content for identifier when peeking");
         if (iter->in_if && !strcmp(tok->str->string, "defined")) {
@@ -2976,6 +3011,10 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
             /* return to scanning from first iterator */
             continue;
         }
+        if (last_iter->pending_ws) {
+            peek_tok->preceded_by_ws = 1;
+            last_iter->pending_ws = 0;
+        }
         if (peek_tok->kind != TOK_DIRECTIVE) {
             /* not a directive, pass through */
             return peek_tok;
@@ -2995,7 +3034,7 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
 }
 
 /* return: borrow, iter: borrow */
-struct pp_tok* tacc_tok_iter_peek(struct tacc_tok_iter* iter) {
+struct pp_tok *tacc_tok_iter_peek(struct tacc_tok_iter* iter) {
     return tacc_tok_iter_peek_handle_directives(iter);
 }
 

@@ -48,11 +48,13 @@ static void tacc_parse_options(struct tacc_options *options,
     }
 }
 
-void tacc_print_trivia(char *trivia_content) {
+tacc_bool tacc_print_trivia(char *trivia_content) {
     char *line_start;
     size_t i;
+    tacc_bool printed_indent;
 
     line_start = strrchr(trivia_content, '\n');
+    printed_indent = 0;
     if (line_start == NULL) {
         printf(" ");
     } else {
@@ -61,8 +63,10 @@ void tacc_print_trivia(char *trivia_content) {
                             (size_t) (line_start - trivia_content) - 1;
              i = i + 1) {
             printf(" ");
+            printed_indent = 1;
         }
     }
+    return printed_indent;
 }
 
 int main(int argc, char **argv) {
@@ -132,7 +136,10 @@ int main(int argc, char **argv) {
             pending_trivia = token;
         } else {
             if (pending_trivia) {
-                tacc_print_trivia(pending_trivia->str->string);
+                if (!tacc_print_trivia(pending_trivia->str->string) &&
+                    token->preceded_by_ws) {
+                    printf(" ");
+                }
                 tacc_pp_tok_free(pending_trivia);
                 pending_trivia = NULL;
             } else if (token->preceded_by_ws) {
