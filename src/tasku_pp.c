@@ -1,8 +1,8 @@
-#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "tasku_pp.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -972,16 +972,10 @@ static tacc_bool tacc_file_iter_maybe_special(struct tacc_file_iter *iter,
                                               struct pp_tok *tok_out,
                                               enum pp_tok_kind special_tok,
                                               char *special_match) {
-    struct tacc_string *out_str;
-
     if (!tacc_file_iter_accept_ch(iter, special_match[1])) {
-        out_str = tacc_dynstring_new();
-        tacc_dynstring_push(out_str, special_match[0]);
-        tacc_pp_tok_assign_tstr(tok_out, out_str);
         return 0;
     }
     tok_out->kind = special_tok;
-    tacc_pp_tok_assign_str(tok_out, special_match);
     return 1;
 }
 
@@ -1007,7 +1001,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         while (1) {
             if (tacc_file_is_eof(iter)) {
                 ret->kind = TOK_EOF;
-                tacc_pp_tok_assign_str(ret, "");
                 return ret;
             }
 
@@ -1032,7 +1025,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     }
     if (tacc_file_is_eof(iter)) {
         ret->kind = TOK_EOF;
-        tacc_pp_tok_assign_str(ret, "");
         return ret;
     }
 
@@ -1052,7 +1044,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
 
     if (tacc_file_is_eof(iter)) {
         ret->kind = TOK_EOF;
-        tacc_pp_tok_assign_str(ret, "");
         return ret;
     }
 
@@ -1104,7 +1095,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         if (first == '.' && ((iter->end - iter->src) >= 2) &&
             iter->src[1] == '.') {
             ret->kind = TOK_DOT_3;
-            tacc_pp_tok_assign_str(ret, "...");
             return ret;
         }
         first = '.';
@@ -1175,11 +1165,9 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         if (tacc_file_iter_accept_ch(iter, '<')) {
             if (tacc_file_iter_accept_ch(iter, '=')) {
                 ret->kind = TOK_LT_2_EQ;
-                tacc_pp_tok_assign_str(ret, "<<=");
                 return ret;
             } else {
                 ret->kind = TOK_LT_2;
-                tacc_pp_tok_assign_str(ret, "<<");
                 return ret;
             }
         }
@@ -1192,11 +1180,9 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         if (tacc_file_iter_accept_ch(iter, '>')) {
             if (tacc_file_iter_accept_ch(iter, '=')) {
                 ret->kind = TOK_GT_2_EQ;
-                tacc_pp_tok_assign_str(ret, ">>=");
                 return ret;
             } else {
                 ret->kind = TOK_GT_2;
-                tacc_pp_tok_assign_str(ret, ">>");
                 return ret;
             }
         }
