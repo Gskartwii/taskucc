@@ -67,7 +67,7 @@ void tacc_pp_tok_init(struct pp_tok *tok) {
     tok->ident_kind = ID_OTHER;
     tok->is_final = 0;
     tok->preceded_by_ws = 0;
-    tok->str = tacc_dynstring_new();
+    tok->str = NULL;
 }
 
 /* return: owning */
@@ -90,13 +90,147 @@ struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok) {
     new_tok->ident_kind = tok->ident_kind;
     new_tok->is_final = tok->is_final;
     new_tok->preceded_by_ws = tok->preceded_by_ws;
-    new_tok->str = tacc_dynstring_clone(tok->str);
+    if (tok->str) {
+        new_tok->str = tacc_dynstring_clone(tok->str);
+    } else {
+        new_tok->str = NULL;
+    }
 
     return new_tok;
 }
 
+char *tacc_pp_tok_content(struct pp_tok *tok) {
+    switch (tok->kind) {
+    case TOK_DIRECTIVE:
+    case TOK_PPNUM:
+    case TOK_IDENT:
+    case TOK_CHAR:
+    case TOK_STRING:
+    case TOK_UNRECOGNIZED:
+    case TOK_OTHER:
+    case TOK_INCDIR_ANGLE:
+    case TOK_INCDIR_STRING:
+        tacc_assert(
+            tok->str != NULL,
+            "ICE: cannot create token content from thin air for token %d",
+            tok->kind);
+        return tacc_dynstring_as_str(tok->str);
+    case TOK_FAKE_END_OF_MACRO:
+        tacc_assert(
+            0, "ICE: asking for content of internal token %d", tok->kind);
+        return tacc_dynstring_as_str(tok->str);
+
+    case TOK_FAKE_PMARK:
+        return "";
+    case TOK_SHARP:
+        return "#";
+    case TOK_SHARP_2:
+        return "##";
+    case TOK_EOF:
+        return "";
+    case TOK_LBRACE:
+        return "[";
+    case TOK_RBRACE:
+        return "]";
+    case TOK_LPAREN:
+        return "(";
+    case TOK_RPAREN:
+        return ")";
+    case TOK_LBRACKET:
+        return "{";
+    case TOK_RBRACKET:
+        return "}";
+    case TOK_DOT:
+        return ".";
+    case TOK_DOT_3:
+        return "...";
+    case TOK_MINUS:
+        return "-";
+    case TOK_ARROW:
+        return "->";
+    case TOK_MINUS_2:
+        return "--";
+    case TOK_MINUS_EQ:
+        return "-=";
+    case TOK_AMPERSAND:
+        return "&";
+    case TOK_AMPERSAND_2:
+        return "&&";
+    case TOK_AMPERSAND_EQ:
+        return "&=";
+    case TOK_ASTERISK:
+        return "*";
+    case TOK_ASTERISK_EQ:
+        return "*=";
+    case TOK_PLUS:
+        return "+";
+    case TOK_PLUS_2:
+        return "++";
+    case TOK_PLUS_EQ:
+        return "+=";
+    case TOK_TILDE:
+        return "~";
+    case TOK_EXCLAMATION:
+        return "!";
+    case TOK_EXCLAMATION_EQ:
+        return "!=";
+    case TOK_CIRCUMFLEX:
+        return "^";
+    case TOK_CIRCUMFLEX_EQ:
+        return "^=";
+    case TOK_PIPE:
+        return "|";
+    case TOK_PIPE_EQ:
+        return "|=";
+    case TOK_PIPE_2:
+        return "||";
+    case TOK_SLASH:
+        return "/";
+    case TOK_SLASH_EQ:
+        return "/=";
+    case TOK_PERCENT:
+        return "%";
+    case TOK_PERCENT_EQ:
+        return "%=";
+    case TOK_LT:
+        return "<";
+    case TOK_LT_EQ:
+        return "<=";
+    case TOK_LT_2_EQ:
+        return "<<=";
+    case TOK_LT_2:
+        return "<<";
+    case TOK_GT:
+        return ">";
+    case TOK_GT_EQ:
+        return ">=";
+    case TOK_GT_2_EQ:
+        return ">>=";
+    case TOK_GT_2:
+        return ">>";
+    case TOK_EQ:
+        return "=";
+    case TOK_EQ_2:
+        return "==";
+    case TOK_QUESTION:
+        return "?";
+    case TOK_COLON:
+        return ":";
+    case TOK_SEMICOLON:
+        return ";";
+    case TOK_COMMA:
+        return ",";
+    default:
+        tacc_assert(
+            0, "ICE: asking for content of unknown token %d", tok->kind);
+        return tacc_dynstring_as_str(tok->str);
+    }
+}
+
 void tacc_pp_tok_free(struct pp_tok *tok) {
-    tacc_dynstring_free(tok->str);
+    if (tok->str) {
+        tacc_dynstring_free(tok->str);
+    }
     tacc_free(tok);
 }
 
@@ -386,6 +520,10 @@ static void tacc_file_iter_eat_all_ws(struct tacc_file_iter *iter) {
             continue;
         }
         if (tacc_file_iter_accept_ch(iter, 10)) {
+            continue;
+        }
+        /* formfeed, present in stab.def from tinycc */
+        if (tacc_file_iter_accept_ch(iter, 12)) {
             continue;
         }
         if ((iter->end - iter->src) >= 2) {
@@ -1097,8 +1235,6 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         break;
     }
 
-    /* don't include possible following splice */
-    tacc_dynstring_push(ret->str, first);
     ret->kind = kind;
     return ret;
 }
@@ -1444,6 +1580,7 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     hdr_name = tacc_malloc(1024);
     hdr_name_start = hdr_name;
 
+    tacc_assert(tok->str != NULL, "need content for header name");
     tacc_assert(tacc_dynstring_len(tok->str) > 2, "empty include string");
     tacc_assert(tacc_dynstring_len(tok->str) < 1024, "overlong include string");
     strcpy(hdr_name, tacc_dynstring_as_str(tok->str) + 1);
@@ -1490,6 +1627,7 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
     macro = tacc_malloc(sizeof(struct tacc_macro_def));
 
     tok = tacc_file_iter_expect_ident(iter);
+    tacc_assert(tok->str != NULL, "need content for directive");
     macro->name = tacc_dynstring_clone(tok->str);
     tacc_pp_tok_free(tok);
     tok = NULL;
@@ -1527,6 +1665,7 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
                 }
 
                 tok = tacc_file_iter_expect_ident(iter);
+                tacc_assert(tok->str != NULL, "need content for macro param");
                 tacc_string_list_push(macro->params,
                                       tacc_dynstring_clone(tok->str));
                 tacc_pp_tok_free(tok);
@@ -1577,6 +1716,7 @@ static void tacc_tok_iter_handle_undef(struct tacc_tok_iter *first,
     }
 
     tok = tacc_file_iter_expect_ident(iter);
+    tacc_assert(tok->str != NULL, "need content for undefined macro name");
     tacc_pp_undef(first->state, tacc_dynstring_as_str(tok->str));
     tacc_pp_tok_free(tok);
     tacc_file_iter_free(iter);
@@ -1595,6 +1735,7 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
+    tacc_assert(tok->str != NULL, "need content for ifndef");
     if (!tacc_pp_macro_is_defined(first->state,
                                   tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
@@ -1621,6 +1762,7 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
+    tacc_assert(tok->str != NULL, "need content for ifdef");
     if (tacc_pp_macro_is_defined(first->state,
                                  tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
@@ -1715,7 +1857,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
                 "junk after #if: %s /*...*/ %s",
-                tacc_dynstring_as_str(tok->str),
+                tacc_pp_tok_content(tok),
                 tok_iter->file_iter->src);
     tacc_pp_tok_free(tok);
     tacc_assert(tacc_val_is_integral(val),
@@ -1776,7 +1918,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
                 "junk after #elif: %s /*...*/ %s",
-                tacc_dynstring_as_str(tok->str),
+                tacc_pp_tok_content(tok),
                 tok_iter->file_iter->src);
     tacc_pp_tok_free(tok);
     tacc_assert(tacc_val_is_integral(val),
@@ -1862,6 +2004,7 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     }
     tok = tacc_file_iter_expect_ident(dir_scanner);
     tacc_file_iter_eat_ws_no_newlines(dir_scanner);
+    tacc_assert(tok->str != NULL, "need content for directive name");
     directive_name = tacc_dynstring_take_str(tok->str);
     tacc_pp_tok_free(tok);
     tok = NULL;
@@ -1947,6 +2090,7 @@ static void tacc_tok_maybe_finalize(struct tacc_tok_iter *iter,
     if ((tok->kind != TOK_IDENT) || (tok->is_final)) {
         return;
     }
+    tacc_assert(tok->str != NULL, "need content for finalized ident");
     macro_def_list_entry = tacc_pp_find_macro_or_first_empty(
         iter->state, tacc_dynstring_as_str(tok->str));
     macro_def = macro_def_list_entry->content;
@@ -1994,6 +2138,8 @@ static struct pp_tok *tacc_tok_iter_peek_nomacro(struct tacc_tok_iter *iter) {
     if (tok->kind == TOK_FAKE_END_OF_MACRO) {
         tacc_token_list_pop(iter->pending);
 
+        tacc_assert(tok->str != NULL,
+                    "need content for end of macro pseudo-token");
         macro_entry = tacc_pp_find_macro_or_first_empty(
             iter->state, tacc_dynstring_as_str(tok->str));
         macro_def = macro_entry->content;
@@ -2061,8 +2207,8 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
      * Later tokens will already be present in the stack, so we join in reverse
      * order.
      */
-    tacc_dynstring_join(new_tok_str, tok->str);
-    tacc_dynstring_join(new_tok_str, old_tok->str);
+    tacc_dynstring_concat(new_tok_str, tacc_pp_tok_content(tok));
+    tacc_dynstring_concat(new_tok_str, tacc_pp_tok_content(old_tok));
     tacc_pp_tok_free(old_tok);
 
     new_tok_size = tacc_dynstring_len(new_tok_str);
@@ -2090,7 +2236,7 @@ static void tacc_tok_iter_insert_macro_replacing_stop(
 
     tok = tacc_pp_tok_new();
     tok->kind = TOK_FAKE_END_OF_MACRO;
-    tacc_dynstring_concat(tok->str, macro_name);
+    tacc_pp_tok_assign_str(tok, macro_name);
     tacc_tok_iter_push_pending(iter, tok);
 }
 
@@ -2203,6 +2349,8 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_list *tokens) {
         }
         if ((tok->kind == TOK_STRING) || (tok->kind == TOK_CHAR)) {
             this_tok_str = tok->str;
+            tacc_assert(this_tok_str != NULL,
+                        "need content for stringified string/char token");
             for (j = 0; j < (size_t) tacc_dynstring_len(this_tok_str);
                  j = j + 1) {
                 ch = tacc_dynstring_at(this_tok_str, j);
@@ -2217,8 +2365,7 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_list *tokens) {
                 }
             }
         } else {
-            this_tok_str = tok->str;
-            tacc_dynstring_join(ret_tok_str, this_tok_str);
+            tacc_dynstring_concat(ret_tok_str, tacc_pp_tok_content(tok));
         }
     }
     tacc_dynstring_push(ret_tok_str, '"');
@@ -2366,6 +2513,7 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                 continue;
             }
 
+            tacc_assert(next_tok->str != NULL, "need content for glued ident");
             par_position = tacc_macro_def_index_of_par(
                 macro_def, tacc_dynstring_as_str(next_tok->str));
             if (par_position == TACC_PARAM_NOT_FOUND) {
@@ -2402,6 +2550,8 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                                        tacc_pp_tok_clone(replacing_tok));
             continue;
         }
+        tacc_assert(replacing_tok->str != NULL,
+                    "need content for ident within macro replacement list");
         par_position = tacc_macro_def_index_of_par(
             macro_def, tacc_dynstring_as_str(replacing_tok->str));
         if (par_position == TACC_PARAM_NOT_FOUND) {
@@ -2495,6 +2645,7 @@ static struct pp_tok *tacc_tok_iter_eval_defined(struct tacc_tok_iter *iter) {
         had_paren = 0;
     }
     tacc_assert(tok->kind == TOK_IDENT, "expected identified after defined");
+    tacc_assert(tok->str != NULL, "need content for defined() parameter");
     is_defined = tacc_pp_macro_is_defined(iter->state, tok->str->string);
     tacc_pp_tok_free(tok);
     tok = NULL;
@@ -2510,9 +2661,9 @@ static struct pp_tok *tacc_tok_iter_eval_defined(struct tacc_tok_iter *iter) {
     tok->kind = TOK_PPNUM;
     tok->is_final = 1;
     if (is_defined) {
-        tacc_dynstring_concat(tok->str, "1");
+        tacc_pp_tok_assign_str(tok, "1");
     } else {
-        tacc_dynstring_concat(tok->str, "0");
+        tacc_pp_tok_assign_str(tok, "0");
     }
     tacc_tok_iter_push_pending(iter, tok);
 
@@ -2525,7 +2676,7 @@ static struct pp_tok *tacc_tok_iter_push_0(struct tacc_tok_iter *iter) {
     tok = tacc_pp_tok_new();
     tok->kind = TOK_PPNUM;
     tok->is_final = 1;
-    tacc_dynstring_concat(tok->str, "0");
+    tacc_pp_tok_assign_str(tok, "0");
 
     tacc_tok_iter_push_pending(iter, tok);
 
@@ -2600,6 +2751,7 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
         if (tok->is_final) {
             return tacc_tok_iter_maybe_nonmacro_ident(iter, tok);
         }
+        tacc_assert(tok->str != NULL, "need content for identifier when peeking");
         if (iter->in_if && !strcmp(tok->str->string, "defined")) {
             return tacc_tok_iter_eval_defined(iter);
         }
@@ -2774,8 +2926,9 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
 
         /* going to handle a directive, so it's no longer pending */
         peek_tok = tacc_tok_iter_consume_nomacro(last_iter);
+        tacc_assert(peek_tok->str != NULL, "need content for directive");
         directive = peek_tok->str;
-        peek_tok->str = tacc_dynstring_new();
+        peek_tok->str = NULL;
         tacc_pp_tok_free(peek_tok);
         peek_tok = NULL;
 

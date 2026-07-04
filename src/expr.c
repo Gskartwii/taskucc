@@ -143,6 +143,7 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
     struct tacc_u64 limit;
 
     val = tacc_val_new();
+    tacc_assert(tok->str != NULL, "need str to parse numlit");
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
     tok = NULL;
@@ -269,6 +270,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     char *str;
     int input;
 
+    tacc_assert(tok->str != NULL, "need str to parse charlit");
     str = tacc_dynstring_take_str(tok->str);
     u64 = tacc_u64_new();
     str = str + 1;
@@ -359,6 +361,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
         tok = tacc_tok_iter_peek(iter);
         if (tacc_tok_non_kw_ident(tok)) {
             expr->kind = EX_IDENT;
+            tacc_assert(tok->str != NULL, "need str to parse ident");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
@@ -407,6 +410,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
                 iter, tok->kind == TOK_IDENT, "expected member name");
             tacc_expr_bump_to_op1(expr);
             expr->kind = EX_MEMBER;
+            tacc_assert(tok->str != NULL, "need str to parse dot");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tok);
             tok = NULL;
@@ -416,6 +420,7 @@ static void tacc_expr_parse_postfix(struct tacc_tok_iter *iter,
             expr->kind = EX_PTR_MEMBER;
             tacc_parse_assert(
                 iter, tok->kind == TOK_IDENT, "expected member name");
+            tacc_assert(tok->str != NULL, "need str to parse arrow");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tok);
             tok = NULL;

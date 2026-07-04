@@ -173,6 +173,8 @@ void tacc_pp_tok_init(struct pp_tok *tok);
 void tacc_pp_tok_free(struct pp_tok *tok);
 /* return: owning, tok: borrow */
 struct pp_tok *tacc_pp_tok_clone(struct pp_tok *tok);
+/* return: borrow, tok: borrow */
+char *tacc_pp_tok_content(struct pp_tok *tok);
 
 struct tacc_macro_def {
     /* owning */

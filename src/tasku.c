@@ -106,9 +106,8 @@ int main(int argc, char **argv) {
             tacc_pp_tok_free(token);
             break;
         }
-        printf("%s: %s\n",
-               tacc_pp_to_string(token),
-               tacc_dynstring_as_str(token->str));
+        printf(
+            "%s: %s\n", tacc_pp_to_string(token), tacc_pp_tok_content(token));
         tacc_pp_tok_free(token);
     }
 
