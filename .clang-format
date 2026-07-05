@@ -2,8 +2,9 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 AlignEscapedNewlines: LeftWithLastLine
 AllowAllParametersOfDeclarationOnNextLine: true
-BinPackArguments: false
-BinPackParameters: OnePerLine
+PackArguments:
+  BinPack: OnePerLine
+PackParameters:
+  BinPack: OnePerLine
 PenaltyReturnTypeOnItsOwnLine: 80
 SpaceAfterCStyleCast: true
-# PackArguments: OnePerLine
