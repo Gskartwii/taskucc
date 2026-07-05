@@ -4,7 +4,6 @@
 #include "dynarray.h"
 #include "dynstring.h"
 #include "machine.h"
-#include "tasku_pp.h"
 
 enum tacc_expr_kind {
     EX_UNINIT,
@@ -99,7 +98,8 @@ struct tacc_expr {
     } extra;
 };
 
-struct tacc_expr *tacc_expr_parse_new(struct tacc_tok_iter *iter);
+struct tacc_expr *tacc_expr_new(void);
+void tacc_expr_init(struct tacc_expr *expr);
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                                       struct tacc_target *target);
 void tacc_expr_free(struct tacc_expr *expr);

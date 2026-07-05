@@ -209,8 +209,9 @@ int main(int argc, char **argv) {
     file_iter = tacc_file_iter_new_file(input_file);
     tok_iter = tacc_tok_iter_new(file_iter, pp_state);
 
-    tacc_assert(options.preprocess, "unsupported mode: not -E");
-    tacc_output_pp(tok_iter);
+    if (options.preprocess) {
+        tacc_output_pp(tok_iter);
+    }
 
     tacc_tok_iter_free(tok_iter);
     tacc_target_free(target);

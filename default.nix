@@ -36,6 +36,7 @@ let
     "machine.h"
     "target_defs.h"
     "expr.h"
+    "parse.h"
     "tasku_pp.h"
     "test.h"
   ];
@@ -49,6 +50,7 @@ let
     "machine.c"
     "type.c"
     "expr.c"
+    "parse.c"
     "target_defs.c"
     "tasku_file.c"
     "tasku_pp.c"

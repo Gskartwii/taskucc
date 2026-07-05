@@ -1,9 +1,10 @@
+#include "tasku_pp.h"
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
-#include "tasku_pp.h"
+#include "parse.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1939,7 +1940,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
 
-    expr = tacc_expr_parse_new(tok_iter);
+    expr = tacc_parse_new_expr(tok_iter);
     val = tacc_expr_const_eval(expr, first->state->target);
 
     tok = tacc_tok_iter_next(tok_iter);
@@ -2000,7 +2001,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
 
-    expr = tacc_expr_parse_new(tok_iter);
+    expr = tacc_parse_new_expr(tok_iter);
     val = tacc_expr_const_eval(expr, first->state->target);
 
     tok = tacc_tok_iter_next(tok_iter);
