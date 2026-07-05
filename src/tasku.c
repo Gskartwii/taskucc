@@ -8,9 +8,37 @@
 #include <string.h>
 
 struct tacc_options {
-    struct tacc_string_list *defines;
     char *filename;
+
+    struct tacc_string_list *defines;
+    tacc_bool preprocess;
 };
+
+#define ARG_SHORT_APPEND(ch, to_list)                                         \
+    do {                                                                      \
+        if (*arg == ch) {                                                     \
+            arg = arg + 1;                                                    \
+            if (!*arg) {                                                      \
+                i = i + 1;                                                    \
+                tacc_assert(i < count, "incomplete argument -%s\n", arg - 1); \
+                arg = argv[i];                                                \
+            }                                                                 \
+            str = tacc_dynstring_new();                                       \
+            tacc_dynstring_concat(str, arg);                                  \
+            tacc_string_list_push(to_list, str);                              \
+            goto next;                                                        \
+        }                                                                     \
+    } while (0)
+#define ARG_SHORT_SET_FLAG(ch, flag)                                          \
+    do {                                                                      \
+        if (*arg == ch) {                                                     \
+            arg = arg + 1;                                                    \
+            tacc_assert(                                                      \
+                (*arg) == 0, "cannot take content for flag: -%s\n", arg - 1); \
+            flag = 1;                                                         \
+            goto next;                                                        \
+        }                                                                     \
+    } while (0)
 
 static void tacc_parse_options(struct tacc_options *options,
                                int argc,
@@ -22,6 +50,7 @@ static void tacc_parse_options(struct tacc_options *options,
 
     options->filename = NULL;
     options->defines = tacc_string_list_new();
+    options->preprocess = 0;
 
     count = (size_t) argc;
     for (i = 1; i < count; i = i + 1) {
@@ -32,19 +61,15 @@ static void tacc_parse_options(struct tacc_options *options,
             continue;
         }
         arg = arg + 1;
-        if (*arg == 'D') {
-            arg = arg + 1;
-            if (!*arg) {
-                i = i + 1;
-                arg = argv[i];
-            }
-            str = tacc_dynstring_new();
-            tacc_dynstring_concat(str, arg);
-            tacc_string_list_push(options->defines, str);
-            if (!strchr(arg, '=')) {
-                tacc_dynstring_concat(str, "=1");
-            }
-        }
+        ARG_SHORT_APPEND('D', options->defines);
+        ARG_SHORT_SET_FLAG('E', options->preprocess);
+        tacc_assert(0, "invalid option %s\n", argv[i]);
+#ifdef __M2__
+    next:
+        0;
+#else
+    next:;
+#endif
     }
 }
 
@@ -69,61 +94,12 @@ tacc_bool tacc_print_trivia(char *trivia_content) {
     return printed_indent;
 }
 
-int main(int argc, char **argv) {
-    size_t i;
-    struct tacc_file *input_file;
-    struct tacc_file_iter *file_iter;
-    struct tacc_tok_iter *tok_iter;
-    struct tacc_pp_state *pp_state;
-    struct tacc_target *target;
+void tacc_output_pp(struct tacc_tok_iter *tok_iter) {
     struct pp_tok *token;
     struct pp_tok *pending_trivia;
-    struct tacc_options options;
-    struct tacc_string_list_entry *str_entry;
-    struct tacc_string *str;
     enum pp_tok_kind last_tok_kind;
     char *content;
-    char *define_str;
-    char *macro_str;
-    char *val_str;
     tacc_bool ws_acked;
-
-    init_io();
-
-    tacc_parse_options(&options, argc, argv);
-
-    tacc_assert(options.filename != NULL, "need filename");
-
-    target = tacc_target_new("x86_64-linux");
-    pp_state = tacc_pp_state_new(target);
-    for (i = 0; i < tacc_string_list_len(options.defines); i = i + 1) {
-        str_entry = tacc_string_list_get(options.defines, i);
-        str = str_entry->content;
-        define_str = tacc_dynstring_as_str(str);
-        val_str = strchr(define_str, '=');
-        macro_str = tacc_malloc(strlen(define_str) + 1);
-        strcpy(macro_str, define_str);
-        define_str = macro_str + (val_str - define_str);
-        *define_str = 0;
-        val_str = val_str + 1;
-
-        tacc_pp_define(pp_state, macro_str, val_str);
-        tacc_free(macro_str);
-    }
-    tacc_string_list_free(options.defines);
-    tacc_free(options.defines);
-
-    if (!strcmp(options.filename, "run-tests")) {
-        tacc_target_free(target);
-        tacc_pp_state_free(pp_state);
-        return run_tests();
-    }
-
-    input_file = tacc_open(options.filename);
-    file_iter = tacc_file_iter_new_file(input_file);
-    input_file = NULL;
-    tok_iter = tacc_tok_iter_new(file_iter, pp_state);
-    file_iter = NULL;
 
     pending_trivia = NULL;
     last_tok_kind = TOK_UNRECOGNIZED;
@@ -171,6 +147,70 @@ int main(int argc, char **argv) {
         }
     }
     puts("");
+}
+
+void tacc_apply_defines(struct tacc_string_list *defines,
+                        struct tacc_pp_state *state) {
+    struct tacc_string_list_entry *str_entry;
+    struct tacc_string *str;
+    size_t i;
+    char *define_str;
+    char *macro_str;
+    char *val_str;
+
+    for (i = 0; i < tacc_string_list_len(defines); i = i + 1) {
+        str_entry = tacc_string_list_get(defines, i);
+        str = str_entry->content;
+        define_str = tacc_dynstring_as_str(str);
+        val_str = strchr(define_str, '=');
+        if (val_str) {
+            macro_str = tacc_malloc(strlen(define_str) + 1);
+            strcpy(macro_str, define_str);
+            define_str = macro_str + (val_str - define_str);
+            *define_str = 0;
+            val_str = val_str + 1;
+        } else {
+            val_str = "1";
+            macro_str = tacc_malloc(strlen(define_str) + 1);
+            strcpy(macro_str, define_str);
+        }
+
+        tacc_pp_define(state, macro_str, val_str);
+        tacc_free(macro_str);
+    }
+}
+
+int main(int argc, char **argv) {
+    struct tacc_file *input_file;
+    struct tacc_file_iter *file_iter;
+    struct tacc_tok_iter *tok_iter;
+    struct tacc_pp_state *pp_state;
+    struct tacc_target *target;
+    struct tacc_options options;
+
+    init_io();
+
+    tacc_parse_options(&options, argc, argv);
+    tacc_assert(options.filename != NULL, "need filename");
+
+    if (!strcmp(options.filename, "run-tests")) {
+        tacc_string_list_free(options.defines);
+        tacc_free(options.defines);
+        return run_tests();
+    }
+
+    target = tacc_target_new("x86_64-linux");
+    pp_state = tacc_pp_state_new(target);
+    tacc_apply_defines(options.defines, pp_state);
+    tacc_string_list_free(options.defines);
+    tacc_free(options.defines);
+
+    input_file = tacc_open(options.filename);
+    file_iter = tacc_file_iter_new_file(input_file);
+    tok_iter = tacc_tok_iter_new(file_iter, pp_state);
+
+    tacc_assert(options.preprocess, "unsupported mode: not -E");
+    tacc_output_pp(tok_iter);
 
     tacc_tok_iter_free(tok_iter);
     tacc_target_free(target);

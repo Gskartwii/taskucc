@@ -15,14 +15,14 @@ for case_dir in cases/*; do
         fi
         continue
     fi
-    if ! timeout 1 "$RUNNER" "$case_dir/test.c" > "$RUN_TMP/test.log"; then
+    if ! timeout 1 "$RUNNER" -E "$case_dir/test.c" > "$RUN_TMP/test.log"; then
         echo "$case_dir/test.c: fail"
         ok=false
         continue
     fi
     if ! diff -q "$RUN_TMP/test.log" "$case_dir/out.log"; then
         echo "$case_dir/out.log: fail:"
-        diff "$RUN_TMP/test.log" "$case_dir/out.log"
+        diff "$RUN_TMP/test.log" "$case_dir/out.log" || true
         ok=false
         continue
     fi

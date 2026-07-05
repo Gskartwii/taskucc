@@ -183,6 +183,7 @@ in rec {
 
       file=${tinycc-src}/tcc.c
       flags="\
+        -E \
         $file \
         -DONE_SOURCE \
         -DTCC_TARGET_X86_64=1 \
