@@ -1395,18 +1395,6 @@ static void tacc_macro_def_free(struct tacc_macro_def *macro_def) {
     tacc_free(macro_def);
 }
 
-MK_DYNARRAY_OVER(tacc_string_list,
-                 tacc_string_list_entry,
-                 struct tacc_string *,
-                 tacc_string_list_new,
-                 tacc_string_list_init,
-                 tacc_string_list_get,
-                 tacc_string_list_push,
-                 tacc_string_list_pop,
-                 tacc_string_list_len,
-                 tacc_dynstring_free,
-                 tacc_string_list_free)
-
 MK_DYNARRAY_OVER(tacc_token_list,
                  tacc_token_list_entry,
                  struct pp_tok *,

@@ -4,6 +4,7 @@
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
+#include "string_list.h"
 #include "tasku_file.h"
 #include "util.h"
 
@@ -196,17 +197,6 @@ struct tacc_macro_def {
 
     tacc_bool is_replacing;
 };
-
-DECL_DYNARRAY_OVER(tacc_string_list,
-                   tacc_string_list_entry,
-                   struct tacc_string *,
-                   tacc_string_list_new,
-                   tacc_string_list_init,
-                   tacc_string_list_get,
-                   tacc_string_list_push,
-                   tacc_string_list_pop,
-                   tacc_string_list_len,
-                   tacc_string_list_free)
 
 DECL_DYNARRAY_OVER(tacc_token_list,
                    tacc_token_list_entry,

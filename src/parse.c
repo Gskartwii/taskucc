@@ -1,5 +1,6 @@
 #include "parse.h"
 #include "3rdparty/intscan.h"
+#include "decl.h"
 #include <memory.h>
 #include <stdarg.h>
 
@@ -730,4 +731,22 @@ struct tacc_expr *tacc_parse_new_expr(struct tacc_tok_iter *iter) {
     tacc_parse_expr(iter, to_parse);
 
     return to_parse;
+}
+
+struct tacc_ast *tacc_ast_new(void) {
+    struct tacc_ast *ast = tacc_malloc(sizeof(struct tacc_ast));
+
+    ast->declarations = tacc_decl_list_new();
+
+    return ast;
+}
+
+struct tacc_ast *tacc_parse_file(struct tacc_tok_iter *iter) {
+    struct tacc_ast *ast = tacc_ast_new();
+
+#ifndef __M2__
+    (void) iter;
+#endif
+
+    return ast;
 }
