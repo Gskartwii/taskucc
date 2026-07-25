@@ -21,9 +21,18 @@ enum tacc_function_param_list_kind {
     FUNCPARAM_LIST_VARARG,
     FUNCPARAM_OLD_STYLE_LIST
 };
+enum tacc_storage_class {
+    STORAGE_UNSPECIFIED,
+    STORAGE_REGISTER,
+    STORAGE_AUTO,
+    STORAGE_EXTERN,
+    STORAGE_STATIC,
+    STORAGE_TYPEDEF
+};
 
 union tacc_declarator_extra {
-    size_t indirection_level;
+    /* owning */
+    struct tacc_string *name;
     /* owning */
     struct tacc_array_declarator *arr_decl;
     /* owning */
@@ -54,22 +63,15 @@ enum tacc_array_dim_kind {
 };
 
 struct tacc_array_declarator {
-    enum tacc_declarator_kind sub_declarator_kind;
+    struct tacc_declarator *sub_declarator;
     enum tacc_array_dim_kind array_dim_kind;
     struct tacc_expr *dim_expr;
-    union tacc_declarator_extra extra;
 };
 
 struct tacc_declarator {
-    /* owning */
-    struct tacc_string *name;
+    size_t indirection_level;
     enum tacc_declarator_kind kind;
     union tacc_declarator_extra extra;
-};
-
-struct tacc_typedef {
-    /* owning */
-    struct tacc_declarator_list *defined_types;
 };
 
 struct tacc_funcdef {
@@ -85,11 +87,11 @@ struct tacc_decl {
     /* borrow */
     struct tacc_type *base_type;
     enum tacc_decl_kind kind;
+    enum tacc_storage_class storage_class;
 
     /* owning */
     union {
         struct tacc_funcdef *func_def;
-        struct tacc_typedef *type_def;
         struct tacc_declarator_list *declarators;
     } extra;
 };
@@ -129,10 +131,12 @@ DECL_DYNARRAY_OVER(tacc_function_param_list,
 
 void tacc_function_param_free(struct tacc_function_param *param);
 void tacc_funcdef_free(struct tacc_funcdef *func_def);
-void tacc_typedef_free(struct tacc_typedef *type_def);
 void tacc_array_declarator_free(struct tacc_array_declarator *declarator);
 void tacc_function_declarator_free(struct tacc_function_declarator *declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
+struct tacc_declarator *tacc_declarator_new(void);
+struct tacc_array_declarator *tacc_array_declarator_new(void);
+struct tacc_decl *tacc_decl_new(void);
 void tacc_decl_free(struct tacc_decl *decl);
 
 #endif

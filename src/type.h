@@ -75,11 +75,21 @@ struct tacc_compound_type {
     enum tacc_compound_type_kind kind;
     struct tacc_type *contained;
 
+    /* owning */
     struct tacc_string *name;
     union {
+        /* owning */
         struct tacc_struct_declaration_list *struct_union_decls;
+        /* owning */
         struct tacc_enum_declaration_list *enum_decls;
     } declaration_list;
+};
+
+struct tacc_type {
+    enum tacc_type_kind kind;
+
+    /* borrow */
+    struct tacc_compound_type *extra;
 };
 
 DECL_DYNARRAY_OVER(tacc_compound_type_list,
@@ -93,13 +103,29 @@ DECL_DYNARRAY_OVER(tacc_compound_type_list,
                    tacc_compound_type_list_len,
                    tacc_compound_type_list_free)
 
+DECL_DYNARRAY_OVER(tacc_type_list,
+                   tacc_type_list_entry,
+                   struct tacc_type *,
+                   tacc_type_list_new,
+                   tacc_type_list_init,
+                   tacc_type_list_get,
+                   tacc_type_list_push,
+                   tacc_type_list_pop,
+                   tacc_type_list_len,
+                   tacc_type_list_free)
+
 struct tacc_type_registry {
+    struct tacc_type_list *basic_types;
+
     struct tacc_compound_type_list *typedefs;
     struct tacc_compound_type_list *enums;
     struct tacc_compound_type_list *structs;
     struct tacc_compound_type_list *unions;
 };
 
+struct tacc_type *tacc_type_new(void);
+struct tacc_type_registry *tacc_type_registry_new(void);
+void tacc_type_registry_free(struct tacc_type_registry *registry);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
                                    struct tacc_target *target);
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
@@ -109,5 +135,11 @@ size_t tacc_type_bit_width(struct tacc_target *target,
                            enum tacc_type_kind kind);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
+struct tacc_type *tacc_type_registry_get_basic_type(
+    struct tacc_type_registry *registry, enum tacc_type_kind kind);
+void tacc_struct_declaration_free(struct tacc_struct_declaration *decl);
+void tacc_enum_declaration_free(struct tacc_enum_declaration *decl);
+void tacc_type_free(struct tacc_type *type);
+void tacc_compound_type_free(struct tacc_compound_type *type);
 
 #endif

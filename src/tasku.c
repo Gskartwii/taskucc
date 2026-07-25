@@ -1,5 +1,6 @@
 #include "dynstring.h"
 #include "gcc_compat.h"
+#include "parse.h"
 #include "target_defs.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
@@ -186,6 +187,7 @@ int main(int argc, char **argv) {
     struct tacc_tok_iter *tok_iter;
     struct tacc_pp_state *pp_state;
     struct tacc_target *target;
+    struct tacc_type_registry *registry;
     struct tacc_options options;
 
     init_io();
@@ -200,6 +202,7 @@ int main(int argc, char **argv) {
     }
 
     target = tacc_target_new("x86_64-linux");
+    registry = tacc_type_registry_new();
     pp_state = tacc_pp_state_new(target);
     tacc_apply_defines(options.defines, pp_state);
     tacc_string_list_free(options.defines);
@@ -211,9 +214,12 @@ int main(int argc, char **argv) {
 
     if (options.preprocess) {
         tacc_output_pp(tok_iter);
+    } else {
+        tacc_ast_free(tacc_parse_file(registry, tok_iter));
     }
 
     tacc_tok_iter_free(tok_iter);
+    tacc_type_registry_free(registry);
     tacc_target_free(target);
     tacc_pp_state_free(pp_state);
 

@@ -47,11 +47,7 @@ void tacc_array_declarator_free(struct tacc_array_declarator *declarator) {
     if (declarator->dim_expr) {
         tacc_expr_free(declarator->dim_expr);
     }
-    if (declarator->sub_declarator_kind == DECLARATOR_ARRAY) {
-        tacc_array_declarator_free(declarator->extra.arr_decl);
-    } else if (declarator->sub_declarator_kind == DECLARATOR_FUNC) {
-        tacc_function_declarator_free(declarator->extra.func_decl);
-    }
+    tacc_declarator_free(declarator->sub_declarator);
     tacc_free(declarator);
 }
 
@@ -67,20 +63,15 @@ void tacc_function_declarator_free(
 }
 
 void tacc_declarator_free(struct tacc_declarator *declarator) {
-    tacc_dynstring_free(declarator->name);
-
     if (declarator->kind == DECLARATOR_ARRAY) {
         tacc_array_declarator_free(declarator->extra.arr_decl);
     } else if (declarator->kind == DECLARATOR_FUNC) {
         tacc_function_declarator_free(declarator->extra.func_decl);
+    } else if (declarator->kind == DECLARATOR_PLAIN) {
+        tacc_dynstring_free(declarator->extra.name);
     }
 
     tacc_free(declarator);
-}
-
-void tacc_typedef_free(struct tacc_typedef *type_def) {
-    tacc_declarator_list_free(type_def->defined_types);
-    tacc_free(type_def);
 }
 
 void tacc_funcdef_free(struct tacc_funcdef *func_def) {
@@ -92,13 +83,44 @@ void tacc_funcdef_free(struct tacc_funcdef *func_def) {
     tacc_free(func_def);
 }
 
+struct tacc_array_declarator *tacc_array_declarator_new(void) {
+    struct tacc_array_declarator *declarator;
+
+    declarator = tacc_malloc(sizeof(struct tacc_array_declarator));
+    declarator->array_dim_kind = ARRAYDIM_UNSPECIFIED;
+    declarator->dim_expr = NULL;
+    declarator->sub_declarator = NULL;
+
+    return declarator;
+}
+
+struct tacc_declarator *tacc_declarator_new(void) {
+    struct tacc_declarator *declarator;
+
+    declarator = tacc_malloc(sizeof(struct tacc_declarator));
+    declarator->kind = DECLARATOR_PLAIN;
+    declarator->indirection_level = 0;
+
+    return declarator;
+}
+
+struct tacc_decl *tacc_decl_new(void) {
+    struct tacc_decl *decl;
+
+    decl = tacc_malloc(sizeof(struct tacc_decl));
+    decl->base_type = NULL;
+    decl->kind = DECL_DECLARATORS;
+    decl->storage_class = STORAGE_UNSPECIFIED;
+
+    return decl;
+}
+
 void tacc_decl_free(struct tacc_decl *decl) {
     if (decl->kind == DECL_FUNCTION_DEF) {
         tacc_funcdef_free(decl->extra.func_def);
-    } else if (decl->kind == DECL_TYPEDEF) {
-        tacc_typedef_free(decl->extra.type_def);
     } else if (decl->kind == DECL_DECLARATORS) {
         tacc_declarator_list_free(decl->extra.declarators);
+        tacc_free(decl->extra.declarators);
     }
     tacc_free(decl);
 }

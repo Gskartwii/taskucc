@@ -1,6 +1,9 @@
 #include "parse.h"
 #include "3rdparty/intscan.h"
 #include "decl.h"
+#include "dynstring.h"
+#include "tasku_pp.h"
+#include "type.h"
 #include <memory.h>
 #include <stdarg.h>
 
@@ -741,12 +744,365 @@ struct tacc_ast *tacc_ast_new(void) {
     return ast;
 }
 
-struct tacc_ast *tacc_parse_file(struct tacc_tok_iter *iter) {
-    struct tacc_ast *ast = tacc_ast_new();
+tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok) {
+    if (tok->kind != TOK_IDENT) {
+        return 0;
+    }
+    switch (tok->ident_kind) {
+    case ID_AUTO:
+    case ID_CHAR:
+    case ID_CONST:
+    case ID_DOUBLE:
+    case ID_ENUM:
+    case ID_EXTERN:
+    case ID_FLOAT:
+    case ID_INLINE:
+    case ID_INT:
+    case ID_LONG:
+    case ID_REGISTER:
+    case ID_RESTRICT:
+    case ID_SHORT:
+    case ID_SIGNED:
+    case ID_STATIC:
+    case ID_STRUCT:
+    case ID_TYPEDEF:
+    case ID_UNION:
+    case ID_UNSIGNED:
+    case ID_VOID:
+    case ID_VOLATILE:
+    case ID__BOOL:
+    case ID__COMPLEX:
+    case ID__IMAGINARY:
+        return 1;
+    default:
+        return 0;
+    }
+}
 
-#ifndef __M2__
-    (void) iter;
-#endif
+enum tacc_intermediate_type_state {
+    TYPI_UNSPECIFIED = 0,
+    TYPI_INT = 0x1U,
+    TYPI_SHORT = 0x2U,
+    TYPI_LONG = 0x4U,
+    TYPI_LONGLONG = 0x8U,
+    TYPI_CHAR = 0x10U,
+    TYPI_UNSIGNED = 0x20U,
+    TYPI_SIGNED = 0x40U,
+    TYPI_OTHER = 0x80U,
+    TYPI_FLOAT = 0x100U,
+    TYPI_DOUBLE = 0x200U,
+    TYPI_LONGDOUBLE = 0x200U,
+    TYPI__BOOL = 0x400U,
+    TYPI_VOID = 0x800U
+};
+
+#define TYPI_SIZE 0x1FU
+#define TYPI_SIGN 0x60U
+
+static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
+    while (1) {
+        if (!tacc_tok_iter_accept_kw(iter, ID_CONST) &&
+            !tacc_tok_iter_accept_kw(iter, ID_RESTRICT) &&
+            !tacc_tok_iter_accept_kw(iter, ID_VOLATILE)) {
+            break;
+        }
+    }
+}
+
+struct tacc_declarator *tacc_parse_declarator(struct tacc_tok_iter *iter) {
+    struct tacc_declarator *declarator;
+    struct tacc_declarator *sub;
+    size_t indirection_level;
+    struct pp_tok *tok;
+    tacc_bool had_static;
+
+    declarator = tacc_declarator_new();
+    tok = tacc_tok_iter_peek(iter);
+    indirection_level = 0;
+
+    while (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
+        indirection_level = indirection_level + 1;
+        tacc_parse_skip_qualifiers(iter);
+    }
+
+    if (tok->kind == TOK_IDENT) {
+        tok = tacc_tok_iter_next(iter);
+        declarator->extra.name = tacc_dynstring_clone(tok->str);
+        declarator->kind = DECLARATOR_PLAIN;
+
+        tacc_pp_tok_free(tok);
+        tok = NULL;
+    } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
+        sub = tacc_parse_declarator(iter);
+        tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                    "expected ) in declarator");
+    }
+    while (1) {
+        if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
+            tacc_assert(0, "TODO: function declarations");
+        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
+            sub = declarator;
+            declarator = tacc_declarator_new();
+            declarator->kind = DECLARATOR_ARRAY;
+            declarator->extra.arr_decl = tacc_array_declarator_new();
+            declarator->extra.arr_decl->sub_declarator = sub;
+
+            had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
+            tacc_parse_skip_qualifiers(iter);
+            if (!had_static) {
+                had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
+            }
+            if (!had_static) {
+                if (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
+                    declarator->extra.arr_decl->array_dim_kind =
+                        ARRAYDIM_UNSPECIFIED_VLA;
+                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                                "expected ] in declarator");
+                    continue;
+                }
+            }
+            if (tacc_tok_iter_accept_tok(iter, TOK_RBRACE)) {
+                declarator->extra.arr_decl->array_dim_kind =
+                    ARRAYDIM_UNSPECIFIED;
+                continue;
+            }
+            declarator->extra.arr_decl->array_dim_kind = ARRAYDIM_EXPR;
+            declarator->extra.arr_decl->dim_expr = tacc_parse_new_expr(iter);
+            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                        "expected ] in declarator");
+        } else {
+            break;
+        }
+    }
+    declarator->indirection_level = indirection_level;
+
+    return declarator;
+}
+
+struct tacc_type *
+tacc_parse_typestate_to_type(struct tacc_type_registry *registry,
+                             enum tacc_intermediate_type_state state) {
+    enum tacc_type_kind kind;
+
+    kind = TYK_SINT;
+
+    switch (state & ~(TYPI_OTHER | TYPI_SIGN)) {
+    case TYPI_CHAR:
+        if (state & TYPI_UNSIGNED) {
+            kind = TYK_UCHAR;
+        } else if (state & TYPI_SIGNED) {
+            kind = TYK_SCHAR;
+        } else {
+            kind = TYK_CHAR;
+        }
+        break;
+    case TYPI_SHORT:
+        kind = TYK_SSHORT;
+        break;
+    case TYPI_INT:
+        kind = TYK_SINT;
+        break;
+    case TYPI_LONG:
+        kind = TYK_SLONG;
+        break;
+    case TYPI_LONGLONG:
+        kind = TYK_SLONGLONG;
+        break;
+    case TYPI_FLOAT:
+        kind = TYK_FLOAT;
+        break;
+    case TYPI_DOUBLE:
+        kind = TYK_DOUBLE;
+        break;
+    case TYPI_VOID:
+        kind = TYK_VOID;
+        break;
+    case TYPI__BOOL:
+        kind = TYK_BOOL;
+        break;
+    default:
+        tacc_assert(0, "invalid type (internal marker %d)", state);
+        break;
+    }
+    if (state & TYPI_UNSIGNED) {
+        kind = tacc_type_to_unsigned(kind);
+    }
+
+    return tacc_type_registry_get_basic_type(registry, kind);
+}
+
+struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
+                                      struct tacc_tok_iter *iter) {
+    struct tacc_decl *to_parse;
+    struct pp_tok *tok;
+    enum tacc_storage_class storage_class;
+    enum tacc_intermediate_type_state type_state;
+    unsigned type_state_helper;
+
+    to_parse = tacc_decl_new();
+    to_parse->kind = DECL_DECLARATORS;
+    storage_class = STORAGE_UNSPECIFIED;
+    type_state = TYPI_UNSPECIFIED;
+
+    tok = tacc_tok_iter_peek(iter);
+    do {
+        tacc_assert(tacc_tok_is_decl_specifier(tok),
+                    "expected declaration specifier");
+        switch (tok->ident_kind) {
+        case ID__COMPLEX:
+        case ID__IMAGINARY:
+            tacc_assert(0, "complex numbers are unsupported");
+            break;
+
+        case ID_RESTRICT:
+        /* carelessly ignore, even in lieu of all const-correctness constraints
+         */
+        case ID_CONST:
+        /* carelessly ignore, even in lieu of 6.7.3p9 */
+        case ID_VOLATILE:
+        /* carelessly ignore */
+        case ID_INLINE:
+            break;
+
+        case ID_AUTO:
+            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
+                        "multiple storage classes given");
+            storage_class = STORAGE_AUTO;
+            break;
+        case ID_REGISTER:
+            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
+                        "multiple storage classes given");
+            storage_class = STORAGE_REGISTER;
+            break;
+        case ID_EXTERN:
+            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
+                        "multiple storage classes given");
+            storage_class = STORAGE_EXTERN;
+            break;
+        case ID_STATIC:
+            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
+                        "multiple storage classes given");
+            storage_class = STORAGE_STATIC;
+            break;
+        case ID_TYPEDEF:
+            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
+                        "multiple storage classes given");
+            storage_class = STORAGE_TYPEDEF;
+            break;
+
+        case ID_ENUM:
+            /* TODO */
+        case ID_STRUCT:
+            /* TODO */
+        case ID_UNION:
+            /* TODO */
+
+        case ID_CHAR:
+            type_state = type_state | TYPI_CHAR;
+            break;
+        case ID_DOUBLE:
+            if ((type_state & TYPI_LONG) != 0) {
+                type_state = type_state | TYPI_LONGDOUBLE | TYPI_OTHER;
+            } else {
+                type_state = type_state | TYPI_DOUBLE | TYPI_OTHER;
+            }
+            break;
+        case ID_FLOAT:
+            type_state = type_state | TYPI_FLOAT | TYPI_OTHER;
+            break;
+        case ID_INT:
+            type_state = type_state | TYPI_INT;
+            break;
+        case ID_LONG:
+            if (type_state & TYPI_DOUBLE) {
+                type_state = type_state & ~((unsigned) TYPI_DOUBLE);
+                type_state = type_state | TYPI_LONGDOUBLE;
+            } else if ((type_state & TYPI_LONG) != 0) {
+                type_state = type_state & ~((unsigned) TYPI_LONG);
+                type_state = type_state | TYPI_LONGLONG;
+            } else {
+                type_state = type_state | TYPI_LONG;
+            }
+            break;
+        case ID_SHORT:
+            type_state = type_state | TYPI_SHORT;
+            break;
+        case ID_SIGNED:
+            type_state = type_state | TYPI_SIGNED;
+            break;
+        case ID_UNSIGNED:
+            type_state = type_state | TYPI_UNSIGNED;
+            break;
+
+        case ID_VOID:
+            type_state = TYPI_OTHER | TYPI_VOID;
+            break;
+        case ID__BOOL:
+            type_state = TYPI_OTHER | TYPI__BOOL;
+            break;
+        default:
+            tacc_assert(0,
+                        "unsupported part of declaration: %s",
+                        tacc_pp_to_string(tok));
+        }
+        tacc_pp_tok_free(tacc_tok_iter_next(iter));
+        tok = tacc_tok_iter_peek(iter);
+    } while (tacc_tok_is_decl_specifier(tok));
+
+    type_state_helper = (type_state & (~(unsigned) TYPI_SIGN));
+    /* ensure only one non-sign marker is set */
+    tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
+                "conflicting type");
+    if (type_state_helper == 0) {
+        type_state = type_state | TYPI_INT;
+    }
+    /*
+     * ensure only one sign marker is set, AND sign is only set if integer type
+     * is selected
+     */
+    type_state_helper = type_state & (TYPI_SIGN | TYPI_OTHER);
+    tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
+                "conflicting type");
+    if (type_state_helper == 0) {
+        type_state = type_state | TYPI_SIGNED;
+    }
+
+    to_parse->base_type = tacc_parse_typestate_to_type(registry, type_state);
+    to_parse->extra.declarators = tacc_declarator_list_new();
+    if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+        while (1) {
+            tacc_declarator_list_push(to_parse->extra.declarators,
+                                      tacc_parse_declarator(iter));
+            if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+                break;
+            }
+            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                        "expected , or ; in declarator list");
+        }
+    }
+
+    return to_parse;
+}
+
+struct tacc_ast *tacc_parse_file(struct tacc_type_registry *registry,
+                                 struct tacc_tok_iter *iter) {
+    struct tacc_ast *ast = tacc_ast_new();
+    struct pp_tok *tok;
+
+    while (1) {
+        tok = tacc_tok_iter_peek(iter);
+        if (tok->kind == TOK_EOF) {
+            break;
+        }
+        tacc_decl_list_push(ast->declarations,
+                            tacc_parse_new_decl(registry, iter));
+    }
 
     return ast;
+}
+
+void tacc_ast_free(struct tacc_ast *ast) {
+    tacc_decl_list_free(ast->declarations);
+    tacc_free(ast->declarations);
+    tacc_free(ast);
 }
