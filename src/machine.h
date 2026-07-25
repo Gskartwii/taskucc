@@ -6,8 +6,7 @@
 #include "type.h"
 
 struct tacc_val {
-    enum tacc_type_kind type_kind;
-    struct tacc_compound_type *compound_type;
+    struct tacc_type *type;
 
     union {
         struct tacc_u64 *int_value;
@@ -27,7 +26,7 @@ void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
                                            struct tacc_val *b,
                                            struct tacc_target *target);
 struct tacc_val *tacc_val_from_int(int value,
-                                   enum tacc_type_kind kind,
+                                   struct tacc_type *ty,
                                    struct tacc_target *target);
 
 #endif

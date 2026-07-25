@@ -7,10 +7,9 @@
 #include "statement.h"
 #include "string_list.h"
 
-enum tacc_decl_kind { DECL_FUNCTION_DEF, DECL_TYPEDEF, DECL_DECLARATORS };
+enum tacc_decl_kind { DECL_FUNCTION_DEF, DECL_DECLARATORS };
 enum tacc_declarator_kind {
     DECLARATOR_PLAIN,
-    DECLARATOR_INDIRECTION,
     DECLARATOR_ARRAY,
     DECLARATOR_FUNC
 };

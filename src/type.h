@@ -115,6 +115,7 @@ DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_free)
 
 struct tacc_type_registry {
+    struct tacc_target *target;
     struct tacc_type_list *basic_types;
 
     struct tacc_compound_type_list *typedefs;
@@ -124,7 +125,7 @@ struct tacc_type_registry {
 };
 
 struct tacc_type *tacc_type_new(void);
-struct tacc_type_registry *tacc_type_registry_new(void);
+struct tacc_type_registry *tacc_type_registry_new(struct tacc_target *target);
 void tacc_type_registry_free(struct tacc_type_registry *registry);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
                                    struct tacc_target *target);

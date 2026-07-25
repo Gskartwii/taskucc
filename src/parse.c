@@ -88,7 +88,7 @@ static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
            (tok->ident_kind == ID_OTHER || tok->ident_kind == ID_TYPEDEF_NAME);
 }
 
-static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
+static struct tacc_val *tacc_parse_numlit(struct tacc_type_registry *registry,
                                           struct pp_tok *tok) {
     struct tacc_val *val;
     struct tacc_u64 *u64;
@@ -116,7 +116,7 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
     if (len == 1) {
         tacc_u64_zero(u64);
         tacc_u64_add_u32(u64, u64, (uint32_t) (*cstr - '0'));
-        val->type_kind = TYK_SINT;
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
         tacc_free(cstr);
         return val;
     }
@@ -157,9 +157,9 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
 
     can_be_unsigned = specified_u || (base != 10);
     if (can_be_unsigned) {
-        tacc_u64_copy(&limit, target->sllong->max);
+        tacc_u64_copy(&limit, registry->target->sllong->max);
     } else {
-        tacc_u64_copy(&limit, target->ullong->max);
+        tacc_u64_copy(&limit, registry->target->ullong->max);
     }
     intscan(iter, base, &limit, u64);
 
@@ -167,63 +167,73 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
 
     if (count_l == 2) {
         if (specified_u) {
-            val->type_kind = TYK_ULONGLONG;
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
             return val;
         }
-        if (tacc_u64_ugt(u64, target->sllong->max)) {
-            val->type_kind = TYK_ULONGLONG;
+        if (tacc_u64_ugt(u64, registry->target->sllong->max)) {
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
             return val;
         }
-        val->type_kind = TYK_SLONGLONG;
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
         return val;
     }
     if (count_l == 1) {
         if (specified_u) {
-            if (tacc_u64_ule(u64, target->ulong->max)) {
-                val->type_kind = TYK_ULONG;
+            if (tacc_u64_ule(u64, registry->target->ulong->max)) {
+                val->type =
+                    tacc_type_registry_get_basic_type(registry, TYK_ULONG);
                 return val;
             }
-            val->type_kind = TYK_ULONGLONG;
-        } else if (tacc_u64_ule(u64, target->slong->max)) {
-            val->type_kind = TYK_SLONG;
-        } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
-            val->type_kind = TYK_ULONG;
-        } else if (tacc_u64_ule(u64, target->sllong->max)) {
-            val->type_kind = TYK_SLONGLONG;
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+        } else if (tacc_u64_ule(u64, registry->target->slong->max)) {
+            val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONG);
+        } else if (can_be_unsigned &&
+                   tacc_u64_ule(u64, registry->target->ulong->max)) {
+            val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
+        } else if (tacc_u64_ule(u64, registry->target->sllong->max)) {
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
         } else {
-            val->type_kind = TYK_ULONGLONG;
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
         }
         return val;
     }
 
     if (specified_u) {
-        if (tacc_u64_ule(u64, target->uint->max)) {
-            val->type_kind = TYK_UINT;
-        } else if (tacc_u64_ule(u64, target->ulong->max)) {
-            val->type_kind = TYK_ULONG;
+        if (tacc_u64_ule(u64, registry->target->uint->max)) {
+            val->type = tacc_type_registry_get_basic_type(registry, TYK_UINT);
+        } else if (tacc_u64_ule(u64, registry->target->ulong->max)) {
+            val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
         } else {
-            val->type_kind = TYK_ULONGLONG;
+            val->type =
+                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
         }
         return val;
     }
 
-    if (tacc_u64_ule(u64, target->sint->max)) {
-        val->type_kind = TYK_SINT;
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->uint->max)) {
-        val->type_kind = TYK_UINT;
-    } else if (tacc_u64_ule(u64, target->slong->max)) {
-        val->type_kind = TYK_SLONG;
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
-        val->type_kind = TYK_ULONG;
-    } else if (tacc_u64_ule(u64, target->sllong->max)) {
-        val->type_kind = TYK_SLONGLONG;
+    if (tacc_u64_ule(u64, registry->target->sint->max)) {
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
+    } else if (can_be_unsigned &&
+               tacc_u64_ule(u64, registry->target->uint->max)) {
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_UINT);
+    } else if (tacc_u64_ule(u64, registry->target->slong->max)) {
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONG);
+    } else if (can_be_unsigned &&
+               tacc_u64_ule(u64, registry->target->ulong->max)) {
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
+    } else if (tacc_u64_ule(u64, registry->target->sllong->max)) {
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
     } else {
-        val->type_kind = TYK_ULONGLONG;
+        val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
     }
     return val;
 }
 
-static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
+static struct tacc_val *tacc_parse_charlit(struct tacc_type_registry *registry,
                                            struct pp_tok *tok) {
     struct tacc_u64 *u64;
     struct tacc_val *val;
@@ -235,7 +245,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
-        tacc_u64_lsh_n(u64, u64, (int) (target->schar->bit_width));
+        tacc_u64_lsh_n(u64, u64, (int) (registry->target->schar->bit_width));
         input = *str;
         if (*str == '\\') {
             str = str + 1;
@@ -291,7 +301,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
 
     val = tacc_val_new();
     val->value.int_value = u64;
-    val->type_kind = TYK_SINT;
+    val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
 
     return val;
 }
@@ -326,7 +336,8 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
             expr->kind = EX_NUM_LIT;
-            expr->extra.const_val = tacc_parse_numlit(iter->state->target, tok);
+            expr->extra.const_val =
+                tacc_parse_numlit(iter->state->registry, tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
@@ -335,7 +346,7 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
-                tacc_parse_charlit(iter->state->target, tok);
+                tacc_parse_charlit(iter->state->registry, tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(

@@ -270,10 +270,11 @@ static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
     return type;
 }
 
-struct tacc_type_registry *tacc_type_registry_new(void) {
+struct tacc_type_registry *tacc_type_registry_new(struct tacc_target *target) {
     struct tacc_type_registry *registry;
 
     registry = tacc_malloc(sizeof(struct tacc_type_registry));
+    registry->target = target;
     registry->basic_types = tacc_type_list_new();
     registry->structs = tacc_compound_type_list_new();
     registry->enums = tacc_compound_type_list_new();

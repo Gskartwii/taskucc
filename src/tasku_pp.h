@@ -225,7 +225,7 @@ struct tacc_pp_state {
     struct tacc_macro_def_list *macros;
 
     /* borrowed */
-    struct tacc_target *target;
+    struct tacc_type_registry *registry;
 };
 
 struct tacc_tok_iter {
@@ -246,6 +246,7 @@ struct tacc_tok_iter {
     tacc_bool in_include_directive;
     tacc_bool in_if;
     tacc_bool pending_ws;
+    tacc_bool want_trivia;
 
     /* owning, possibly null */
     struct tacc_tok_iter *override;
@@ -269,10 +270,10 @@ tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
                                   enum pp_ident_kind kw);
 
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(struct tacc_target *target);
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_type_registry *registry);
 /* state: borrow */
 void tacc_pp_state_init(struct tacc_pp_state *state,
-                        struct tacc_target *target);
+                        struct tacc_type_registry *registry);
 /* state: owning */
 void tacc_pp_state_free(struct tacc_pp_state *state);
 /* state: borrow, name: borrow, expansion: borrow */

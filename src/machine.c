@@ -6,9 +6,7 @@
 struct tacc_val *tacc_val_new(void) {
     struct tacc_val *val = tacc_malloc(sizeof(struct tacc_val));
 
-    val->type_kind = TYK_VOID;
-    val->value.int_value = NULL;
-    val->compound_type = NULL;
+    val->type = NULL;
 
     return val;
 }
@@ -16,8 +14,7 @@ struct tacc_val *tacc_val_new(void) {
 struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
     struct tacc_val *val = tacc_malloc(sizeof(struct tacc_val));
 
-    val->type_kind = orig_val->type_kind;
-    val->compound_type = orig_val->compound_type;
+    val->type = orig_val->type;
 
     if (tacc_val_is_integral(orig_val)) {
         val->value.int_value = tacc_u64_clone(orig_val->value.int_value);
@@ -29,7 +26,7 @@ struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
 }
 
 tacc_bool tacc_val_is_integral(struct tacc_val *val) {
-    switch (val->type_kind) {
+    switch (val->type->kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -48,11 +45,11 @@ tacc_bool tacc_val_is_integral(struct tacc_val *val) {
 }
 
 tacc_bool tacc_val_is_signed(struct tacc_val *val, struct tacc_target *target) {
-    return tacc_type_kind_is_signed(val->type_kind, target);
+    return tacc_type_kind_is_signed(val->type->kind, target);
 }
 
 tacc_bool tacc_val_is_scalar(struct tacc_val *val) {
-    switch (val->type_kind) {
+    switch (val->type->kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -72,14 +69,14 @@ tacc_bool tacc_val_is_scalar(struct tacc_val *val) {
     case TYK_VOID:
         return 0;
     case TYK_COMPOUND:
-        return (val->compound_type->kind == TYC_PTR) ||
-               (val->compound_type->kind == TYC_ENUM);
+        return (val->type->extra->kind == TYC_PTR) ||
+               (val->type->extra->kind == TYC_ENUM);
     }
     return 0;
 }
 
 tacc_bool tacc_val_is_arithmetic(struct tacc_val *val) {
-    switch (val->type_kind) {
+    switch (val->type->kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -99,7 +96,7 @@ tacc_bool tacc_val_is_arithmetic(struct tacc_val *val) {
     case TYK_VOID:
         return 0;
     case TYK_COMPOUND:
-        return val->compound_type->kind == TYC_ENUM;
+        return val->type->extra->kind == TYC_ENUM;
     }
     return 0;
 }
@@ -115,7 +112,7 @@ tacc_bool tacc_val_is_truthy(struct tacc_val *val) {
 static void tacc_val_convert(struct tacc_val *val,
                              enum tacc_type_kind into,
                              struct tacc_target *target) {
-    if (tacc_type_is_subset(val->type_kind, into, target)) {
+    if (tacc_type_is_subset(val->type->kind, into, target)) {
         /* already fits into destination type */
         return;
     }
@@ -139,8 +136,8 @@ void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
     enum tacc_int_rank b_rank;
     enum tacc_type_kind common_type;
 
-    a_type = a->type_kind;
-    b_type = b->type_kind;
+    a_type = a->type->kind;
+    b_type = b->type->kind;
 
     tacc_assert(tacc_val_is_integral(a) && tacc_val_is_integral(b),
                 "TODO: arith conversions for non-integral types");
@@ -189,12 +186,12 @@ tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b) {
 }
 
 struct tacc_val *tacc_val_from_int(int value,
-                                   enum tacc_type_kind kind,
+                                   struct tacc_type *ty,
                                    struct tacc_target *target) {
     struct tacc_val *val;
 
     val = tacc_val_new();
-    val->type_kind = kind;
+    val->type = ty;
     val->value.int_value = tacc_u64_new_from_u32((uint32_t) value);
     if (tacc_val_is_signed(val, target) && (value < 0)) {
         val->value.int_value->high = 0xFFFFFFFF;

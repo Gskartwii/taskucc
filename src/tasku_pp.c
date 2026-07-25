@@ -5,6 +5,7 @@
 #include "expr.h"
 #include "machine.h"
 #include "parse.h"
+#include "type.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1335,10 +1336,10 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
 
 /* state: borrow */
 void tacc_pp_state_init(struct tacc_pp_state *state,
-                        struct tacc_target *target) {
+                        struct tacc_type_registry *registry) {
     struct tacc_string *thisdir_incpath;
 
-    state->target = target;
+    state->registry = registry;
 
     state->include_path = tacc_string_list_new();
     thisdir_incpath = tacc_dynstring_new();
@@ -1350,11 +1351,11 @@ void tacc_pp_state_init(struct tacc_pp_state *state,
 }
 
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(struct tacc_target *target) {
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_type_registry *registry) {
     struct tacc_pp_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_pp_state));
-    tacc_pp_state_init(state, target);
+    tacc_pp_state_init(state, registry);
 
     return state;
 }
@@ -1504,6 +1505,7 @@ void tacc_tok_iter_init(struct tacc_tok_iter *iter,
     iter->in_if = 0;
     iter->pending_ws = 0;
     iter->skip_till_endif = 0;
+    iter->want_trivia = 0;
 }
 
 /* return: owning */
@@ -1929,7 +1931,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr, first->state->target);
+    val = tacc_expr_const_eval(expr, first->state->registry);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -1990,7 +1992,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr, first->state->target);
+    val = tacc_expr_const_eval(expr, first->state->registry);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -3052,7 +3054,16 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
 
 /* return: borrow, iter: borrow */
 struct pp_tok *tacc_tok_iter_peek(struct tacc_tok_iter* iter) {
-    return tacc_tok_iter_peek_handle_directives(iter);
+    struct pp_tok *tok;
+
+    while (1) {
+        tok = tacc_tok_iter_peek_handle_directives(iter);
+        if (tok->kind == TOK_FAKE_TRIVIA && !iter->want_trivia) {
+            tacc_tok_iter_drop_nomacro(iter);
+        } else {
+            return tok;
+        }
+    }
 }
 
 /* return: owning, iter: borrow */

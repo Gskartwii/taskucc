@@ -40,6 +40,7 @@ let
     "statement.h"
     "decl.h"
     "parse.h"
+    "format.h"
     "tasku_pp.h"
     "test.h"
   ];
@@ -57,6 +58,7 @@ let
     "decl.c"
     "statement.c"
     "parse.c"
+    "format.c"
     "target_defs.c"
     "tasku_file.c"
     "tasku_pp.c"

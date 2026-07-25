@@ -1,4 +1,5 @@
 #include "dynstring.h"
+#include "format.h"
 #include "gcc_compat.h"
 #include "parse.h"
 #include "target_defs.h"
@@ -186,9 +187,11 @@ int main(int argc, char **argv) {
     struct tacc_file_iter *file_iter;
     struct tacc_tok_iter *tok_iter;
     struct tacc_pp_state *pp_state;
+    struct tacc_ast *ast;
     struct tacc_target *target;
     struct tacc_type_registry *registry;
     struct tacc_options options;
+    struct tacc_formatter fmt;
 
     init_io();
 
@@ -202,8 +205,8 @@ int main(int argc, char **argv) {
     }
 
     target = tacc_target_new("x86_64-linux");
-    registry = tacc_type_registry_new();
-    pp_state = tacc_pp_state_new(target);
+    registry = tacc_type_registry_new(target);
+    pp_state = tacc_pp_state_new(registry);
     tacc_apply_defines(options.defines, pp_state);
     tacc_string_list_free(options.defines);
     tacc_free(options.defines);
@@ -213,9 +216,13 @@ int main(int argc, char **argv) {
     tok_iter = tacc_tok_iter_new(file_iter, pp_state);
 
     if (options.preprocess) {
+        tok_iter->want_trivia = 1;
         tacc_output_pp(tok_iter);
     } else {
-        tacc_ast_free(tacc_parse_file(registry, tok_iter));
+        ast = tacc_parse_file(registry, tok_iter);
+        fmt.indent = 0;
+        tacc_format_ast(&fmt, ast);
+        tacc_ast_free(ast);
     }
 
     tacc_tok_iter_free(tok_iter);
