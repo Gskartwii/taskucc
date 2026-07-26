@@ -31,6 +31,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
     }
     if (expr->kind == EX_NUM_LIT) {
         tacc_val_free(expr->extra.const_val);
+    } else if (expr->kind == EX_IDENT) {
+        tacc_dynstring_free(expr->extra.name);
     }
     tacc_free(expr);
 }

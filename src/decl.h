@@ -10,6 +10,8 @@
 enum tacc_decl_kind { DECL_FUNCTION_DEF, DECL_DECLARATORS };
 enum tacc_declarator_kind {
     DECLARATOR_PLAIN,
+    DECLARATOR_ABSTRACT,
+    DECLARATOR_SUB,
     DECLARATOR_ARRAY,
     DECLARATOR_FUNC
 };
@@ -33,6 +35,8 @@ union tacc_declarator_extra {
     /* owning */
     struct tacc_string *name;
     /* owning */
+    struct tacc_declarator *sub_declarator;
+    /* owning */
     struct tacc_array_declarator *arr_decl;
     /* owning */
     struct tacc_function_declarator *func_decl;
@@ -47,7 +51,9 @@ struct tacc_function_param {
 };
 
 struct tacc_function_declarator {
-    size_t return_type_indirections;
+    /* owning */
+    struct tacc_declarator *sub_declarator;
+
     enum tacc_function_param_list_kind param_list_kind;
     union {
         struct tacc_function_param_list *modern_params;
@@ -134,7 +140,9 @@ void tacc_array_declarator_free(struct tacc_array_declarator *declarator);
 void tacc_function_declarator_free(struct tacc_function_declarator *declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
 struct tacc_declarator *tacc_declarator_new(void);
+struct tacc_function_param *tacc_function_param_new(void);
 struct tacc_array_declarator *tacc_array_declarator_new(void);
+struct tacc_function_declarator *tacc_function_declarator_new(void);
 struct tacc_decl *tacc_decl_new(void);
 void tacc_decl_free(struct tacc_decl *decl);
 

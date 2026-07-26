@@ -125,18 +125,18 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
         tacc_format_field_name(fmt, "ty");
         tacc_format_type(fmt, expr->extra.const_val->type);
         n = 0;
-        return;
+        break;
     case EX_STRING_LIT:
         tacc_format_begin_scope(fmt, "string-lit-expr");
         /* skip formatting the string itself, for now */
         n = 0;
-        return;
+        break;
     case EX_IDENT:
         tacc_format_begin_scope(fmt, "ident-expr");
         tacc_format_field_name(fmt, "name");
         tacc_format_print(fmt, "%s", tacc_dynstring_as_str(expr->extra.name));
         n = 0;
-        return;
+        break;
     case EX_ADD:
         tacc_format_begin_scope(fmt, "+");
         n = 2;
@@ -377,11 +377,22 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
 
 static void tacc_format_declarator(struct tacc_formatter *fmt,
                                    struct tacc_declarator *declarator) {
+    size_t i;
+    struct tacc_string_list_entry *entry;
+    struct tacc_function_param_list_entry *funcparam_entry;
+
     tacc_format_begin_scope(fmt, "declarator");
 
     tacc_format_field_name(fmt, "indirection-level");
     tacc_format_print(fmt, "%u", declarator->indirection_level);
     switch (declarator->kind) {
+    case DECLARATOR_SUB:
+        tacc_format_field_name(fmt, "sub-declarator");
+        tacc_format_declarator(fmt, declarator->extra.sub_declarator);
+        break;
+    case DECLARATOR_ABSTRACT:
+        tacc_format_field_name(fmt, "abstract");
+        break;
     case DECLARATOR_PLAIN:
         tacc_format_field_name(fmt, "plain-name");
         tacc_format_print(
@@ -402,7 +413,56 @@ static void tacc_format_declarator(struct tacc_formatter *fmt,
         }
         break;
     case DECLARATOR_FUNC:
-        tacc_assert(0, "TODO: format function declarator");
+        tacc_format_field_name(fmt, "function-sub-declarator");
+        tacc_format_declarator(fmt,
+                               declarator->extra.func_decl->sub_declarator);
+        tacc_format_field_name(fmt, "function-param-list");
+        if (declarator->extra.func_decl->param_list_kind ==
+            FUNCPARAM_EMPTY_LIST) {
+            tacc_format_print(fmt, "empty");
+        } else if (declarator->extra.func_decl->param_list_kind ==
+                   FUNCPARAM_VOID) {
+            tacc_format_print(fmt, "void");
+        } else if (declarator->extra.func_decl->param_list_kind ==
+                   FUNCPARAM_OLD_STYLE_LIST) {
+            tacc_format_begin_scope(fmt, "old-style");
+            for (i = 0;
+                 i <
+                 tacc_string_list_len(
+                     declarator->extra.func_decl->param_list.old_style_params);
+                 i = i + 1) {
+                tacc_format_newline(fmt);
+                entry = tacc_string_list_get(
+                    declarator->extra.func_decl->param_list.old_style_params,
+                    i);
+                tacc_format_print(fmt, tacc_dynstring_as_str(entry->content));
+            }
+            tacc_format_end_scope(fmt);
+        } else {
+            if (declarator->extra.func_decl->param_list_kind ==
+                FUNCPARAM_LIST_VARARG) {
+                tacc_format_begin_scope(fmt, "param-list-va");
+            } else {
+                tacc_format_begin_scope(fmt, "param-list");
+            }
+            for (i = 0;
+                 i < tacc_function_param_list_len(
+                         declarator->extra.func_decl->param_list.modern_params);
+                 i = i + 1) {
+                funcparam_entry = tacc_function_param_list_get(
+                    declarator->extra.func_decl->param_list.modern_params, i);
+                tacc_format_newline(fmt);
+                tacc_format_begin_scope(fmt, "param");
+                tacc_format_field_name(fmt, "type");
+                tacc_format_type(fmt, funcparam_entry->content->base_type);
+                if (funcparam_entry->content->decl) {
+                    tacc_format_field_name(fmt, "declarator");
+                    tacc_format_declarator(fmt, funcparam_entry->content->decl);
+                }
+                tacc_format_end_scope(fmt);
+            }
+            tacc_format_end_scope(fmt);
+        }
         break;
     }
 

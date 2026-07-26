@@ -3099,6 +3099,16 @@ void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
     new_tok->is_final = 1;
     tacc_tok_iter_push_pending(iter, new_tok);
 }
+void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,
+                                enum pp_ident_kind kw) {
+    struct pp_tok* new_tok;
+
+    new_tok = tacc_pp_tok_new();
+    new_tok->kind = TOK_IDENT;
+    new_tok->ident_kind = kw;
+    new_tok->is_final = 1;
+    tacc_tok_iter_push_pending(iter, new_tok);
+}
 tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
                                   enum pp_ident_kind kw) {
     struct pp_tok* peek_tok;

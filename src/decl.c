@@ -56,9 +56,12 @@ void tacc_function_declarator_free(
     if (declarator->param_list_kind == FUNCPARAM_LIST ||
         declarator->param_list_kind == FUNCPARAM_LIST_VARARG) {
         tacc_function_param_list_free(declarator->param_list.modern_params);
+        tacc_free(declarator->param_list.modern_params);
     } else if (declarator->param_list_kind == FUNCPARAM_OLD_STYLE_LIST) {
         tacc_string_list_free(declarator->param_list.old_style_params);
+        tacc_free(declarator->param_list.old_style_params);
     }
+    tacc_declarator_free(declarator->sub_declarator);
     tacc_free(declarator);
 }
 
@@ -69,6 +72,8 @@ void tacc_declarator_free(struct tacc_declarator *declarator) {
         tacc_function_declarator_free(declarator->extra.func_decl);
     } else if (declarator->kind == DECLARATOR_PLAIN) {
         tacc_dynstring_free(declarator->extra.name);
+    } else if (declarator->kind == DECLARATOR_SUB) {
+        tacc_declarator_free(declarator->extra.sub_declarator);
     }
 
     tacc_free(declarator);
@@ -78,9 +83,21 @@ void tacc_funcdef_free(struct tacc_funcdef *func_def) {
     tacc_declarator_free(func_def->func_declaration);
     if (func_def->old_style_param_list) {
         tacc_decl_list_free(func_def->old_style_param_list);
+        tacc_free(func_def->old_style_param_list);
     }
     tacc_statement_list_free(func_def->statements);
+    tacc_free(func_def->statements);
     tacc_free(func_def);
+}
+
+struct tacc_function_param *tacc_function_param_new(void) {
+    struct tacc_function_param *param;
+
+    param = tacc_malloc(sizeof(struct tacc_function_param));
+    param->base_type = NULL;
+    param->decl = NULL;
+
+    return param;
 }
 
 struct tacc_array_declarator *tacc_array_declarator_new(void) {
@@ -90,6 +107,16 @@ struct tacc_array_declarator *tacc_array_declarator_new(void) {
     declarator->array_dim_kind = ARRAYDIM_UNSPECIFIED;
     declarator->dim_expr = NULL;
     declarator->sub_declarator = NULL;
+
+    return declarator;
+}
+
+struct tacc_function_declarator *tacc_function_declarator_new(void) {
+    struct tacc_function_declarator *declarator;
+
+    declarator = tacc_malloc(sizeof(struct tacc_function_declarator));
+    declarator->sub_declarator = NULL;
+    declarator->param_list_kind = FUNCPARAM_EMPTY_LIST;
 
     return declarator;
 }

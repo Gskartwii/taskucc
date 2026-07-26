@@ -820,76 +820,6 @@ static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     }
 }
 
-struct tacc_declarator *tacc_parse_declarator(struct tacc_tok_iter *iter) {
-    struct tacc_declarator *declarator;
-    struct tacc_declarator *sub;
-    size_t indirection_level;
-    struct pp_tok *tok;
-    tacc_bool had_static;
-
-    declarator = tacc_declarator_new();
-    tok = tacc_tok_iter_peek(iter);
-    indirection_level = 0;
-
-    while (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
-        indirection_level = indirection_level + 1;
-        tacc_parse_skip_qualifiers(iter);
-    }
-
-    if (tok->kind == TOK_IDENT) {
-        tok = tacc_tok_iter_next(iter);
-        declarator->extra.name = tacc_dynstring_clone(tok->str);
-        declarator->kind = DECLARATOR_PLAIN;
-
-        tacc_pp_tok_free(tok);
-        tok = NULL;
-    } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
-        sub = tacc_parse_declarator(iter);
-        tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
-                    "expected ) in declarator");
-    }
-    while (1) {
-        if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
-            tacc_assert(0, "TODO: function declarations");
-        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
-            sub = declarator;
-            declarator = tacc_declarator_new();
-            declarator->kind = DECLARATOR_ARRAY;
-            declarator->extra.arr_decl = tacc_array_declarator_new();
-            declarator->extra.arr_decl->sub_declarator = sub;
-
-            had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
-            tacc_parse_skip_qualifiers(iter);
-            if (!had_static) {
-                had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
-            }
-            if (!had_static) {
-                if (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
-                    declarator->extra.arr_decl->array_dim_kind =
-                        ARRAYDIM_UNSPECIFIED_VLA;
-                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                                "expected ] in declarator");
-                    continue;
-                }
-            }
-            if (tacc_tok_iter_accept_tok(iter, TOK_RBRACE)) {
-                declarator->extra.arr_decl->array_dim_kind =
-                    ARRAYDIM_UNSPECIFIED;
-                continue;
-            }
-            declarator->extra.arr_decl->array_dim_kind = ARRAYDIM_EXPR;
-            declarator->extra.arr_decl->dim_expr = tacc_parse_new_expr(iter);
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                        "expected ] in declarator");
-        } else {
-            break;
-        }
-    }
-    declarator->indirection_level = indirection_level;
-
-    return declarator;
-}
-
 struct tacc_type *
 tacc_parse_typestate_to_type(struct tacc_type_registry *registry,
                              enum tacc_intermediate_type_state state) {
@@ -942,18 +872,17 @@ tacc_parse_typestate_to_type(struct tacc_type_registry *registry,
     return tacc_type_registry_get_basic_type(registry, kind);
 }
 
-struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
-                                      struct tacc_tok_iter *iter) {
-    struct tacc_decl *to_parse;
-    struct pp_tok *tok;
-    enum tacc_storage_class storage_class;
+struct tacc_type *
+tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
+                                  enum tacc_storage_class *storage_class_out,
+                                  struct tacc_type_registry *registry) {
     enum tacc_intermediate_type_state type_state;
+    enum tacc_storage_class storage_class;
+    struct pp_tok *tok;
     unsigned type_state_helper;
 
-    to_parse = tacc_decl_new();
-    to_parse->kind = DECL_DECLARATORS;
-    storage_class = STORAGE_UNSPECIFIED;
     type_state = TYPI_UNSPECIFIED;
+    storage_class = STORAGE_UNSPECIFIED;
 
     tok = tacc_tok_iter_peek(iter);
     do {
@@ -966,7 +895,8 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
             break;
 
         case ID_RESTRICT:
-        /* carelessly ignore, even in lieu of all const-correctness constraints
+        /* carelessly ignore, even in lieu of all const-correctness
+         * constraints
          */
         case ID_CONST:
         /* carelessly ignore, even in lieu of 6.7.3p9 */
@@ -1060,7 +990,7 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
         tok = tacc_tok_iter_peek(iter);
     } while (tacc_tok_is_decl_specifier(tok));
 
-    type_state_helper = (type_state & (~(unsigned) TYPI_SIGN));
+    type_state_helper = (type_state & (TYPI_OTHER | TYPI_SIZE));
     /* ensure only one non-sign marker is set */
     tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
                 "conflicting type");
@@ -1068,8 +998,8 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
         type_state = type_state | TYPI_INT;
     }
     /*
-     * ensure only one sign marker is set, AND sign is only set if integer type
-     * is selected
+     * ensure only one sign marker is set, AND sign is only set if integer
+     * type is selected
      */
     type_state_helper = type_state & (TYPI_SIGN | TYPI_OTHER);
     tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
@@ -1078,12 +1008,190 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
         type_state = type_state | TYPI_SIGNED;
     }
 
-    to_parse->base_type = tacc_parse_typestate_to_type(registry, type_state);
+    *storage_class_out = storage_class;
+    return tacc_parse_typestate_to_type(registry, type_state);
+}
+
+static void tacc_parse_name_list(struct tacc_tok_iter *iter,
+                                 struct tacc_string_list *list) {
+    struct pp_tok *tok;
+
+    do {
+        tok = tacc_tok_iter_next(iter);
+        tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                    "expected identifier in function parameter list");
+        tacc_string_list_push(list, tacc_dynstring_clone(tok->str));
+    } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
+}
+
+struct tacc_declarator *
+tacc_parse_declarator(struct tacc_tok_iter *iter,
+                      struct tacc_type_registry *registry,
+                      tacc_bool allow_abstract);
+
+void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
+                                struct tacc_tok_iter *iter,
+                                struct tacc_type_registry *registry) {
+    struct tacc_function_param *param;
+    enum tacc_storage_class storage_class;
+    decl->param_list_kind = FUNCPARAM_LIST;
+    decl->param_list.modern_params = tacc_function_param_list_new();
+
+    do {
+        if (tacc_tok_iter_accept_tok(iter, TOK_DOT_3)) {
+            decl->param_list_kind = FUNCPARAM_LIST_VARARG;
+            break;
+        }
+        param = tacc_function_param_new();
+        param->base_type =
+            tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+        tacc_assert(storage_class == STORAGE_UNSPECIFIED ||
+                        storage_class == STORAGE_REGISTER,
+                    "invalid storage class for function parameter");
+        param->decl = tacc_parse_declarator(iter, registry, 1);
+
+        tacc_function_param_list_push(decl->param_list.modern_params, param);
+    } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
+}
+
+struct tacc_declarator *
+tacc_parse_declarator(struct tacc_tok_iter *iter,
+                      struct tacc_type_registry *registry,
+                      tacc_bool allow_abstract) {
+    struct tacc_declarator *declarator;
+    struct tacc_declarator *sub;
+    size_t indirection_level;
+    struct pp_tok *tok;
+    tacc_bool had_static;
+
+    declarator = tacc_declarator_new();
+    indirection_level = 0;
+
+    while (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
+        indirection_level = indirection_level + 1;
+        tacc_parse_skip_qualifiers(iter);
+    }
+
+    tok = tacc_tok_iter_peek(iter);
+    if (tok->kind == TOK_IDENT) {
+        tok = tacc_tok_iter_next(iter);
+        declarator->extra.name = tacc_dynstring_clone(tok->str);
+        declarator->kind = DECLARATOR_PLAIN;
+
+        tacc_pp_tok_free(tok);
+        tok = NULL;
+    } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
+        if (allow_abstract && tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+            sub = tacc_declarator_new();
+            sub->kind = DECLARATOR_ABSTRACT;
+            declarator->kind = DECLARATOR_FUNC;
+            declarator->extra.func_decl->sub_declarator = sub;
+            declarator->extra.func_decl->param_list_kind = FUNCPARAM_EMPTY_LIST;
+        } else {
+            sub = tacc_parse_declarator(iter, registry, allow_abstract);
+            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                        "expected ) in declarator");
+            declarator->kind = DECLARATOR_SUB;
+            declarator->extra.sub_declarator = sub;
+        }
+    } else {
+        tacc_assert(allow_abstract, "expected declarator");
+        declarator->kind = DECLARATOR_ABSTRACT;
+    }
+    while (1) {
+        if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
+            sub = declarator;
+            declarator = tacc_declarator_new();
+            declarator->kind = DECLARATOR_FUNC;
+            declarator->extra.func_decl = tacc_function_declarator_new();
+            declarator->extra.func_decl->sub_declarator = sub;
+            if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                declarator->extra.func_decl->param_list_kind =
+                    FUNCPARAM_EMPTY_LIST;
+                continue;
+            }
+            if (tacc_tok_iter_accept_kw(iter, ID_VOID)) {
+                if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                    declarator->extra.func_decl->param_list_kind =
+                        FUNCPARAM_VOID;
+                    continue;
+                }
+                tacc_tok_iter_deaccept_kw(iter, ID_VOID);
+            }
+            tok = tacc_tok_iter_peek(iter);
+            if (tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER) {
+                /*
+                 * only permissible in function definition, but don't check this
+                 * yet
+                 */
+                declarator->extra.func_decl->param_list_kind =
+                    FUNCPARAM_OLD_STYLE_LIST;
+                declarator->extra.func_decl->param_list.old_style_params =
+                    tacc_string_list_new();
+                tacc_parse_name_list(
+                    iter,
+                    declarator->extra.func_decl->param_list.old_style_params);
+                tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                            "expected ) in function declarator");
+                continue;
+            }
+            tacc_parse_func_param_list(
+                declarator->extra.func_decl, iter, registry);
+            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                        "expected ) in function declarator");
+        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
+            sub = declarator;
+            declarator = tacc_declarator_new();
+            declarator->kind = DECLARATOR_ARRAY;
+            declarator->extra.arr_decl = tacc_array_declarator_new();
+            declarator->extra.arr_decl->sub_declarator = sub;
+
+            had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
+            tacc_parse_skip_qualifiers(iter);
+            if (!had_static) {
+                had_static = tacc_tok_iter_accept_kw(iter, ID_STATIC);
+            }
+            if (!had_static) {
+                if (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
+                    declarator->extra.arr_decl->array_dim_kind =
+                        ARRAYDIM_UNSPECIFIED_VLA;
+                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                                "expected ] in declarator");
+                    continue;
+                }
+            }
+            if (tacc_tok_iter_accept_tok(iter, TOK_RBRACE)) {
+                declarator->extra.arr_decl->array_dim_kind =
+                    ARRAYDIM_UNSPECIFIED;
+                continue;
+            }
+            declarator->extra.arr_decl->array_dim_kind = ARRAYDIM_EXPR;
+            declarator->extra.arr_decl->dim_expr = tacc_parse_new_expr(iter);
+            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                        "expected ] in declarator");
+        } else {
+            break;
+        }
+    }
+    declarator->indirection_level = indirection_level;
+
+    return declarator;
+}
+
+struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
+                                      struct tacc_tok_iter *iter) {
+    struct tacc_decl *to_parse;
+    enum tacc_storage_class storage_class;
+
+    to_parse = tacc_decl_new();
+    to_parse->base_type =
+        tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+    to_parse->storage_class = storage_class;
     to_parse->extra.declarators = tacc_declarator_list_new();
     if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
         while (1) {
             tacc_declarator_list_push(to_parse->extra.declarators,
-                                      tacc_parse_declarator(iter));
+                                      tacc_parse_declarator(iter, registry, 0));
             if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                 break;
             }
