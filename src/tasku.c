@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     struct tacc_pp_state *pp_state;
     struct tacc_ast *ast;
     struct tacc_target *target;
-    struct tacc_type_registry *registry;
+    struct tacc_parse_registry *registry;
     struct tacc_options options;
     struct tacc_formatter fmt;
 

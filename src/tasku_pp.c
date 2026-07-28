@@ -5,7 +5,6 @@
 #include "expr.h"
 #include "machine.h"
 #include "parse.h"
-#include "type.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1336,7 +1335,7 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
 
 /* state: borrow */
 void tacc_pp_state_init(struct tacc_pp_state *state,
-                        struct tacc_type_registry *registry) {
+                        struct tacc_parse_registry *registry) {
     struct tacc_string *thisdir_incpath;
 
     state->registry = registry;
@@ -1351,7 +1350,7 @@ void tacc_pp_state_init(struct tacc_pp_state *state,
 }
 
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(struct tacc_type_registry *registry) {
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry) {
     struct tacc_pp_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_pp_state));
@@ -1931,7 +1930,9 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr, first->state->registry);
+    val = tacc_expr_const_eval(expr,
+                               first->state->registry->target,
+                               first->state->registry->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -1992,7 +1993,9 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr, first->state->registry);
+    val = tacc_expr_const_eval(expr,
+                               first->state->registry->target,
+                               first->state->registry->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,

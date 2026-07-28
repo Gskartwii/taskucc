@@ -15,13 +15,6 @@ enum tacc_declarator_kind {
     DECLARATOR_ARRAY,
     DECLARATOR_FUNC
 };
-enum tacc_function_param_list_kind {
-    FUNCPARAM_EMPTY_LIST,
-    FUNCPARAM_VOID,
-    FUNCPARAM_LIST,
-    FUNCPARAM_LIST_VARARG,
-    FUNCPARAM_OLD_STYLE_LIST
-};
 enum tacc_storage_class {
     STORAGE_UNSPECIFIED,
     STORAGE_REGISTER,
@@ -134,6 +127,9 @@ DECL_DYNARRAY_OVER(tacc_function_param_list,
                    tacc_function_param_list_len,
                    tacc_function_param_list_free)
 
+struct tacc_string *tacc_declarator_name(struct tacc_declarator *decl);
+struct tacc_type *tacc_declarator_type(struct tacc_declarator *decl,
+                                       struct tacc_type *ty);
 void tacc_function_param_free(struct tacc_function_param *param);
 void tacc_funcdef_free(struct tacc_funcdef *func_def);
 void tacc_array_declarator_free(struct tacc_array_declarator *declarator);

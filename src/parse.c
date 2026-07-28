@@ -1,11 +1,36 @@
 #include "parse.h"
 #include "3rdparty/intscan.h"
 #include "decl.h"
+#include "dynarray.h"
 #include "dynstring.h"
 #include "tasku_pp.h"
 #include "type.h"
 #include <memory.h>
 #include <stdarg.h>
+
+MK_DYNARRAY_OVER(tacc_untagged_ident_list,
+                 tacc_untagged_ident_list_entry,
+                 struct tacc_untagged_ident *,
+                 tacc_untagged_ident_list_new,
+                 tacc_untagged_ident_list_init,
+                 tacc_untagged_ident_list_get,
+                 tacc_untagged_ident_list_push,
+                 tacc_untagged_ident_list_pop,
+                 tacc_untagged_ident_list_len,
+                 tacc_untagged_ident_free,
+                 tacc_untagged_ident_list_free)
+
+MK_DYNARRAY_OVER(tacc_ident_scope_list,
+                 tacc_ident_scope_list_entry,
+                 struct tacc_ident_scope *,
+                 tacc_ident_scope_list_new,
+                 tacc_ident_scope_list_init,
+                 tacc_ident_scope_list_get,
+                 tacc_ident_scope_list_push,
+                 tacc_ident_scope_list_pop,
+                 tacc_ident_scope_list_len,
+                 tacc_ident_scope_free,
+                 tacc_ident_scope_list_free)
 
 static void tacc_parse_assert(struct tacc_tok_iter *iter,
                               tacc_bool cond,
@@ -33,6 +58,29 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     vprintf(msg, va);
     printf("\n");
     tacc_assert(0, "parse error", msg);
+}
+
+static struct tacc_ident_scope *tacc_ident_scope_new(void) {
+    struct tacc_ident_scope *scope;
+
+    scope = tacc_malloc(sizeof(struct tacc_ident_scope));
+    scope->untagged_idents = tacc_untagged_ident_list_new();
+    scope->tagged_types = tacc_compound_type_list_new();
+
+    return scope;
+}
+
+static void
+tacc_parse_registry_start_scope(struct tacc_parse_registry *registry) {
+    struct tacc_ident_scope *scope;
+
+    scope = tacc_ident_scope_new();
+    tacc_ident_scope_list_push(registry->scopes, scope);
+}
+
+static void
+tacc_parse_registry_end_scope(struct tacc_parse_registry *registry) {
+    tacc_ident_scope_free(tacc_ident_scope_list_pop(registry->scopes));
 }
 
 static void tacc_parse_expr_bump_to_op1(struct tacc_expr *expr) {
@@ -88,7 +136,8 @@ static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
            (tok->ident_kind == ID_OTHER || tok->ident_kind == ID_TYPEDEF_NAME);
 }
 
-static struct tacc_val *tacc_parse_numlit(struct tacc_type_registry *registry,
+static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
+                                          struct tacc_type_list *basic_types,
                                           struct pp_tok *tok) {
     struct tacc_val *val;
     struct tacc_u64 *u64;
@@ -116,7 +165,7 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_type_registry *registry,
     if (len == 1) {
         tacc_u64_zero(u64);
         tacc_u64_add_u32(u64, u64, (uint32_t) (*cstr - '0'));
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
+        val->type = tacc_get_basic_type(basic_types, TYK_SINT);
         tacc_free(cstr);
         return val;
     }
@@ -157,9 +206,9 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_type_registry *registry,
 
     can_be_unsigned = specified_u || (base != 10);
     if (can_be_unsigned) {
-        tacc_u64_copy(&limit, registry->target->sllong->max);
+        tacc_u64_copy(&limit, target->sllong->max);
     } else {
-        tacc_u64_copy(&limit, registry->target->ullong->max);
+        tacc_u64_copy(&limit, target->ullong->max);
     }
     intscan(iter, base, &limit, u64);
 
@@ -167,73 +216,64 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_type_registry *registry,
 
     if (count_l == 2) {
         if (specified_u) {
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
             return val;
         }
-        if (tacc_u64_ugt(u64, registry->target->sllong->max)) {
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+        if (tacc_u64_ugt(u64, target->sllong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
             return val;
         }
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
         return val;
     }
     if (count_l == 1) {
         if (specified_u) {
-            if (tacc_u64_ule(u64, registry->target->ulong->max)) {
-                val->type =
-                    tacc_type_registry_get_basic_type(registry, TYK_ULONG);
+            if (tacc_u64_ule(u64, target->ulong->max)) {
+                val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
                 return val;
             }
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
-        } else if (tacc_u64_ule(u64, registry->target->slong->max)) {
-            val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONG);
-        } else if (can_be_unsigned &&
-                   tacc_u64_ule(u64, registry->target->ulong->max)) {
-            val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
-        } else if (tacc_u64_ule(u64, registry->target->sllong->max)) {
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+        } else if (tacc_u64_ule(u64, target->slong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
+        } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+        } else if (tacc_u64_ule(u64, target->sllong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
         } else {
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
         }
         return val;
     }
 
     if (specified_u) {
-        if (tacc_u64_ule(u64, registry->target->uint->max)) {
-            val->type = tacc_type_registry_get_basic_type(registry, TYK_UINT);
-        } else if (tacc_u64_ule(u64, registry->target->ulong->max)) {
-            val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
+        if (tacc_u64_ule(u64, target->uint->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_UINT);
+        } else if (tacc_u64_ule(u64, target->ulong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
         } else {
-            val->type =
-                tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
         }
         return val;
     }
 
-    if (tacc_u64_ule(u64, registry->target->sint->max)) {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
-    } else if (can_be_unsigned &&
-               tacc_u64_ule(u64, registry->target->uint->max)) {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_UINT);
-    } else if (tacc_u64_ule(u64, registry->target->slong->max)) {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONG);
-    } else if (can_be_unsigned &&
-               tacc_u64_ule(u64, registry->target->ulong->max)) {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONG);
-    } else if (tacc_u64_ule(u64, registry->target->sllong->max)) {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_SLONGLONG);
+    if (tacc_u64_ule(u64, target->sint->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SINT);
+    } else if (can_be_unsigned && tacc_u64_ule(u64, target->uint->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_UINT);
+    } else if (tacc_u64_ule(u64, target->slong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
+    } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+    } else if (tacc_u64_ule(u64, target->sllong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
     } else {
-        val->type = tacc_type_registry_get_basic_type(registry, TYK_ULONGLONG);
+        val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
     }
     return val;
 }
 
-static struct tacc_val *tacc_parse_charlit(struct tacc_type_registry *registry,
+static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
+                                           struct tacc_type_list *basic_types,
                                            struct pp_tok *tok) {
     struct tacc_u64 *u64;
     struct tacc_val *val;
@@ -245,7 +285,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_type_registry *registry,
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
-        tacc_u64_lsh_n(u64, u64, (int) (registry->target->schar->bit_width));
+        tacc_u64_lsh_n(u64, u64, (int) (target->schar->bit_width));
         input = *str;
         if (*str == '\\') {
             str = str + 1;
@@ -301,7 +341,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_type_registry *registry,
 
     val = tacc_val_new();
     val->value.int_value = u64;
-    val->type = tacc_type_registry_get_basic_type(registry, TYK_SINT);
+    val->type = tacc_get_basic_type(basic_types, TYK_SINT);
 
     return val;
 }
@@ -337,7 +377,9 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
         } else if (tok->kind == TOK_PPNUM) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
-                tacc_parse_numlit(iter->state->registry, tok);
+                tacc_parse_numlit(iter->state->registry->target,
+                                  iter->state->registry->basic_types,
+                                  tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
@@ -346,7 +388,9 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
-                tacc_parse_charlit(iter->state->registry, tok);
+                tacc_parse_charlit(iter->state->registry->target,
+                                   iter->state->registry->basic_types,
+                                   tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(
@@ -755,7 +799,63 @@ struct tacc_ast *tacc_ast_new(void) {
     return ast;
 }
 
-tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok) {
+static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
+    struct tacc_parse_registry *registry, char *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_untagged_ident_list_entry *ident_entry;
+    struct tacc_ident_scope *scope;
+    size_t i;
+    size_t j;
+    size_t scope_len;
+
+    scope_len = tacc_ident_scope_list_len(registry->scopes);
+    for (i = 1; i <= scope_len; i = i + 1) {
+        scope_entry =
+            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
+        scope = scope_entry->content;
+        for (j = 0; j < tacc_untagged_ident_list_len(scope->untagged_idents);
+             j = j + 1) {
+            ident_entry =
+                tacc_untagged_ident_list_get(scope->untagged_idents, j);
+            if (!strcmp(name,
+                        tacc_dynstring_as_str(ident_entry->content->name))) {
+                return ident_entry->content;
+            }
+        }
+    }
+    return NULL;
+}
+
+/*static struct tacc_compound_type *tacc_parse_registry_lookup_tagged(
+    struct tacc_parse_registry *registry, char *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_compound_type_list_entry *type_entry;
+    struct tacc_ident_scope *scope;
+    size_t i;
+    size_t j;
+    size_t scope_len;
+
+    scope_len = tacc_ident_scope_list_len(registry->scopes);
+    for (i = 1; i <= scope_len; i = i + 1) {
+        scope_entry =
+            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
+        scope = scope_entry->content;
+        for (j = 0; j < tacc_compound_type_list_len(scope->tagged_types);
+             j = j + 1) {
+            type_entry = tacc_compound_type_list_get(scope->tagged_types, j);
+            if (!strcmp(name,
+                        tacc_dynstring_as_str(type_entry->content->name))) {
+                return type_entry->content;
+            }
+        }
+    }
+    return NULL;
+}*/
+
+tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
+                                     struct tacc_parse_registry *registry) {
+    struct tacc_untagged_ident *ident_descriptor;
+
     if (tok->kind != TOK_IDENT) {
         return 0;
     }
@@ -785,6 +885,13 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok) {
     case ID__COMPLEX:
     case ID__IMAGINARY:
         return 1;
+    case ID_OTHER:
+        ident_descriptor = tacc_parse_registry_lookup_untagged(
+            registry, tacc_dynstring_as_str(tok->str));
+        if (ident_descriptor == NULL) {
+            return 0;
+        }
+        return ident_descriptor->kind == UNTAGGED_IDENT_TYPEDEF;
     default:
         return 0;
     }
@@ -804,7 +911,8 @@ enum tacc_intermediate_type_state {
     TYPI_DOUBLE = 0x200U,
     TYPI_LONGDOUBLE = 0x200U,
     TYPI__BOOL = 0x400U,
-    TYPI_VOID = 0x800U
+    TYPI_VOID = 0x800U,
+    TYPI_TYPEDEF = 0x1000U
 };
 
 #define TYPI_SIZE 0x1FU
@@ -821,7 +929,7 @@ static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
 }
 
 struct tacc_type *
-tacc_parse_typestate_to_type(struct tacc_type_registry *registry,
+tacc_parse_typestate_to_type(struct tacc_type_list *basic_types,
                              enum tacc_intermediate_type_state state) {
     enum tacc_type_kind kind;
 
@@ -869,24 +977,27 @@ tacc_parse_typestate_to_type(struct tacc_type_registry *registry,
         kind = tacc_type_to_unsigned(kind);
     }
 
-    return tacc_type_registry_get_basic_type(registry, kind);
+    return tacc_get_basic_type(basic_types, kind);
 }
 
 struct tacc_type *
 tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
                                   enum tacc_storage_class *storage_class_out,
-                                  struct tacc_type_registry *registry) {
+                                  struct tacc_parse_registry *registry) {
     enum tacc_intermediate_type_state type_state;
     enum tacc_storage_class storage_class;
     struct pp_tok *tok;
+    struct tacc_untagged_ident *ident_descriptor;
+    struct tacc_type *typedef_ty;
     unsigned type_state_helper;
 
     type_state = TYPI_UNSPECIFIED;
     storage_class = STORAGE_UNSPECIFIED;
+    typedef_ty = NULL;
 
     tok = tacc_tok_iter_peek(iter);
     do {
-        tacc_assert(tacc_tok_is_decl_specifier(tok),
+        tacc_assert(tacc_tok_is_decl_specifier(tok, registry),
                     "expected declaration specifier");
         switch (tok->ident_kind) {
         case ID__COMPLEX:
@@ -976,10 +1087,16 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             break;
 
         case ID_VOID:
-            type_state = TYPI_OTHER | TYPI_VOID;
+            type_state = type_state | TYPI_OTHER | TYPI_VOID;
             break;
         case ID__BOOL:
-            type_state = TYPI_OTHER | TYPI__BOOL;
+            type_state = type_state | TYPI_OTHER | TYPI__BOOL;
+            break;
+        case ID_OTHER:
+            type_state = type_state | TYPI_OTHER | TYPI_TYPEDEF;
+            ident_descriptor = tacc_parse_registry_lookup_untagged(
+                registry, tacc_dynstring_as_str(tok->str));
+            typedef_ty = ident_descriptor->base_type;
             break;
         default:
             tacc_assert(0,
@@ -988,7 +1105,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
         }
         tacc_pp_tok_free(tacc_tok_iter_next(iter));
         tok = tacc_tok_iter_peek(iter);
-    } while (tacc_tok_is_decl_specifier(tok));
+    } while (tacc_tok_is_decl_specifier(tok, registry));
 
     type_state_helper = (type_state & (TYPI_OTHER | TYPI_SIZE));
     /* ensure only one non-sign marker is set */
@@ -1009,7 +1126,47 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
     }
 
     *storage_class_out = storage_class;
-    return tacc_parse_typestate_to_type(registry, type_state);
+    if ((type_state & TYPI_TYPEDEF) != 0) {
+        return typedef_ty;
+    } else {
+        return tacc_parse_typestate_to_type(registry->basic_types, type_state);
+    }
+}
+
+static void tacc_parse_registry_add_variable(
+    struct tacc_parse_registry *registry, struct tacc_string *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_untagged_ident *ident_descriptor;
+    struct tacc_ident_scope *scope;
+
+    scope_entry = tacc_ident_scope_list_get(
+        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
+    scope = scope_entry->content;
+
+    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
+    ident_descriptor->kind = UNTAGGED_IDENT_OBJECT;
+    ident_descriptor->name = name;
+    tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
+}
+
+static void
+tacc_parse_registry_add_typedef(struct tacc_parse_registry *registry,
+                                struct tacc_declarator *declarator,
+                                struct tacc_type *base_type) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_untagged_ident *ident_descriptor;
+    struct tacc_ident_scope *scope;
+
+    scope_entry = tacc_ident_scope_list_get(
+        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
+    scope = scope_entry->content;
+
+    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
+    ident_descriptor->kind = UNTAGGED_IDENT_TYPEDEF;
+    ident_descriptor->name =
+        tacc_dynstring_clone(tacc_declarator_name(declarator));
+    ident_descriptor->base_type = tacc_declarator_type(declarator, base_type);
+    tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
 }
 
 static void tacc_parse_name_list(struct tacc_tok_iter *iter,
@@ -1026,14 +1183,22 @@ static void tacc_parse_name_list(struct tacc_tok_iter *iter,
 
 struct tacc_declarator *
 tacc_parse_declarator(struct tacc_tok_iter *iter,
-                      struct tacc_type_registry *registry,
+                      struct tacc_parse_registry *registry,
                       tacc_bool allow_abstract);
 
 void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
                                 struct tacc_tok_iter *iter,
-                                struct tacc_type_registry *registry) {
+                                struct tacc_parse_registry *registry) {
     struct tacc_function_param *param;
     enum tacc_storage_class storage_class;
+    struct tacc_string *param_name;
+
+    /*
+     * Start temporary scope for the duration of this function parameter list
+     * only. An equivalent scope will be re-filled in the function body, if any.
+     */
+    tacc_parse_registry_start_scope(registry);
+
     decl->param_list_kind = FUNCPARAM_LIST;
     decl->param_list.modern_params = tacc_function_param_list_new();
 
@@ -1050,13 +1215,21 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
                     "invalid storage class for function parameter");
         param->decl = tacc_parse_declarator(iter, registry, 1);
 
+        param_name = tacc_declarator_name(param->decl);
+        if (param_name != NULL) {
+            tacc_parse_registry_add_variable(registry,
+                                             tacc_dynstring_clone(param_name));
+        }
+
         tacc_function_param_list_push(decl->param_list.modern_params, param);
     } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
+
+    tacc_parse_registry_end_scope(registry);
 }
 
 struct tacc_declarator *
 tacc_parse_declarator(struct tacc_tok_iter *iter,
-                      struct tacc_type_registry *registry,
+                      struct tacc_parse_registry *registry,
                       tacc_bool allow_abstract) {
     struct tacc_declarator *declarator;
     struct tacc_declarator *sub;
@@ -1178,9 +1351,40 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
     return declarator;
 }
 
-struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
-                                      struct tacc_tok_iter *iter) {
+static struct tacc_funcdef *
+tacc_parse_func_def(struct tacc_decl *decl,
+                    struct tacc_parse_registry *registry,
+                    struct tacc_tok_iter *iter) {
+#ifndef __M2__
+    (void) decl;
+    (void) registry;
+    (void) iter;
+#endif
+    tacc_assert(0, "TODO: function definition body");
+    return NULL;
+}
+
+static struct tacc_decl *
+tacc_parse_new_decl(struct tacc_parse_registry *registry,
+                    struct tacc_tok_iter *iter,
+                    tacc_bool accept_funcdef);
+
+static void
+tacc_parse_old_style_param_types(struct tacc_decl *decl,
+                                 struct tacc_parse_registry *registry,
+                                 struct tacc_tok_iter *iter) {
+    do {
+        tacc_decl_list_push(decl->extra.func_def->old_style_param_list,
+                            tacc_parse_new_decl(registry, iter, 0));
+    } while (!tacc_tok_iter_accept_tok(iter, TOK_LBRACKET));
+}
+
+static struct tacc_decl *
+tacc_parse_new_decl(struct tacc_parse_registry *registry,
+                    struct tacc_tok_iter *iter,
+                    tacc_bool accept_funcdef) {
     struct tacc_decl *to_parse;
+    struct tacc_declarator *declarator;
     enum tacc_storage_class storage_class;
 
     to_parse = tacc_decl_new();
@@ -1190,8 +1394,38 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
     to_parse->extra.declarators = tacc_declarator_list_new();
     if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
         while (1) {
-            tacc_declarator_list_push(to_parse->extra.declarators,
-                                      tacc_parse_declarator(iter, registry, 0));
+            declarator = tacc_parse_declarator(iter, registry, 0);
+
+            if (storage_class != STORAGE_TYPEDEF) {
+                tacc_parse_registry_add_variable(
+                    registry,
+                    tacc_dynstring_clone(tacc_declarator_name(declarator)));
+            } else {
+                tacc_parse_registry_add_typedef(
+                    registry, declarator, to_parse->base_type);
+            }
+
+            if (accept_funcdef && declarator->kind == DECLARATOR_FUNC &&
+                declarator->extra.func_decl->param_list_kind ==
+                    FUNCPARAM_OLD_STYLE_LIST) {
+                tacc_parse_old_style_param_types(to_parse, registry, iter);
+                to_parse->kind = DECL_FUNCTION_DEF;
+                to_parse->extra.func_def =
+                    tacc_parse_func_def(to_parse, registry, iter);
+                tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                            "expected } to close function definition");
+                break;
+            }
+            if (accept_funcdef &&
+                tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+                to_parse->kind = DECL_FUNCTION_DEF;
+                to_parse->extra.func_def =
+                    tacc_parse_func_def(to_parse, registry, iter);
+                tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                            "expected } to close function definition");
+                break;
+            }
+            tacc_declarator_list_push(to_parse->extra.declarators, declarator);
             if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                 break;
             }
@@ -1203,7 +1437,7 @@ struct tacc_decl *tacc_parse_new_decl(struct tacc_type_registry *registry,
     return to_parse;
 }
 
-struct tacc_ast *tacc_parse_file(struct tacc_type_registry *registry,
+struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
                                  struct tacc_tok_iter *iter) {
     struct tacc_ast *ast = tacc_ast_new();
     struct pp_tok *tok;
@@ -1214,7 +1448,7 @@ struct tacc_ast *tacc_parse_file(struct tacc_type_registry *registry,
             break;
         }
         tacc_decl_list_push(ast->declarations,
-                            tacc_parse_new_decl(registry, iter));
+                            tacc_parse_new_decl(registry, iter, 1));
     }
 
     return ast;
@@ -1224,4 +1458,69 @@ void tacc_ast_free(struct tacc_ast *ast) {
     tacc_decl_list_free(ast->declarations);
     tacc_free(ast->declarations);
     tacc_free(ast);
+}
+
+void tacc_untagged_ident_free(struct tacc_untagged_ident *ident) {
+    tacc_dynstring_free(ident->name);
+    tacc_free(ident);
+}
+
+void tacc_ident_scope_free(struct tacc_ident_scope *scope) {
+    tacc_compound_type_list_free(scope->tagged_types);
+    tacc_free(scope->tagged_types);
+    tacc_untagged_ident_list_free(scope->untagged_idents);
+    tacc_free(scope->untagged_idents);
+    tacc_free(scope);
+}
+
+static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
+    struct tacc_type *type;
+
+    type = tacc_type_new();
+    type->kind = kind;
+
+    return type;
+}
+
+struct tacc_parse_registry *tacc_type_registry_new(struct tacc_target *target) {
+    struct tacc_parse_registry *registry;
+    struct tacc_ident_scope *scope;
+
+    registry = tacc_malloc(sizeof(struct tacc_parse_registry));
+    registry->target = target;
+    registry->basic_types = tacc_type_list_new();
+    registry->scopes = tacc_ident_scope_list_new();
+
+    scope = tacc_ident_scope_new();
+    tacc_ident_scope_list_push(registry->scopes, scope);
+
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_CHAR));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SCHAR));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UCHAR));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SSHORT));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_USHORT));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SINT));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UINT));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SLONG));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_ULONG));
+    tacc_type_list_push(registry->basic_types,
+                        tacc_mk_basic_type(TYK_SLONGLONG));
+    tacc_type_list_push(registry->basic_types,
+                        tacc_mk_basic_type(TYK_ULONGLONG));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_FLOAT));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_DOUBLE));
+    tacc_type_list_push(registry->basic_types,
+                        tacc_mk_basic_type(TYK_LONGDOUBLE));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_BOOL));
+    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_VOID));
+
+    return registry;
+}
+
+void tacc_type_registry_free(struct tacc_parse_registry *registry) {
+    tacc_type_list_free(registry->basic_types);
+    tacc_free(registry->basic_types);
+    tacc_ident_scope_list_free(registry->scopes);
+    tacc_free(registry->scopes);
+    tacc_free(registry);
 }

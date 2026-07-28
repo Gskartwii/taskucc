@@ -205,40 +205,23 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     }
 }
 
-struct tacc_type *tacc_type_registry_get_basic_type(
-    struct tacc_type_registry *registry, enum tacc_type_kind kind) {
-    struct tacc_type_list_entry *ty_entry;
-    size_t i;
-
-    for (i = 0; i < tacc_type_list_len(registry->basic_types); i = i + 1) {
-        ty_entry = tacc_type_list_get(registry->basic_types, i);
-        if (ty_entry->content->kind == kind) {
-            return ty_entry->content;
-        }
-    }
-    tacc_assert(0, "couldn't find registred type for basic type");
-    return NULL;
-}
-
 void tacc_type_free(struct tacc_type *type) { tacc_free(type); }
 
 void tacc_compound_type_free(struct tacc_compound_type *type) {
-    tacc_type_free(type->contained);
-
     switch (type->kind) {
     case TYC_PTR:
-    case TYC_TYPEDEF:
+        tacc_type_free(type->extra.contained);
+        break;
     case TYC_ARRAY:
     case TYC_ARRAY_FLEX:
     case TYC_FN:
         break;
     case TYC_STRUCT:
     case TYC_UNION:
-        tacc_struct_declaration_list_free(
-            type->declaration_list.struct_union_decls);
+        tacc_struct_declaration_list_free(type->extra.struct_union_decls);
         break;
     case TYC_ENUM:
-        tacc_enum_declaration_list_free(type->declaration_list.enum_decls);
+        tacc_enum_declaration_list_free(type->extra.enum_decls);
         break;
     }
 }
@@ -261,59 +244,48 @@ struct tacc_type *tacc_type_new(void) {
     return type;
 }
 
-static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
-    struct tacc_type *type;
+struct tacc_compound_type *tacc_compound_type_new(void) {
+    struct tacc_compound_type *type;
 
-    type = tacc_type_new();
-    type->kind = kind;
+    type = tacc_malloc(sizeof(struct tacc_compound_type));
+    type->kind = TYC_PTR;
+    type->name = NULL;
 
     return type;
 }
 
-struct tacc_type_registry *tacc_type_registry_new(struct tacc_target *target) {
-    struct tacc_type_registry *registry;
+struct tacc_array_type *tacc_array_type_new(void) {
+    struct tacc_array_type *type;
 
-    registry = tacc_malloc(sizeof(struct tacc_type_registry));
-    registry->target = target;
-    registry->basic_types = tacc_type_list_new();
-    registry->structs = tacc_compound_type_list_new();
-    registry->enums = tacc_compound_type_list_new();
-    registry->unions = tacc_compound_type_list_new();
-    registry->typedefs = tacc_compound_type_list_new();
+    type = tacc_malloc(sizeof(struct tacc_array_type));
+    type->element_type = NULL;
+    type->dimension = NULL;
 
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_CHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SCHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UCHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SSHORT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_USHORT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SINT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UINT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SLONG));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_ULONG));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_SLONGLONG));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_ULONGLONG));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_FLOAT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_DOUBLE));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_LONGDOUBLE));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_BOOL));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_VOID));
-
-    return registry;
+    return type;
 }
 
-void tacc_type_registry_free(struct tacc_type_registry *registry) {
-    tacc_type_list_free(registry->basic_types);
-    tacc_free(registry->basic_types);
-    tacc_compound_type_list_free(registry->structs);
-    tacc_free(registry->structs);
-    tacc_compound_type_list_free(registry->unions);
-    tacc_free(registry->unions);
-    tacc_compound_type_list_free(registry->enums);
-    tacc_free(registry->enums);
-    tacc_compound_type_list_free(registry->typedefs);
-    tacc_free(registry->typedefs);
-    tacc_free(registry);
+struct tacc_function_type *tacc_function_type_new(void) {
+    struct tacc_function_type *type;
+
+    type = tacc_malloc(sizeof(struct tacc_function_type));
+    type->param_types = NULL;
+    type->param_list_kind = FUNCPARAM_LIST;
+    type->return_type = NULL;
+
+    return type;
+}
+
+struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
+                                      enum tacc_type_kind kind) {
+    struct tacc_type_list_entry *ty_entry;
+    size_t i;
+
+    for (i = 0; i < tacc_type_list_len(basic_types); i = i + 1) {
+        ty_entry = tacc_type_list_get(basic_types, i);
+        if (ty_entry->content->kind == kind) {
+            return ty_entry->content;
+        }
+    }
+    tacc_assert(0, "couldn't find registred type for basic type");
+    return NULL;
 }

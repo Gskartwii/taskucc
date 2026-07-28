@@ -100,9 +100,11 @@ struct tacc_expr {
 };
 
 struct tacc_expr *tacc_expr_new(void);
+struct tacc_expr *tacc_expr_clone(struct tacc_expr *expr);
 void tacc_expr_init(struct tacc_expr *expr);
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
-                                      struct tacc_type_registry *registry);
+                                      struct tacc_target *target,
+                                      struct tacc_type_list *basic_types);
 void tacc_expr_free(struct tacc_expr *expr);
 
 #endif

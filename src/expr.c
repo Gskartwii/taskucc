@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "dynstring.h"
 #include "target_defs.h"
 #include "type.h"
 #include "util.h"
@@ -16,6 +17,39 @@ void tacc_expr_init(struct tacc_expr *expr) {
 struct tacc_expr *tacc_expr_new(void) {
     struct tacc_expr *expr = tacc_malloc(sizeof(struct tacc_expr));
     tacc_expr_init(expr);
+    return expr;
+}
+
+struct tacc_expr *tacc_expr_clone(struct tacc_expr *in_expr) {
+    struct tacc_expr *expr = tacc_expr_new();
+    struct tacc_expr_list_entry *entry;
+    size_t i;
+
+    expr->kind = in_expr->kind;
+    if (in_expr->op1 != NULL) {
+        expr->op1 = tacc_expr_clone(in_expr->op1);
+    }
+    if (in_expr->op2 != NULL) {
+        expr->op2 = tacc_expr_clone(in_expr->op2);
+    }
+    if (in_expr->op3 != NULL) {
+        expr->op3 = tacc_expr_clone(in_expr->op3);
+    }
+    if (expr->kind == EX_NUM_LIT) {
+        expr->extra.const_val = tacc_val_clone(in_expr->extra.const_val);
+    } else if (expr->kind == EX_IDENT) {
+        expr->extra.name = tacc_dynstring_clone(in_expr->extra.name);
+    } else if (expr->kind == EX_CAST || expr->kind == EX_SIZEOF_TY) {
+        expr->extra.type = in_expr->extra.type;
+    } else if (expr->kind == EX_CALL) {
+        expr->extra.op_list = tacc_expr_list_new();
+        for (i = 0; i < tacc_expr_list_len(in_expr->extra.op_list); i = i + 1) {
+            entry = tacc_expr_list_get(in_expr->extra.op_list, i);
+            tacc_expr_list_push(expr->extra.op_list,
+                                tacc_expr_clone(entry->content));
+        }
+    }
+
     return expr;
 }
 
@@ -50,12 +84,11 @@ MK_DYNARRAY_OVER(tacc_expr_list,
                  tacc_expr_list_free)
 
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
-                                      struct tacc_type_registry *registry) {
+                                      struct tacc_target *target,
+                                      struct tacc_type_list *basic_types) {
     struct tacc_val *l_result;
     struct tacc_val *r_result;
-    struct tacc_type *sint_ty =
-        tacc_type_registry_get_basic_type(registry, TYK_SINT);
-    struct tacc_target *target = registry->target;
+    struct tacc_type *sint_ty = tacc_get_basic_type(basic_types, TYK_SINT);
 
     switch (expr->kind) {
     case EX_UNINIT:
@@ -109,7 +142,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(0, "todo: >> consteval");
         break;
     case EX_AND:
-        l_result = tacc_expr_const_eval(expr->op1, registry);
+        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
         tacc_assert(tacc_val_is_scalar(l_result), "&& takes a scalar operand");
         if (!tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -118,7 +151,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         l_result = NULL;
 
-        r_result = tacc_expr_const_eval(expr->op2, registry);
+        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
         if (!tacc_val_is_truthy(r_result)) {
             tacc_val_free(r_result);
             return tacc_val_from_int(0, sint_ty, target);
@@ -128,7 +161,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
         return tacc_val_from_int(1, sint_ty, target);
     case EX_OR:
-        l_result = tacc_expr_const_eval(expr->op1, registry);
+        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
         tacc_assert(tacc_val_is_scalar(l_result), "|| takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -137,7 +170,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         l_result = NULL;
 
-        r_result = tacc_expr_const_eval(expr->op2, registry);
+        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
         if (tacc_val_is_truthy(r_result)) {
             tacc_val_free(r_result);
             return tacc_val_from_int(1, sint_ty, target);
@@ -147,7 +180,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
         return tacc_val_from_int(0, sint_ty, target);
     case EX_NOT:
-        l_result = tacc_expr_const_eval(expr->op1, registry);
+        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
         tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -156,8 +189,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         return tacc_val_from_int(1, sint_ty, target);
     case EX_EQ:
-        l_result = tacc_expr_const_eval(expr->op1, registry);
-        r_result = tacc_expr_const_eval(expr->op2, registry);
+        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic eq consteval");
@@ -171,8 +204,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(r_result);
         return tacc_val_from_int(1, sint_ty, target);
     case EX_NE:
-        l_result = tacc_expr_const_eval(expr->op1, registry);
-        r_result = tacc_expr_const_eval(expr->op2, registry);
+        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic ne consteval");
