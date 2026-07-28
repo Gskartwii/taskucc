@@ -181,18 +181,19 @@ tacc_declarator_name(struct tacc_declarator *declarator_in) {
 static struct tacc_type *tacc_indirection_type(struct tacc_type *ty_in,
                                                size_t indirection_level) {
     struct tacc_type *ty;
-    struct tacc_type *sub_ty;
 
     ty = ty_in;
-
     while (indirection_level > 0) {
         indirection_level = indirection_level - 1;
-        sub_ty = ty;
-        ty = tacc_type_new();
-        ty->kind = TYK_COMPOUND;
-        ty->extra = tacc_compound_type_new();
-        ty->extra->kind = TYC_PTR;
-        ty->extra->extra.contained = sub_ty;
+
+        if (ty->derived_ptr == NULL) {
+            ty->derived_ptr = tacc_type_new();
+            ty->derived_ptr->kind = TYK_COMPOUND;
+            ty->derived_ptr->extra = tacc_compound_type_new();
+            ty->derived_ptr->extra->kind = TYC_PTR;
+            ty->derived_ptr->extra->extra.contained = ty;
+        }
+        ty = ty->derived_ptr;
     }
 
     return ty;
@@ -227,6 +228,8 @@ struct tacc_type *tacc_declarator_type(struct tacc_declarator *decl,
                 tacc_expr_clone(decl->extra.arr_decl->dim_expr);
         }
 
+        tacc_type_list_push(ty->derived_array_types, derived_ty);
+
         return tacc_declarator_type(decl->extra.arr_decl->sub_declarator,
                                     derived_ty);
     case DECLARATOR_FUNC:
@@ -257,6 +260,8 @@ struct tacc_type *tacc_declarator_type(struct tacc_declarator *decl,
                                          param_list_entry->content->base_type));
             }
         }
+
+        tacc_type_list_push(ty->derived_func_types, derived_ty);
 
         return tacc_declarator_type(decl->extra.func_decl->sub_declarator,
                                     derived_ty);

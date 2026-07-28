@@ -112,8 +112,17 @@ struct tacc_compound_type {
 struct tacc_type {
     enum tacc_type_kind kind;
 
-    /* borrow */
+    /* borrow/owning, depends on compound type kind */
     struct tacc_compound_type *extra;
+
+    /* owning */
+    struct tacc_type *derived_ptr;
+
+    /* owning */
+    struct tacc_type_list *derived_array_types;
+
+    /* owning */
+    struct tacc_type_list *derived_func_types;
 };
 
 DECL_DYNARRAY_OVER(tacc_compound_type_list,

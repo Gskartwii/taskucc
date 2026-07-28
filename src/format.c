@@ -2,6 +2,7 @@
 #include "decl.h"
 #include "dynstring.h"
 #include "expr.h"
+#include "type.h"
 #include <stdarg.h>
 
 static void tacc_format_newline(struct tacc_formatter *fmt) {
@@ -44,6 +45,59 @@ static void tacc_format_end_scope(struct tacc_formatter *fmt) {
 static void tacc_format_field_name(struct tacc_formatter *fmt, char *name) {
     tacc_format_newline(fmt);
     tacc_format_print(fmt, "#:%s ", name);
+}
+
+static void tacc_format_type(struct tacc_formatter *fmt, struct tacc_type *ty);
+
+static void tacc_format_compound_type(struct tacc_formatter *fmt,
+                                      struct tacc_compound_type *ty) {
+    size_t i;
+    struct tacc_type_list_entry *entry;
+
+    switch (ty->kind) {
+    case TYC_PTR:
+        tacc_format_begin_scope(fmt, "ptr");
+        tacc_format_newline(fmt);
+        tacc_format_type(fmt, ty->extra.contained);
+        tacc_format_end_scope(fmt);
+        break;
+    case TYC_STRUCT:
+        tacc_assert(0, "todo: format struct type");
+        break;
+    case TYC_UNION:
+        tacc_assert(0, "todo: format union type");
+        break;
+    case TYC_ENUM:
+        tacc_assert(0, "todo: format enum type");
+        break;
+    case TYC_ARRAY:
+    case TYC_ARRAY_FLEX:
+    case TYC_FN:
+        tacc_format_begin_scope(fmt, "fn");
+        tacc_format_field_name(fmt, "ret");
+        tacc_format_type(fmt, ty->extra.function->return_type);
+        tacc_format_field_name(fmt, "params");
+        if (ty->extra.function->param_list_kind == FUNCPARAM_EMPTY_LIST) {
+            tacc_format_print(fmt, "unspecified");
+        } else if (ty->extra.function->param_list_kind == FUNCPARAM_VOID) {
+            tacc_format_print(fmt, "void");
+        } else {
+            if (ty->extra.function->param_list_kind == FUNCPARAM_LIST_VARARG) {
+                tacc_format_begin_scope(fmt, "list-va");
+            } else {
+                tacc_format_begin_scope(fmt, "list");
+            }
+            for (i = 0; i < tacc_type_list_len(ty->extra.function->param_types);
+                 i = i + 1) {
+                entry = tacc_type_list_get(ty->extra.function->param_types, i);
+                tacc_format_newline(fmt);
+                tacc_format_type(fmt, entry->content);
+            }
+            tacc_format_end_scope(fmt);
+        }
+        tacc_format_end_scope(fmt);
+        break;
+    }
 }
 
 static void tacc_format_type(struct tacc_formatter *fmt, struct tacc_type *ty) {
@@ -97,7 +151,7 @@ static void tacc_format_type(struct tacc_formatter *fmt, struct tacc_type *ty) {
         tacc_format_print(fmt, "void");
         break;
     case TYK_COMPOUND:
-        tacc_assert(0, "TODO: compound type fmt");
+        tacc_format_compound_type(fmt, ty->extra);
         break;
     }
 }

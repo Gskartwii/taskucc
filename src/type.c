@@ -205,13 +205,27 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     }
 }
 
-void tacc_type_free(struct tacc_type *type) { tacc_free(type); }
+void tacc_type_free(struct tacc_type *type) {
+    if (type->kind == TYK_COMPOUND) {
+        if (type->extra->kind != TYC_STRUCT && type->extra->kind != TYC_UNION &&
+            type->extra->kind != TYC_ENUM) {
+            tacc_compound_type_free(type->extra);
+        }
+    }
+
+    if (type->derived_ptr != NULL) {
+        tacc_type_free(type->derived_ptr);
+    }
+    tacc_type_list_free(type->derived_array_types);
+    tacc_free(type->derived_array_types);
+    tacc_type_list_free(type->derived_func_types);
+    tacc_free(type->derived_func_types);
+    tacc_free(type);
+}
 
 void tacc_compound_type_free(struct tacc_compound_type *type) {
     switch (type->kind) {
     case TYC_PTR:
-        tacc_type_free(type->extra.contained);
-        break;
     case TYC_ARRAY:
     case TYC_ARRAY_FLEX:
     case TYC_FN:
@@ -224,6 +238,7 @@ void tacc_compound_type_free(struct tacc_compound_type *type) {
         tacc_enum_declaration_list_free(type->extra.enum_decls);
         break;
     }
+    tacc_free(type);
 }
 
 void tacc_struct_declaration_free(struct tacc_struct_declaration *decl) {
@@ -240,6 +255,9 @@ struct tacc_type *tacc_type_new(void) {
 
     type = tacc_malloc(sizeof(struct tacc_type));
     type->kind = TYK_SINT;
+    type->derived_array_types = tacc_type_list_new();
+    type->derived_func_types = tacc_type_list_new();
+    type->derived_ptr = NULL;
 
     return type;
 }
