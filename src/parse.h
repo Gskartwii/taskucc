@@ -10,7 +10,6 @@ enum tacc_untagged_ident_kind { UNTAGGED_IDENT_OBJECT, UNTAGGED_IDENT_TYPEDEF };
 struct tacc_untagged_ident {
     struct tacc_string *name;
     enum tacc_untagged_ident_kind kind;
-    struct tacc_type *base_type;
 };
 
 DECL_DYNARRAY_OVER(tacc_untagged_ident_list,

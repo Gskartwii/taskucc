@@ -47,8 +47,10 @@ static void tacc_format_field_name(struct tacc_formatter *fmt, char *name) {
     tacc_format_print(fmt, "#:%s ", name);
 }
 
-static void tacc_format_type(struct tacc_formatter *fmt, struct tacc_type *ty);
+static void tacc_format_decl_type(struct tacc_formatter *fmt,
+                                  struct tacc_decl_type *ty);
 
+/*
 static void tacc_format_compound_type(struct tacc_formatter *fmt,
                                       struct tacc_compound_type *ty) {
     size_t i;
@@ -58,7 +60,7 @@ static void tacc_format_compound_type(struct tacc_formatter *fmt,
     case TYC_PTR:
         tacc_format_begin_scope(fmt, "ptr");
         tacc_format_newline(fmt);
-        tacc_format_type(fmt, ty->extra.contained);
+        tacc_format_decl_type(fmt, ty->extra.contained);
         tacc_format_end_scope(fmt);
         break;
     case TYC_STRUCT:
@@ -75,7 +77,7 @@ static void tacc_format_compound_type(struct tacc_formatter *fmt,
     case TYC_FN:
         tacc_format_begin_scope(fmt, "fn");
         tacc_format_field_name(fmt, "ret");
-        tacc_format_type(fmt, ty->extra.function->return_type);
+        tacc_format_decl_type(fmt, ty->extra.function->return_type);
         tacc_format_field_name(fmt, "params");
         if (ty->extra.function->param_list_kind == FUNCPARAM_EMPTY_LIST) {
             tacc_format_print(fmt, "unspecified");
@@ -91,7 +93,7 @@ static void tacc_format_compound_type(struct tacc_formatter *fmt,
                  i = i + 1) {
                 entry = tacc_type_list_get(ty->extra.function->param_types, i);
                 tacc_format_newline(fmt);
-                tacc_format_type(fmt, entry->content);
+                tacc_format_decl_type(fmt, entry->content);
             }
             tacc_format_end_scope(fmt);
         }
@@ -99,61 +101,88 @@ static void tacc_format_compound_type(struct tacc_formatter *fmt,
         break;
     }
 }
+*/
 
-static void tacc_format_type(struct tacc_formatter *fmt, struct tacc_type *ty) {
-    switch (ty->kind) {
-    case TYK_CHAR:
-        tacc_format_print(fmt, "char");
-        break;
-    case TYK_UCHAR:
-        tacc_format_print(fmt, "unsigned-char");
-        break;
-    case TYK_SCHAR:
-        tacc_format_print(fmt, "signed-char");
-        break;
-    case TYK_USHORT:
-        tacc_format_print(fmt, "unsigned-short");
-        break;
-    case TYK_SSHORT:
-        tacc_format_print(fmt, "signed-short");
-        break;
-    case TYK_UINT:
-        tacc_format_print(fmt, "unsigned-int");
-        break;
-    case TYK_SINT:
-        tacc_format_print(fmt, "signed-int");
-        break;
-    case TYK_ULONG:
-        tacc_format_print(fmt, "unsigned-long");
-        break;
-    case TYK_SLONG:
-        tacc_format_print(fmt, "signed-long");
-        break;
-    case TYK_ULONGLONG:
-        tacc_format_print(fmt, "unsigned-long-long");
-        break;
-    case TYK_SLONGLONG:
-        tacc_format_print(fmt, "signed-long-long");
-        break;
-    case TYK_FLOAT:
-        tacc_format_print(fmt, "float");
-        break;
-    case TYK_DOUBLE:
-        tacc_format_print(fmt, "double");
-        break;
-    case TYK_LONGDOUBLE:
-        tacc_format_print(fmt, "long-double");
-        break;
-    case TYK_BOOL:
-        tacc_format_print(fmt, "_Bool");
-        break;
-    case TYK_VOID:
-        tacc_format_print(fmt, "void");
-        break;
-    case TYK_COMPOUND:
-        tacc_format_compound_type(fmt, ty->extra);
-        break;
+static void tacc_format_decl_type(struct tacc_formatter *fmt,
+                                  struct tacc_decl_type *ty) {
+    uint32_t flags;
+
+    flags = ty->spec_qual_flags;
+    tacc_format_begin_scope(fmt, "decl-type");
+
+    if ((flags & TYPESPEC_INLINE) != 0) {
+        tacc_format_print(fmt, " inline");
     }
+    if ((flags & TYPEQUAL_CONST) != 0) {
+        tacc_format_print(fmt, " const");
+    }
+    if ((flags & TYPEQUAL_RESTRICT) != 0) {
+        tacc_format_print(fmt, " restrict");
+    }
+    if ((flags & TYPEQUAL_VOLATILE) != 0) {
+        tacc_format_print(fmt, " volatile");
+    }
+    if ((flags & TYPESPEC_UNSIGNED) != 0) {
+        tacc_format_print(fmt, " unsigned");
+    }
+    if ((flags & TYPESPEC_SIGNED) != 0) {
+        tacc_format_print(fmt, " signed");
+    }
+    if ((flags & TYPESPEC_LONG) != 0) {
+        tacc_format_print(fmt, " long");
+    }
+    if ((flags & TYPESPEC_LONG_2) != 0) {
+        tacc_format_print(fmt, " long-long");
+    }
+    if ((flags & TYPESPEC_SHORT) != 0) {
+        tacc_format_print(fmt, " short");
+    }
+    if ((flags & TYPESPEC_CHAR) != 0) {
+        tacc_format_print(fmt, " char");
+    }
+    if ((flags & TYPESPEC_INT) != 0) {
+        tacc_format_print(fmt, " int");
+    }
+    if ((flags & TYPESPEC_BOOL) != 0) {
+        tacc_format_print(fmt, " bool");
+    }
+    if ((flags & TYPESPEC_VOID) != 0) {
+        tacc_format_print(fmt, " void");
+    }
+    if ((flags & TYPESPEC_COMPLEX) != 0) {
+        tacc_format_print(fmt, " complex");
+    }
+    if ((flags & TYPESPEC_IMAGINARY) != 0) {
+        tacc_format_print(fmt, " imaginary");
+    }
+    if ((flags & TYPESPEC_DOUBLE) != 0) {
+        tacc_format_print(fmt, " double");
+    }
+    if ((flags & TYPESPEC_FLOAT) != 0) {
+        tacc_format_print(fmt, " float");
+    }
+    if ((flags & TYPESPEC_INLINE) != 0) {
+        tacc_format_print(fmt, " inline");
+    }
+    if ((flags & TYPESPEC_ENUM) != 0) {
+        tacc_format_print(fmt, " enum");
+    }
+    if ((flags & TYPESPEC_STRUCT) != 0) {
+        tacc_format_print(fmt, " struct");
+    }
+    if ((flags & TYPESPEC_UNION) != 0) {
+        tacc_format_print(fmt, " union");
+    }
+    if ((flags & TYPESPEC_TYPEDEF) != 0) {
+        tacc_format_print(fmt, " typedef");
+    }
+    if (ty->referenced_name != NULL) {
+        tacc_format_field_name(fmt, "ref-name");
+        tacc_format_print(
+            fmt, "%s", tacc_dynstring_as_str(ty->referenced_name));
+    }
+
+    tacc_format_end_scope(fmt);
 }
 
 static void tacc_format_number(struct tacc_formatter *fmt,
@@ -177,7 +206,7 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
         tacc_format_field_name(fmt, "val");
         tacc_format_number(fmt, expr->extra.const_val->value.int_value);
         tacc_format_field_name(fmt, "ty");
-        tacc_format_type(fmt, expr->extra.const_val->type);
+        /* tacc_format_decl_type(fmt, expr->extra.const_val->type); */
         n = 0;
         break;
     case EX_STRING_LIT:
@@ -388,7 +417,7 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
     case EX_CAST:
         tacc_format_begin_scope(fmt, "cast");
         tacc_format_field_name(fmt, "ty");
-        tacc_format_type(fmt, expr->extra.type);
+        /* tacc_format_decl_type(fmt, expr->extra.type); */
         n = 1;
         break;
     case EX_SIZEOF:
@@ -398,7 +427,7 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
     case EX_SIZEOF_TY:
         tacc_format_begin_scope(fmt, "sizeof");
         tacc_format_field_name(fmt, "ty");
-        tacc_format_type(fmt, expr->extra.type);
+        /* tacc_format_decl_type(fmt, expr->extra.type); */
         n = 0;
         break;
     case EX_SELECT:
@@ -508,7 +537,7 @@ static void tacc_format_declarator(struct tacc_formatter *fmt,
                 tacc_format_newline(fmt);
                 tacc_format_begin_scope(fmt, "param");
                 tacc_format_field_name(fmt, "type");
-                tacc_format_type(fmt, funcparam_entry->content->base_type);
+                tacc_format_decl_type(fmt, funcparam_entry->content->base_type);
                 if (funcparam_entry->content->decl) {
                     tacc_format_field_name(fmt, "declarator");
                     tacc_format_declarator(fmt, funcparam_entry->content->decl);
@@ -535,7 +564,7 @@ static void tacc_format_decl(struct tacc_formatter *fmt,
     }
 
     tacc_format_field_name(fmt, "base-type");
-    tacc_format_type(fmt, decl->base_type);
+    tacc_format_decl_type(fmt, decl->base_type);
     tacc_format_field_name(fmt, "storage-class");
     switch (decl->storage_class) {
     case STORAGE_UNSPECIFIED:

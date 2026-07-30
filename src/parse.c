@@ -897,27 +897,6 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
     }
 }
 
-enum tacc_intermediate_type_state {
-    TYPI_UNSPECIFIED = 0,
-    TYPI_INT = 0x1U,
-    TYPI_SHORT = 0x2U,
-    TYPI_LONG = 0x4U,
-    TYPI_LONGLONG = 0x8U,
-    TYPI_CHAR = 0x10U,
-    TYPI_UNSIGNED = 0x20U,
-    TYPI_SIGNED = 0x40U,
-    TYPI_OTHER = 0x80U,
-    TYPI_FLOAT = 0x100U,
-    TYPI_DOUBLE = 0x200U,
-    TYPI_LONGDOUBLE = 0x200U,
-    TYPI__BOOL = 0x400U,
-    TYPI_VOID = 0x800U,
-    TYPI_TYPEDEF = 0x1000U
-};
-
-#define TYPI_SIZE 0x1FU
-#define TYPI_SIGN 0x60U
-
 static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     while (1) {
         if (!tacc_tok_iter_accept_kw(iter, ID_CONST) &&
@@ -928,94 +907,29 @@ static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     }
 }
 
-struct tacc_type *
-tacc_parse_typestate_to_type(struct tacc_type_list *basic_types,
-                             enum tacc_intermediate_type_state state) {
-    enum tacc_type_kind kind;
+#define ENSURE_ONE(flag)                                                 \
+    tacc_assert((type_flags & flag) == 0, "unexpected: %s\n", tok->str); \
+    type_flags = type_flags | flag;
 
-    kind = TYK_SINT;
-
-    switch (state & ~(TYPI_OTHER | TYPI_SIGN)) {
-    case TYPI_CHAR:
-        if (state & TYPI_UNSIGNED) {
-            kind = TYK_UCHAR;
-        } else if (state & TYPI_SIGNED) {
-            kind = TYK_SCHAR;
-        } else {
-            kind = TYK_CHAR;
-        }
-        break;
-    case TYPI_SHORT:
-        kind = TYK_SSHORT;
-        break;
-    case TYPI_INT:
-        kind = TYK_SINT;
-        break;
-    case TYPI_LONG:
-        kind = TYK_SLONG;
-        break;
-    case TYPI_LONGLONG:
-        kind = TYK_SLONGLONG;
-        break;
-    case TYPI_FLOAT:
-        kind = TYK_FLOAT;
-        break;
-    case TYPI_DOUBLE:
-        kind = TYK_DOUBLE;
-        break;
-    case TYPI_VOID:
-        kind = TYK_VOID;
-        break;
-    case TYPI__BOOL:
-        kind = TYK_BOOL;
-        break;
-    default:
-        tacc_assert(0, "invalid type (internal marker %d)", state);
-        break;
-    }
-    if (state & TYPI_UNSIGNED) {
-        kind = tacc_type_to_unsigned(kind);
-    }
-
-    return tacc_get_basic_type(basic_types, kind);
-}
-
-struct tacc_type *
+struct tacc_decl_type *
 tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
                                   enum tacc_storage_class *storage_class_out,
                                   struct tacc_parse_registry *registry) {
-    enum tacc_intermediate_type_state type_state;
     enum tacc_storage_class storage_class;
+    uint32_t type_flags;
     struct pp_tok *tok;
-    struct tacc_untagged_ident *ident_descriptor;
-    struct tacc_type *typedef_ty;
-    unsigned type_state_helper;
+    struct tacc_string *referenced_name;
+    struct tacc_decl_type *out_type;
 
-    type_state = TYPI_UNSPECIFIED;
+    type_flags = 0;
     storage_class = STORAGE_UNSPECIFIED;
-    typedef_ty = NULL;
+    referenced_name = NULL;
 
     tok = tacc_tok_iter_peek(iter);
     do {
         tacc_assert(tacc_tok_is_decl_specifier(tok, registry),
                     "expected declaration specifier");
         switch (tok->ident_kind) {
-        case ID__COMPLEX:
-        case ID__IMAGINARY:
-            tacc_assert(0, "complex numbers are unsupported");
-            break;
-
-        case ID_RESTRICT:
-        /* carelessly ignore, even in lieu of all const-correctness
-         * constraints
-         */
-        case ID_CONST:
-        /* carelessly ignore, even in lieu of 6.7.3p9 */
-        case ID_VOLATILE:
-        /* carelessly ignore */
-        case ID_INLINE:
-            break;
-
         case ID_AUTO:
             tacc_assert(storage_class == STORAGE_UNSPECIFIED,
                         "multiple storage classes given");
@@ -1042,61 +956,92 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             storage_class = STORAGE_TYPEDEF;
             break;
 
+        case ID__COMPLEX:
+            ENSURE_ONE(TYPESPEC_COMPLEX);
+            break;
+        case ID__IMAGINARY:
+            ENSURE_ONE(TYPESPEC_IMAGINARY);
+            break;
+
+        case ID_RESTRICT:
+            ENSURE_ONE(TYPEQUAL_RESTRICT);
+            break;
+        case ID_CONST:
+            ENSURE_ONE(TYPEQUAL_CONST);
+            break;
+        case ID_VOLATILE:
+            ENSURE_ONE(TYPEQUAL_VOLATILE);
+            break;
+        case ID_INLINE:
+            ENSURE_ONE(TYPESPEC_INLINE);
+            break;
+
         case ID_ENUM:
-            /* TODO */
+            ENSURE_ONE(TYPESPEC_ENUM);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tok = tacc_tok_iter_peek(iter);
+            tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                        "expected enum tag");
+            referenced_name = tacc_dynstring_clone(tok->str);
+            break;
         case ID_STRUCT:
-            /* TODO */
+            ENSURE_ONE(TYPESPEC_STRUCT);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tok = tacc_tok_iter_peek(iter);
+            tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                        "expected struct tag");
+            referenced_name = tacc_dynstring_clone(tok->str);
+            break;
         case ID_UNION:
-            /* TODO */
+            ENSURE_ONE(TYPESPEC_UNION);
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tok = tacc_tok_iter_peek(iter);
+            tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                        "expected union tag");
+            referenced_name = tacc_dynstring_clone(tok->str);
+            break;
 
         case ID_CHAR:
-            type_state = type_state | TYPI_CHAR;
+            ENSURE_ONE(TYPESPEC_CHAR);
             break;
         case ID_DOUBLE:
-            if ((type_state & TYPI_LONG) != 0) {
-                type_state = type_state | TYPI_LONGDOUBLE | TYPI_OTHER;
-            } else {
-                type_state = type_state | TYPI_DOUBLE | TYPI_OTHER;
-            }
+            ENSURE_ONE(TYPESPEC_DOUBLE);
             break;
         case ID_FLOAT:
-            type_state = type_state | TYPI_FLOAT | TYPI_OTHER;
+            ENSURE_ONE(TYPESPEC_FLOAT);
             break;
         case ID_INT:
-            type_state = type_state | TYPI_INT;
+            ENSURE_ONE(TYPESPEC_INT);
             break;
         case ID_LONG:
-            if (type_state & TYPI_DOUBLE) {
-                type_state = type_state & ~((unsigned) TYPI_DOUBLE);
-                type_state = type_state | TYPI_LONGDOUBLE;
-            } else if ((type_state & TYPI_LONG) != 0) {
-                type_state = type_state & ~((unsigned) TYPI_LONG);
-                type_state = type_state | TYPI_LONGLONG;
+            tacc_assert((type_flags & TYPESPEC_LONG_2) == 0,
+                        "unexpected: long");
+            if (type_flags & TYPESPEC_LONG) {
+                type_flags = (type_flags & ~((unsigned) TYPESPEC_LONG)) |
+                             TYPESPEC_LONG_2;
             } else {
-                type_state = type_state | TYPI_LONG;
+                type_flags = type_flags | TYPESPEC_LONG;
             }
             break;
         case ID_SHORT:
-            type_state = type_state | TYPI_SHORT;
+            ENSURE_ONE(TYPESPEC_SHORT);
             break;
         case ID_SIGNED:
-            type_state = type_state | TYPI_SIGNED;
+            ENSURE_ONE(TYPESPEC_SIGNED);
             break;
         case ID_UNSIGNED:
-            type_state = type_state | TYPI_UNSIGNED;
+            ENSURE_ONE(TYPESPEC_UNSIGNED);
             break;
 
         case ID_VOID:
-            type_state = type_state | TYPI_OTHER | TYPI_VOID;
+            ENSURE_ONE(TYPESPEC_VOID);
             break;
         case ID__BOOL:
-            type_state = type_state | TYPI_OTHER | TYPI__BOOL;
+            ENSURE_ONE(TYPESPEC_BOOL);
             break;
         case ID_OTHER:
-            type_state = type_state | TYPI_OTHER | TYPI_TYPEDEF;
-            ident_descriptor = tacc_parse_registry_lookup_untagged(
-                registry, tacc_dynstring_as_str(tok->str));
-            typedef_ty = ident_descriptor->base_type;
+            ENSURE_ONE(TYPESPEC_TYPEDEF);
+            referenced_name = tacc_dynstring_clone(tok->str);
             break;
         default:
             tacc_assert(0,
@@ -1107,31 +1052,14 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
         tok = tacc_tok_iter_peek(iter);
     } while (tacc_tok_is_decl_specifier(tok, registry));
 
-    type_state_helper = (type_state & (TYPI_OTHER | TYPI_SIZE));
-    /* ensure only one non-sign marker is set */
-    tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
-                "conflicting type");
-    if (type_state_helper == 0) {
-        type_state = type_state | TYPI_INT;
-    }
-    /*
-     * ensure only one sign marker is set, AND sign is only set if integer
-     * type is selected
-     */
-    type_state_helper = type_state & (TYPI_SIGN | TYPI_OTHER);
-    tacc_assert((type_state_helper & (type_state_helper - 1)) == 0,
-                "conflicting type");
-    if (type_state_helper == 0) {
-        type_state = type_state | TYPI_SIGNED;
-    }
-
+    out_type = tacc_malloc(sizeof(struct tacc_decl_type));
+    out_type->spec_qual_flags = type_flags;
+    out_type->referenced_name = referenced_name;
     *storage_class_out = storage_class;
-    if ((type_state & TYPI_TYPEDEF) != 0) {
-        return typedef_ty;
-    } else {
-        return tacc_parse_typestate_to_type(registry->basic_types, type_state);
-    }
+
+    return out_type;
 }
+#undef ENSURE_ONE
 
 static void tacc_parse_registry_add_variable(
     struct tacc_parse_registry *registry, struct tacc_string *name) {
@@ -1149,10 +1077,8 @@ static void tacc_parse_registry_add_variable(
     tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
 }
 
-static void
-tacc_parse_registry_add_typedef(struct tacc_parse_registry *registry,
-                                struct tacc_declarator *declarator,
-                                struct tacc_type *base_type) {
+static void tacc_parse_registry_add_typedef(
+    struct tacc_parse_registry *registry, struct tacc_declarator *declarator) {
     struct tacc_ident_scope_list_entry *scope_entry;
     struct tacc_untagged_ident *ident_descriptor;
     struct tacc_ident_scope *scope;
@@ -1165,7 +1091,6 @@ tacc_parse_registry_add_typedef(struct tacc_parse_registry *registry,
     ident_descriptor->kind = UNTAGGED_IDENT_TYPEDEF;
     ident_descriptor->name =
         tacc_dynstring_clone(tacc_declarator_name(declarator));
-    ident_descriptor->base_type = tacc_declarator_type(declarator, base_type);
     tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
 }
 
@@ -1401,8 +1326,7 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     registry,
                     tacc_dynstring_clone(tacc_declarator_name(declarator)));
             } else {
-                tacc_parse_registry_add_typedef(
-                    registry, declarator, to_parse->base_type);
+                tacc_parse_registry_add_typedef(registry, declarator);
             }
 
             if (accept_funcdef && declarator->kind == DECLARATOR_FUNC &&

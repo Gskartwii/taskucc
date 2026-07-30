@@ -35,9 +35,43 @@ union tacc_declarator_extra {
     struct tacc_function_declarator *func_decl;
 };
 
+enum {
+    TYPESPEC_UNSIGNED = 0x1,
+    TYPESPEC_SIGNED = 0x2,
+    TYPESPEC_BOOL = 0x4,
+    TYPESPEC_CHAR = 0x8,
+    TYPESPEC_SHORT = 0x10,
+    TYPESPEC_INT = 0x20,
+    TYPESPEC_LONG = 0x40,
+    TYPESPEC_LONG_2 = 0x80,
+    TYPESPEC_FLOAT = 0x100,
+    TYPESPEC_DOUBLE = 0x200,
+    TYPESPEC_COMPLEX = 0x400,
+    TYPESPEC_IMAGINARY = 0x800,
+    TYPESPEC_VOID = 0x1000,
+
+    TYPESPEC_ENUM = 0x2000,
+    TYPESPEC_STRUCT = 0x4000,
+    TYPESPEC_UNION = 0x8000,
+    TYPESPEC_TYPEDEF = 0x10000,
+
+    TYPESPEC_INLINE = 0x20000,
+
+    TYPEQUAL_VOLATILE = 0x40000,
+    TYPEQUAL_RESTRICT = 0x80000,
+    TYPEQUAL_CONST = 0x100000
+};
+
+struct tacc_decl_type {
+    uint32_t spec_qual_flags;
+
+    /* owning */
+    struct tacc_string *referenced_name;
+};
+
 struct tacc_function_param {
-    /* borrow */
-    struct tacc_type *base_type;
+    /* owning */
+    struct tacc_decl_type *base_type;
 
     /* owning */
     struct tacc_declarator *decl;
@@ -82,8 +116,8 @@ struct tacc_funcdef {
 };
 
 struct tacc_decl {
-    /* borrow */
-    struct tacc_type *base_type;
+    /* owning */
+    struct tacc_decl_type *base_type;
     enum tacc_decl_kind kind;
     enum tacc_storage_class storage_class;
 
@@ -128,13 +162,12 @@ DECL_DYNARRAY_OVER(tacc_function_param_list,
                    tacc_function_param_list_free)
 
 struct tacc_string *tacc_declarator_name(struct tacc_declarator *decl);
-struct tacc_type *tacc_declarator_type(struct tacc_declarator *decl,
-                                       struct tacc_type *ty);
 void tacc_function_param_free(struct tacc_function_param *param);
 void tacc_funcdef_free(struct tacc_funcdef *func_def);
 void tacc_array_declarator_free(struct tacc_array_declarator *declarator);
 void tacc_function_declarator_free(struct tacc_function_declarator *declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
+void tacc_decl_type_free(struct tacc_decl_type *ty);
 struct tacc_declarator *tacc_declarator_new(void);
 struct tacc_function_param *tacc_function_param_new(void);
 struct tacc_array_declarator *tacc_array_declarator_new(void);
