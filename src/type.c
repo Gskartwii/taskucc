@@ -25,30 +25,6 @@ MK_DYNARRAY_OVER(tacc_type_list,
                  tacc_type_free,
                  tacc_type_list_free)
 
-MK_DYNARRAY_OVER(tacc_struct_declaration_list,
-                 tacc_struct_declaration_list_entry,
-                 struct tacc_struct_declaration *,
-                 tacc_struct_declaration_list_new,
-                 tacc_struct_declaration_list_init,
-                 tacc_struct_declaration_list_get,
-                 tacc_struct_declaration_list_push,
-                 tacc_struct_declaration_list_pop,
-                 tacc_struct_declaration_list_len,
-                 tacc_struct_declaration_free,
-                 tacc_struct_declaration_list_free)
-
-MK_DYNARRAY_OVER(tacc_enum_declaration_list,
-                 tacc_enum_declaration_list_entry,
-                 struct tacc_enum_declaration *,
-                 tacc_enum_declaration_list_new,
-                 tacc_enum_declaration_list_init,
-                 tacc_enum_declaration_list_get,
-                 tacc_enum_declaration_list_push,
-                 tacc_enum_declaration_list_pop,
-                 tacc_enum_declaration_list_len,
-                 tacc_enum_declaration_free,
-                 tacc_enum_declaration_list_free)
-
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
                                    struct tacc_target *target) {
     switch (kind) {
@@ -232,22 +208,11 @@ void tacc_compound_type_free(struct tacc_compound_type *type) {
         break;
     case TYC_STRUCT:
     case TYC_UNION:
-        tacc_struct_declaration_list_free(type->extra.struct_union_decls);
-        break;
     case TYC_ENUM:
-        tacc_enum_declaration_list_free(type->extra.enum_decls);
+        tacc_assert(0, "TODO: struct/union/enum type");
         break;
     }
     tacc_free(type);
-}
-
-void tacc_struct_declaration_free(struct tacc_struct_declaration *decl) {
-    (void) decl;
-    /* TODO */
-}
-void tacc_enum_declaration_free(struct tacc_enum_declaration *decl) {
-    (void) decl;
-    /* TODO */
 }
 
 struct tacc_type *tacc_type_new(void) {

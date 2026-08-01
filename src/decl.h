@@ -62,11 +62,42 @@ enum {
     TYPEQUAL_CONST = 0x100000
 };
 
+struct tacc_enumerator {
+    /* owning */
+    struct tacc_string *name;
+
+    /* owning */
+    struct tacc_expr *value;
+};
+
+struct tacc_struct_declarator {
+    /* owning, nullable (if this is a bitfield) */
+    struct tacc_declarator *underlying;
+
+    /* owning, nullable */
+    struct tacc_expr *bitfield_size;
+};
+
+struct tacc_struct_decl {
+    /* owning */
+    struct tacc_decl_type *base_type;
+
+    /* owning */
+    struct tacc_struct_declarator_list *declarators;
+};
+
 struct tacc_decl_type {
     uint32_t spec_qual_flags;
 
     /* owning */
     struct tacc_string *referenced_name;
+
+    union {
+        /* owning */
+        struct tacc_struct_decl_list *struct_fields;
+        /* owning */
+        struct tacc_enumerator_list *enumerators;
+    } extra;
 };
 
 struct tacc_function_param {
@@ -161,17 +192,57 @@ DECL_DYNARRAY_OVER(tacc_function_param_list,
                    tacc_function_param_list_len,
                    tacc_function_param_list_free)
 
+DECL_DYNARRAY_OVER(tacc_enumerator_list,
+                   tacc_enumerator_list_entry,
+                   struct tacc_enumerator *,
+                   tacc_enumerator_list_new,
+                   tacc_enumerator_list_init,
+                   tacc_enumerator_list_get,
+                   tacc_enumerator_list_push,
+                   tacc_enumerator_list_pop,
+                   tacc_enumerator_list_len,
+                   tacc_enumerator_list_free)
+
+DECL_DYNARRAY_OVER(tacc_struct_declarator_list,
+                   tacc_struct_declarator_list_entry,
+                   struct tacc_struct_declarator *,
+                   tacc_struct_declarator_list_new,
+                   tacc_struct_declarator_list_init,
+                   tacc_struct_declarator_list_get,
+                   tacc_struct_declarator_list_push,
+                   tacc_struct_declarator_list_pop,
+                   tacc_struct_declarator_list_len,
+                   tacc_struct_declarator_list_free)
+
+DECL_DYNARRAY_OVER(tacc_struct_decl_list,
+                   tacc_struct_decl_list_entry,
+                   struct tacc_struct_decl *,
+                   tacc_struct_decl_list_new,
+                   tacc_struct_decl_list_init,
+                   tacc_struct_decl_list_get,
+                   tacc_struct_decl_list_push,
+                   tacc_struct_decl_list_pop,
+                   tacc_struct_decl_list_len,
+                   tacc_struct_decl_list_free)
+
 struct tacc_string *tacc_declarator_name(struct tacc_declarator *decl);
 void tacc_function_param_free(struct tacc_function_param *param);
 void tacc_funcdef_free(struct tacc_funcdef *func_def);
+void tacc_enumerator_free(struct tacc_enumerator *enumerator);
 void tacc_array_declarator_free(struct tacc_array_declarator *declarator);
 void tacc_function_declarator_free(struct tacc_function_declarator *declarator);
+void tacc_struct_declarator_free(
+    struct tacc_struct_declarator *struct_declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
 void tacc_decl_type_free(struct tacc_decl_type *ty);
+void tacc_struct_decl_free(struct tacc_struct_decl *decl);
+struct tacc_enumerator *tacc_enumerator_new(void);
 struct tacc_declarator *tacc_declarator_new(void);
 struct tacc_function_param *tacc_function_param_new(void);
 struct tacc_array_declarator *tacc_array_declarator_new(void);
 struct tacc_function_declarator *tacc_function_declarator_new(void);
+struct tacc_struct_declarator *tacc_struct_declarator_new(void);
+struct tacc_struct_decl *tacc_struct_decl_new(void);
 struct tacc_decl *tacc_decl_new(void);
 void tacc_decl_free(struct tacc_decl *decl);
 

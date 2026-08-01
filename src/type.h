@@ -47,28 +47,6 @@ enum tacc_int_rank {
     IRANK_LLONG
 };
 
-DECL_DYNARRAY_OVER(tacc_struct_declaration_list,
-                   tacc_struct_declaration_list_entry,
-                   struct tacc_struct_declaration *,
-                   tacc_struct_declaration_list_new,
-                   tacc_struct_declaration_list_init,
-                   tacc_struct_declaration_list_get,
-                   tacc_struct_declaration_list_push,
-                   tacc_struct_declaration_list_pop,
-                   tacc_struct_declaration_list_len,
-                   tacc_struct_declaration_list_free)
-
-DECL_DYNARRAY_OVER(tacc_enum_declaration_list,
-                   tacc_enum_declaration_list_entry,
-                   struct tacc_enum_declaration *,
-                   tacc_enum_declaration_list_new,
-                   tacc_enum_declaration_list_init,
-                   tacc_enum_declaration_list_get,
-                   tacc_enum_declaration_list_push,
-                   tacc_enum_declaration_list_pop,
-                   tacc_enum_declaration_list_len,
-                   tacc_enum_declaration_list_free)
-
 enum tacc_function_param_list_kind {
     FUNCPARAM_EMPTY_LIST,
     FUNCPARAM_VOID,
@@ -96,10 +74,6 @@ struct tacc_compound_type {
     /* owning */
     struct tacc_string *name;
     union {
-        /* owning */
-        struct tacc_struct_declaration_list *struct_union_decls;
-        /* owning */
-        struct tacc_enum_declaration_list *enum_decls;
         /* owning */
         struct tacc_function_type *function;
         /* owning */
@@ -162,8 +136,6 @@ size_t tacc_type_bit_width(struct tacc_target *target,
                            enum tacc_type_kind kind);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
-void tacc_struct_declaration_free(struct tacc_struct_declaration *decl);
-void tacc_enum_declaration_free(struct tacc_enum_declaration *decl);
 void tacc_type_free(struct tacc_type *type);
 void tacc_compound_type_free(struct tacc_compound_type *type);
 
