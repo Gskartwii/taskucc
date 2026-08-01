@@ -901,7 +901,8 @@ static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
 }*/
 
 tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
-                                     struct tacc_parse_registry *registry) {
+                                     struct tacc_parse_registry *registry,
+                                     uint32_t previous_flags) {
     struct tacc_untagged_ident *ident_descriptor;
 
     if (tok->kind != TOK_IDENT) {
@@ -934,6 +935,10 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
     case ID__IMAGINARY:
         return 1;
     case ID_OTHER:
+        if ((previous_flags & ~((unsigned) (TYPEQUAL_CONST | TYPEQUAL_RESTRICT |
+                                            TYPEQUAL_VOLATILE))) != 0) {
+            return 0;
+        }
         ident_descriptor = tacc_parse_registry_lookup_untagged(
             registry, tacc_dynstring_as_str(tok->str));
         if (ident_descriptor == NULL) {
@@ -1142,7 +1147,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
     do {
         tok_handled = 0;
         tacc_parse_assert(iter,
-                          tacc_tok_is_decl_specifier(tok, registry),
+                          tacc_tok_is_decl_specifier(tok, registry, type_flags),
                           "expected declaration specifier");
         switch (tok->ident_kind) {
         case ID_AUTO:
@@ -1273,7 +1278,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             tok = tacc_tok_iter_peek(iter);
         }
-    } while (tacc_tok_is_decl_specifier(tok, registry));
+    } while (tacc_tok_is_decl_specifier(tok, registry, type_flags));
 
     out_type->spec_qual_flags = type_flags;
     *storage_class_out = storage_class;
