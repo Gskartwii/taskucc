@@ -50,58 +50,120 @@ static void tacc_format_field_name(struct tacc_formatter *fmt, char *name) {
 static void tacc_format_decl_type(struct tacc_formatter *fmt,
                                   struct tacc_decl_type *ty);
 
+static void tacc_format_expr(struct tacc_formatter *fmt,
+                             struct tacc_expr *expr);
+
+static void tacc_format_declarator(struct tacc_formatter *fmt,
+                                   struct tacc_declarator *declarator);
+
 /*
 static void tacc_format_compound_type(struct tacc_formatter *fmt,
-                                      struct tacc_compound_type *ty) {
-    size_t i;
-    struct tacc_type_list_entry *entry;
+                      struct tacc_compound_type *ty) {
+size_t i;
+struct tacc_type_list_entry *entry;
 
-    switch (ty->kind) {
-    case TYC_PTR:
-        tacc_format_begin_scope(fmt, "ptr");
+switch (ty->kind) {
+case TYC_PTR:
+tacc_format_begin_scope(fmt, "ptr");
+tacc_format_newline(fmt);
+tacc_format_decl_type(fmt, ty->extra.contained);
+tacc_format_end_scope(fmt);
+break;
+case TYC_STRUCT:
+tacc_assert(0, "todo: format struct type");
+break;
+case TYC_UNION:
+tacc_assert(0, "todo: format union type");
+break;
+case TYC_ENUM:
+tacc_assert(0, "todo: format enum type");
+break;
+case TYC_ARRAY:
+case TYC_ARRAY_FLEX:
+case TYC_FN:
+tacc_format_begin_scope(fmt, "fn");
+tacc_format_field_name(fmt, "ret");
+tacc_format_decl_type(fmt, ty->extra.function->return_type);
+tacc_format_field_name(fmt, "params");
+if (ty->extra.function->param_list_kind == FUNCPARAM_EMPTY_LIST) {
+tacc_format_print(fmt, "unspecified");
+} else if (ty->extra.function->param_list_kind == FUNCPARAM_VOID) {
+tacc_format_print(fmt, "void");
+} else {
+if (ty->extra.function->param_list_kind == FUNCPARAM_LIST_VARARG) {
+tacc_format_begin_scope(fmt, "list-va");
+} else {
+tacc_format_begin_scope(fmt, "list");
+}
+for (i = 0; i < tacc_type_list_len(ty->extra.function->param_types);
+ i = i + 1) {
+entry = tacc_type_list_get(ty->extra.function->param_types, i);
+tacc_format_newline(fmt);
+tacc_format_decl_type(fmt, entry->content);
+}
+tacc_format_end_scope(fmt);
+}
+tacc_format_end_scope(fmt);
+break;
+}
+}
+*/
+
+static void tacc_format_enumerators(struct tacc_formatter *fmt,
+                                    struct tacc_enumerator_list *enumerators) {
+    size_t i;
+    struct tacc_enumerator_list_entry *entry;
+
+    for (i = 0; i < tacc_enumerator_list_len(enumerators); i = i + 1) {
+        entry = tacc_enumerator_list_get(enumerators, i);
         tacc_format_newline(fmt);
-        tacc_format_decl_type(fmt, ty->extra.contained);
-        tacc_format_end_scope(fmt);
-        break;
-    case TYC_STRUCT:
-        tacc_assert(0, "todo: format struct type");
-        break;
-    case TYC_UNION:
-        tacc_assert(0, "todo: format union type");
-        break;
-    case TYC_ENUM:
-        tacc_assert(0, "todo: format enum type");
-        break;
-    case TYC_ARRAY:
-    case TYC_ARRAY_FLEX:
-    case TYC_FN:
-        tacc_format_begin_scope(fmt, "fn");
-        tacc_format_field_name(fmt, "ret");
-        tacc_format_decl_type(fmt, ty->extra.function->return_type);
-        tacc_format_field_name(fmt, "params");
-        if (ty->extra.function->param_list_kind == FUNCPARAM_EMPTY_LIST) {
-            tacc_format_print(fmt, "unspecified");
-        } else if (ty->extra.function->param_list_kind == FUNCPARAM_VOID) {
-            tacc_format_print(fmt, "void");
+        if (entry->content->value != NULL) {
+            tacc_format_begin_scope(
+                fmt, tacc_dynstring_as_str(entry->content->name));
+            tacc_format_expr(fmt, entry->content->value);
+            tacc_format_end_scope(fmt);
         } else {
-            if (ty->extra.function->param_list_kind == FUNCPARAM_LIST_VARARG) {
-                tacc_format_begin_scope(fmt, "list-va");
-            } else {
-                tacc_format_begin_scope(fmt, "list");
-            }
-            for (i = 0; i < tacc_type_list_len(ty->extra.function->param_types);
-                 i = i + 1) {
-                entry = tacc_type_list_get(ty->extra.function->param_types, i);
+            tacc_format_print(fmt, tacc_dynstring_as_str(entry->content->name));
+        }
+    }
+}
+
+static void tacc_format_struct_fields(struct tacc_formatter *fmt,
+                                      struct tacc_struct_decl_list *fields) {
+    size_t i;
+    size_t j;
+    struct tacc_struct_decl_list_entry *entry;
+    struct tacc_struct_declarator_list_entry *declarator_entry;
+
+    for (i = 0; i < tacc_struct_decl_list_len(fields); i = i + 1) {
+        entry = tacc_struct_decl_list_get(fields, i);
+        tacc_format_newline(fmt);
+        tacc_format_begin_scope(fmt, "struct-field-list");
+        tacc_format_field_name(fmt, "base-type");
+        tacc_format_decl_type(fmt, entry->content->base_type);
+        for (j = 0;
+             j < tacc_struct_declarator_list_len(entry->content->declarators);
+             j = j + 1) {
+            tacc_format_newline(fmt);
+            declarator_entry =
+                tacc_struct_declarator_list_get(entry->content->declarators, j);
+            tacc_format_begin_scope(fmt, "struct-declarator");
+
+            if (declarator_entry->content->underlying != NULL) {
                 tacc_format_newline(fmt);
-                tacc_format_decl_type(fmt, entry->content);
+                tacc_format_declarator(fmt,
+                                       declarator_entry->content->underlying);
             }
+            if (declarator_entry->content->bitfield_size != NULL) {
+                tacc_format_field_name(fmt, "bitfield-size");
+                tacc_format_expr(fmt, declarator_entry->content->bitfield_size);
+            }
+
             tacc_format_end_scope(fmt);
         }
         tacc_format_end_scope(fmt);
-        break;
     }
 }
-*/
 
 static void tacc_format_decl_type(struct tacc_formatter *fmt,
                                   struct tacc_decl_type *ty) {
@@ -165,13 +227,21 @@ static void tacc_format_decl_type(struct tacc_formatter *fmt,
         tacc_format_print(fmt, " inline");
     }
     if ((flags & TYPESPEC_ENUM) != 0) {
-        tacc_format_print(fmt, " enum");
+        tacc_format_begin_scope(fmt, "enum");
+        tacc_format_enumerators(fmt, ty->extra.enumerators);
+        tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_STRUCT) != 0) {
-        tacc_format_print(fmt, " struct");
+        tacc_format_print(fmt, " ");
+        tacc_format_begin_scope(fmt, "struct");
+        tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_UNION) != 0) {
-        tacc_format_print(fmt, " union");
+        tacc_format_print(fmt, " ");
+        tacc_format_begin_scope(fmt, "union");
+        tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_TYPEDEF) != 0) {
         tacc_format_print(fmt, " typedef");
