@@ -1118,7 +1118,6 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
 
     out_type = tacc_malloc(sizeof(struct tacc_decl_type));
     out_type->referenced_name = NULL;
-    *storage_class_out = storage_class;
 
     tok = tacc_tok_iter_peek(iter);
     do {
@@ -1245,6 +1244,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
     } while (tacc_tok_is_decl_specifier(tok, registry));
 
     out_type->spec_qual_flags = type_flags;
+    *storage_class_out = storage_class;
 
     return out_type;
 }
