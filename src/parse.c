@@ -1122,7 +1122,7 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
 #define ENSURE_ONE(flag)                                               \
     tacc_parse_assert(                                                 \
         iter, (type_flags & flag) == 0, "unexpected: %s\n", tok->str); \
-    type_flags = type_flags | flag;
+    type_flags = type_flags | flag
 
 static struct tacc_decl_type *
 tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
@@ -1132,6 +1132,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
     uint32_t type_flags;
     struct pp_tok *tok;
     struct tacc_decl_type *out_type;
+    tacc_bool tok_handled;
 
     type_flags = 0;
     storage_class = STORAGE_UNSPECIFIED;
@@ -1141,6 +1142,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
 
     tok = tacc_tok_iter_peek(iter);
     do {
+        tok_handled = 0;
         tacc_parse_assert(iter,
                           tacc_tok_is_decl_specifier(tok, registry),
                           "expected declaration specifier");
@@ -1202,21 +1204,24 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             tacc_parse_tagged(ID_ENUM, out_type, iter, registry);
             tok = tacc_tok_iter_peek(iter);
-            continue;
+            tok_handled = 1;
+            break;
         case ID_STRUCT:
             ENSURE_ONE(TYPESPEC_STRUCT);
 
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             tacc_parse_tagged(ID_STRUCT, out_type, iter, registry);
             tok = tacc_tok_iter_peek(iter);
-            continue;
+            tok_handled = 1;
+            break;
         case ID_UNION:
             ENSURE_ONE(TYPESPEC_UNION);
 
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             tacc_parse_tagged(ID_UNION, out_type, iter, registry);
             tok = tacc_tok_iter_peek(iter);
-            continue;
+            tok_handled = 1;
+            break;
 
         case ID_CHAR:
             ENSURE_ONE(TYPESPEC_CHAR);
@@ -1266,8 +1271,10 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
                               "unsupported part of declaration: %s",
                               tacc_pp_to_string(tok));
         }
-        tacc_pp_tok_free(tacc_tok_iter_next(iter));
-        tok = tacc_tok_iter_peek(iter);
+        if (!tok_handled) {
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tok = tacc_tok_iter_peek(iter);
+        }
     } while (tacc_tok_is_decl_specifier(tok, registry));
 
     out_type->spec_qual_flags = type_flags;

@@ -257,13 +257,13 @@ tacc_declarator_name(struct tacc_declarator *declarator_in) {
             return NULL;
         case DECLARATOR_SUB:
             declarator = declarator->extra.sub_declarator;
-            continue;
+            break;
         case DECLARATOR_ARRAY:
             declarator = declarator->extra.arr_decl->sub_declarator;
-            continue;
+            break;
         case DECLARATOR_FUNC:
             declarator = declarator->extra.func_decl->sub_declarator;
-            continue;
+            break;
         }
     }
 }
