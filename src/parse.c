@@ -38,18 +38,24 @@ MK_DYNARRAY_OVER(tacc_ident_scope_list,
                  tacc_ident_scope_free,
                  tacc_ident_scope_list_free)
 
-static void tacc_parse_assert(struct tacc_tok_iter *iter,
-                              tacc_bool cond,
-                              char *msg) {
+static void
+tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
+    va_list va;
+    va_start(va, msg);
+
     if (cond) {
         return;
     }
     if (!iter->file_iter->filename) {
-        printf("in #if %s:\n", iter->file_iter->src);
+        fprintf(stderr, "in #if %s:\n", iter->file_iter->src);
     } else {
-        printf("in %s:\n", iter->file_iter->filename);
+        fprintf(stderr, "in %s:\naround", iter->file_iter->filename);
+        tacc_tok_iter_dump_state(stderr, iter);
     }
-    tacc_assert(0, "%s", msg);
+    fprintf(stderr, "\n");
+    vfprintf(stderr, msg, va);
+    fprintf(stderr, "\n");
+    tacc_assert(0, "parse error");
 }
 
 static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
@@ -57,13 +63,14 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     va_start(va, msg);
 
     if (!iter->file_iter->filename) {
-        printf("in #if %s:\n", iter->file_iter->src);
+        fprintf(stderr, "in #if %s:\n", iter->file_iter->src);
     } else {
-        printf("in %s:\n", iter->file_iter->filename);
+        fprintf(stderr, "in %s:\naround", iter->file_iter->filename);
+        tacc_tok_iter_dump_state(stderr, iter);
     }
-    vprintf(msg, va);
-    printf("\n");
-    tacc_assert(0, "parse error", msg);
+    vfprintf(stderr, msg, va);
+    fprintf(stderr, "\n");
+    tacc_assert(0, "parse error");
 }
 
 static struct tacc_ident_scope *tacc_ident_scope_new(void) {
@@ -367,7 +374,7 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
         if (tacc_tok_gives_typename(tok)) {
             expr->kind = EX_COMPOUND_LIT;
             /* TODO */
-            tacc_assert(0, "todo compound literals");
+            tacc_parse_assert(iter, 0, "todo compound literals");
         }
         tacc_parse_expr(iter, expr);
         tacc_parse_assert(iter,
@@ -377,7 +384,8 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
         tok = tacc_tok_iter_peek(iter);
         if (tacc_tok_non_kw_ident(tok)) {
             expr->kind = EX_IDENT;
-            tacc_assert(tok->str != NULL, "need str to parse ident");
+            tacc_parse_assert(
+                iter, tok->str != NULL, "need str to parse ident");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
@@ -431,7 +439,7 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
                 iter, tok->kind == TOK_IDENT, "expected member name");
             tacc_parse_expr_bump_to_op1(expr);
             expr->kind = EX_MEMBER;
-            tacc_assert(tok->str != NULL, "need str to parse dot");
+            tacc_parse_assert(iter, tok->str != NULL, "need str to parse dot");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tok);
             tok = NULL;
@@ -441,7 +449,8 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             expr->kind = EX_PTR_MEMBER;
             tacc_parse_assert(
                 iter, tok->kind == TOK_IDENT, "expected member name");
-            tacc_assert(tok->str != NULL, "need str to parse arrow");
+            tacc_parse_assert(
+                iter, tok->str != NULL, "need str to parse arrow");
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tok);
             tok = NULL;
@@ -560,7 +569,8 @@ static tacc_bool tacc_tok_is_assigning(struct pp_tok *tok) {
     }
 }
 
-static enum tacc_expr_kind tacc_tok_to_op(struct pp_tok *tok) {
+static enum tacc_expr_kind tacc_tok_to_op(struct pp_tok *tok,
+                                          struct tacc_tok_iter *iter) {
     switch (tok->kind) {
     case TOK_MINUS_EQ:
         return EX_SUB_ASSI;
@@ -621,8 +631,10 @@ static enum tacc_expr_kind tacc_tok_to_op(struct pp_tok *tok) {
     case TOK_EQ_2:
         return EX_EQ;
     default:
-        tacc_assert(
-            0, "unknown operator to convert to op: %s", tacc_pp_to_string(tok));
+        tacc_parse_assert(iter,
+                          0,
+                          "unknown operator to convert to op: %s",
+                          tacc_pp_to_string(tok));
         return 0;
     }
 }
@@ -712,7 +724,7 @@ static void tacc_parse_expr_binary(struct tacc_tok_iter *iter,
         /* accepted the binary operator */
         tok = tacc_tok_iter_next(iter);
         tacc_parse_expr_bump_to_op1(expr);
-        expr->kind = tacc_tok_to_op(tok);
+        expr->kind = tacc_tok_to_op(tok, iter);
         tacc_pp_tok_free(tok);
         tok = NULL;
 
@@ -762,10 +774,11 @@ static void tacc_parse_assignment_expression(struct tacc_tok_iter *iter,
     tacc_parse_expr_cast(iter, expr);
     tok = tacc_tok_iter_peek(iter);
     while (tacc_tok_is_assigning(tok)) {
-        tacc_assert(expr->kind != EX_CAST, "can't assign to non-lvalue");
+        tacc_parse_assert(
+            iter, expr->kind != EX_CAST, "can't assign to non-lvalue");
         tok = tacc_tok_iter_next(iter);
         tacc_parse_expr_bump_to_op1(expr);
-        expr->kind = tacc_tok_to_op(tok);
+        expr->kind = tacc_tok_to_op(tok, iter);
         tacc_pp_tok_free(tok);
         tok = NULL;
 
@@ -948,8 +961,9 @@ static void tacc_parse_enumerator_list(struct tacc_enumerator_list *out_list,
 
     while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
         tok = tacc_tok_iter_next(iter);
-        tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
-                    "expected enumerator name");
+        tacc_parse_assert(iter,
+                          tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                          "expected enumerator name");
         enumerator = tacc_enumerator_new();
         enumerator->name = tacc_dynstring_clone(tok->str);
         tacc_pp_tok_free(tok);
@@ -961,8 +975,9 @@ static void tacc_parse_enumerator_list(struct tacc_enumerator_list *out_list,
         tacc_enumerator_list_push(out_list, enumerator);
 
         if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
-                        "expected } to close enumerator list");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                              "expected } to close enumerator list");
             break;
         }
     }
@@ -1040,8 +1055,10 @@ static void tacc_parse_struct_decl_list(struct tacc_struct_decl_list *out_list,
         field_list = tacc_struct_decl_new();
         field_list->base_type =
             tacc_parse_declaration_specifiers(iter, &storage_class, registry);
-        tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                    "cannot specify storage class for struct/union fields");
+        tacc_parse_assert(
+            iter,
+            storage_class == STORAGE_UNSPECIFIED,
+            "cannot specify storage class for struct/union fields");
         field_list->declarators = tacc_struct_declarator_list_new();
 
         while (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
@@ -1053,8 +1070,9 @@ static void tacc_parse_struct_decl_list(struct tacc_struct_decl_list *out_list,
                 if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                     break;
                 }
-                tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_COMMA),
-                            "expected , or ; in declarator list");
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "expected , or ; in declarator list");
             }
         }
         tacc_struct_decl_list_push(out_list, field_list);
@@ -1095,13 +1113,15 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
                 out_type->extra.struct_fields, iter, registry);
         }
     } else {
-        tacc_assert(out_type->referenced_name != NULL,
-                    "anonymous struct without definition");
+        tacc_parse_assert(iter,
+                          out_type->referenced_name != NULL,
+                          "anonymous struct without definition");
     }
 }
 
-#define ENSURE_ONE(flag)                                                 \
-    tacc_assert((type_flags & flag) == 0, "unexpected: %s\n", tok->str); \
+#define ENSURE_ONE(flag)                                               \
+    tacc_parse_assert(                                                 \
+        iter, (type_flags & flag) == 0, "unexpected: %s\n", tok->str); \
     type_flags = type_flags | flag;
 
 static struct tacc_decl_type *
@@ -1121,32 +1141,38 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
 
     tok = tacc_tok_iter_peek(iter);
     do {
-        tacc_assert(tacc_tok_is_decl_specifier(tok, registry),
-                    "expected declaration specifier");
+        tacc_parse_assert(iter,
+                          tacc_tok_is_decl_specifier(tok, registry),
+                          "expected declaration specifier");
         switch (tok->ident_kind) {
         case ID_AUTO:
-            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                        "multiple storage classes given");
+            tacc_parse_assert(iter,
+                              storage_class == STORAGE_UNSPECIFIED,
+                              "multiple storage classes given");
             storage_class = STORAGE_AUTO;
             break;
         case ID_REGISTER:
-            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                        "multiple storage classes given");
+            tacc_parse_assert(iter,
+                              storage_class == STORAGE_UNSPECIFIED,
+                              "multiple storage classes given");
             storage_class = STORAGE_REGISTER;
             break;
         case ID_EXTERN:
-            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                        "multiple storage classes given");
+            tacc_parse_assert(iter,
+                              storage_class == STORAGE_UNSPECIFIED,
+                              "multiple storage classes given");
             storage_class = STORAGE_EXTERN;
             break;
         case ID_STATIC:
-            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                        "multiple storage classes given");
+            tacc_parse_assert(iter,
+                              storage_class == STORAGE_UNSPECIFIED,
+                              "multiple storage classes given");
             storage_class = STORAGE_STATIC;
             break;
         case ID_TYPEDEF:
-            tacc_assert(storage_class == STORAGE_UNSPECIFIED,
-                        "multiple storage classes given");
+            tacc_parse_assert(iter,
+                              storage_class == STORAGE_UNSPECIFIED,
+                              "multiple storage classes given");
             storage_class = STORAGE_TYPEDEF;
             break;
 
@@ -1205,8 +1231,8 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             ENSURE_ONE(TYPESPEC_INT);
             break;
         case ID_LONG:
-            tacc_assert((type_flags & TYPESPEC_LONG_2) == 0,
-                        "unexpected: long");
+            tacc_parse_assert(
+                iter, (type_flags & TYPESPEC_LONG_2) == 0, "unexpected: long");
             if (type_flags & TYPESPEC_LONG) {
                 type_flags = (type_flags & ~((unsigned) TYPESPEC_LONG)) |
                              TYPESPEC_LONG_2;
@@ -1235,9 +1261,10 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
             out_type->referenced_name = tacc_dynstring_clone(tok->str);
             break;
         default:
-            tacc_assert(0,
-                        "unsupported part of declaration: %s",
-                        tacc_pp_to_string(tok));
+            tacc_parse_assert(iter,
+                              0,
+                              "unsupported part of declaration: %s",
+                              tacc_pp_to_string(tok));
         }
         tacc_pp_tok_free(tacc_tok_iter_next(iter));
         tok = tacc_tok_iter_peek(iter);
@@ -1256,8 +1283,9 @@ static void tacc_parse_name_list(struct tacc_tok_iter *iter,
 
     do {
         tok = tacc_tok_iter_next(iter);
-        tacc_assert(tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
-                    "expected identifier in function parameter list");
+        tacc_parse_assert(iter,
+                          tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
+                          "expected identifier in function parameter list");
         tacc_string_list_push(list, tacc_dynstring_clone(tok->str));
     } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
 }
@@ -1287,9 +1315,10 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
         param = tacc_function_param_new();
         param->base_type =
             tacc_parse_declaration_specifiers(iter, &storage_class, registry);
-        tacc_assert(storage_class == STORAGE_UNSPECIFIED ||
-                        storage_class == STORAGE_REGISTER,
-                    "invalid storage class for function parameter");
+        tacc_parse_assert(iter,
+                          storage_class == STORAGE_UNSPECIFIED ||
+                              storage_class == STORAGE_REGISTER,
+                          "invalid storage class for function parameter");
         param->decl = tacc_parse_declarator(iter, registry, 1);
 
         param_name = tacc_declarator_name(param->decl);
@@ -1339,13 +1368,14 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
             declarator->extra.func_decl->param_list_kind = FUNCPARAM_EMPTY_LIST;
         } else {
             sub = tacc_parse_declarator(iter, registry, allow_abstract);
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
-                        "expected ) in declarator");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in declarator");
             declarator->kind = DECLARATOR_SUB;
             declarator->extra.sub_declarator = sub;
         }
     } else {
-        tacc_assert(allow_abstract, "expected declarator");
+        tacc_parse_assert(iter, allow_abstract, "expected declarator");
         declarator->kind = DECLARATOR_ABSTRACT;
     }
     while (1) {
@@ -1381,14 +1411,16 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                 tacc_parse_name_list(
                     iter,
                     declarator->extra.func_decl->param_list.old_style_params);
-                tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
-                            "expected ) in function declarator");
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) in function declarator");
                 continue;
             }
             tacc_parse_func_param_list(
                 declarator->extra.func_decl, iter, registry);
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
-                        "expected ) in function declarator");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in function declarator");
         } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
             sub = declarator;
             declarator = tacc_declarator_new();
@@ -1405,8 +1437,10 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                 if (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
                     declarator->extra.arr_decl->array_dim_kind =
                         ARRAYDIM_UNSPECIFIED_VLA;
-                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                                "expected ] in declarator");
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                        "expected ] in declarator");
                     continue;
                 }
             }
@@ -1418,8 +1452,9 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
             declarator->extra.arr_decl->array_dim_kind = ARRAYDIM_EXPR;
             declarator->extra.arr_decl->dim_expr =
                 tacc_parse_new_assignment_expression(iter);
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                        "expected ] in declarator");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                              "expected ] in declarator");
         } else {
             break;
         }
@@ -1438,7 +1473,7 @@ tacc_parse_func_def(struct tacc_decl *decl,
     (void) registry;
     (void) iter;
 #endif
-    tacc_assert(0, "TODO: function definition body");
+    tacc_parse_assert(iter, 0, "TODO: function definition body");
     return NULL;
 }
 
@@ -1491,16 +1526,20 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def =
                         tacc_parse_func_def(to_parse, registry, iter);
-                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
-                                "expected } to close function definition");
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                        "expected } to close function definition");
                     break;
                 }
                 if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def =
                         tacc_parse_func_def(to_parse, registry, iter);
-                    tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
-                                "expected } to close function definition");
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                        "expected } to close function definition");
                     break;
                 }
             }
@@ -1508,8 +1547,9 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
             if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                 break;
             }
-            tacc_assert(tacc_tok_iter_accept_tok(iter, TOK_COMMA),
-                        "expected , or ; in declarator list");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                              "expected , or ; in declarator list");
         }
     }
 
@@ -1526,8 +1566,9 @@ struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
         if (tok->kind == TOK_EOF) {
             break;
         }
-        tacc_decl_list_push(ast->declarations,
-                            tacc_parse_new_decl(registry, iter, 1));
+        tacc_decl_list_push(
+            ast->declarations,
+            tacc_parse_new_decl(registry, iter, DECL_CONTEXT_TOP_LEVEL));
     }
 
     return ast;

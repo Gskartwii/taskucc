@@ -3127,6 +3127,12 @@ tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
     return 1;
 }
 
+void tacc_tok_iter_dump_state(FILE *to, struct tacc_tok_iter *iter) {
+    while (tacc_token_list_len(iter->pending) > 0) {
+        fprintf(to, " %s", tacc_pp_tok_content(tacc_tok_iter_next(iter)));
+    }
+}
+
 void tacc_pp_state_free(struct tacc_pp_state *state) {
     tacc_string_list_free(state->include_path);
     tacc_free(state->include_path);

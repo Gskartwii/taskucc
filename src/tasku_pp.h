@@ -291,4 +291,6 @@ void tacc_pp_insert_macro(struct tacc_pp_state *state,
 /* state: borrow, dir: owning */
 void tacc_pp_add_include_dir(struct tacc_pp_state *state, char *dir);
 
+void tacc_tok_iter_dump_state(FILE *to, struct tacc_tok_iter *iter);
+
 #endif
