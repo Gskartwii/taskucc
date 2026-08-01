@@ -832,6 +832,7 @@ tacc_parse_new_constant_expression(struct tacc_tok_iter *iter) {
     struct tacc_expr *to_parse;
 
     to_parse = tacc_expr_new();
+    tacc_parse_expr_cast(iter, to_parse);
     /* grammatically equivalent to constant expression */
     tacc_parse_expr_conditional(iter, to_parse);
 
@@ -1070,7 +1071,7 @@ static void tacc_parse_struct_decl_list(struct tacc_struct_decl_list *out_list,
             }
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_COMMA),
-                              "expected , or ; in declarator list");
+                              "expected , or ; in struct declarator list");
         }
         tacc_struct_decl_list_push(out_list, field_list);
     }
