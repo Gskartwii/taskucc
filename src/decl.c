@@ -1,5 +1,6 @@
 #include "decl.h"
 #include "dynarray.h"
+#include "statement.h"
 #include "string_list.h"
 #include "type.h"
 
@@ -131,7 +132,7 @@ void tacc_funcdef_free(struct tacc_funcdef *func_def) {
         tacc_decl_list_free(func_def->old_style_param_list);
         tacc_free(func_def->old_style_param_list);
     }
-    tacc_statement_list_free(func_def->statements);
+    tacc_compound_member_list_free(func_def->statements);
     tacc_free(func_def->statements);
     tacc_free(func_def);
 }

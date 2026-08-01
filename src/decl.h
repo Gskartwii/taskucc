@@ -143,7 +143,7 @@ struct tacc_funcdef {
     /* owning */
     struct tacc_decl_list *old_style_param_list;
     /* owning */
-    struct tacc_statement_list *statements;
+    struct tacc_compound_member_list *statements;
 };
 
 struct tacc_decl {
