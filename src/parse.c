@@ -114,7 +114,6 @@ static tacc_bool tacc_tok_gives_typename(struct pp_tok *tok) {
         return 0;
     }
     switch (tok->ident_kind) {
-    case ID_TYPEDEF_NAME:
     case ID_CONST:
     case ID_RESTRICT:
     case ID_VOLATILE:
@@ -145,8 +144,7 @@ static struct tacc_type *tacc_type_parse(struct tacc_tok_iter *iter) {
 }
 
 static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
-    return tok->kind == TOK_IDENT &&
-           (tok->ident_kind == ID_OTHER || tok->ident_kind == ID_TYPEDEF_NAME);
+    return tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER;
 }
 
 static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,

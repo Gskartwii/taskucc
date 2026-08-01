@@ -75,8 +75,6 @@ enum pp_tok_kind {
 };
 
 enum pp_ident_kind {
-    /* Yes, we will use the lexer hack. */
-    ID_TYPEDEF_NAME,
     ID_OTHER,
 
     ID_AUTO,
