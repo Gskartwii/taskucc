@@ -1059,21 +1059,18 @@ static void tacc_parse_struct_decl_list(struct tacc_struct_decl_list *out_list,
             iter,
             storage_class == STORAGE_UNSPECIFIED,
             "cannot specify storage class for struct/union fields");
-        field_list->declarators = tacc_struct_declarator_list_new();
 
-        while (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
-            while (1) {
-                declarator = tacc_parse_struct_declarator(iter, registry);
+        while (1) {
+            declarator = tacc_parse_struct_declarator(iter, registry);
 
-                tacc_struct_declarator_list_push(field_list->declarators,
-                                                 declarator);
-                if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
-                    break;
-                }
-                tacc_parse_assert(iter,
-                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
-                                  "expected , or ; in declarator list");
+            tacc_struct_declarator_list_push(field_list->declarators,
+                                             declarator);
+            if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+                break;
             }
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                              "expected , or ; in declarator list");
         }
         tacc_struct_decl_list_push(out_list, field_list);
     }
