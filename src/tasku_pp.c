@@ -123,7 +123,7 @@ char *tacc_pp_tok_content(struct pp_tok *tok) {
     case TOK_FAKE_END_OF_MACRO:
         tacc_assert(
             0, "ICE: asking for content of internal token %d", tok->kind);
-        return tacc_dynstring_as_str(tok->str);
+        return NULL;
 
     case TOK_FAKE_PMARK:
         return "";
@@ -1592,8 +1592,7 @@ static struct tacc_file *tacc_pp_search_include_path(
 }
 
 /* return: borrow, first: borrow */
-static struct tacc_tok_iter *
-tacc_tok_iter_cur_iter(struct tacc_tok_iter *first) {
+struct tacc_tok_iter *tacc_tok_iter_cur_iter(struct tacc_tok_iter *first) {
     struct tacc_tok_iter *last_iter;
 
     last_iter = first;
@@ -3033,10 +3032,12 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
             last_iter->pending_ws = 0;
         }
         if (peek_tok->kind == TOK_IDENT) {
-            if (!strcmp(peek_tok->str->string, "__LINE__")) {
-                tacc_tok_iter_drop_nomacro(last_iter);
-                peek_tok = tacc_tok_iter_eval_line(last_iter);
-                return peek_tok;
+            if (peek_tok->ident_kind == ID_OTHER) {
+                if (!strcmp(peek_tok->str->string, "__LINE__")) {
+                    tacc_tok_iter_drop_nomacro(last_iter);
+                    peek_tok = tacc_tok_iter_eval_line(last_iter);
+                    return peek_tok;
+                }
             }
         }
         if (peek_tok->kind != TOK_DIRECTIVE) {

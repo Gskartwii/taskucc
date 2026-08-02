@@ -44,6 +44,8 @@ MK_DYNARRAY_OVER(tacc_ident_scope_list,
 static void
 tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
     va_list va;
+    struct tacc_tok_iter *cur_iter;
+
     va_start(va, msg);
 
     if (cond) {
@@ -52,7 +54,8 @@ tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
     if (!iter->file_iter->filename) {
         fprintf(stderr, "in #if %s:\n", iter->file_iter->src);
     } else {
-        fprintf(stderr, "in %s:\naround", iter->file_iter->filename);
+        cur_iter = tacc_tok_iter_cur_iter(iter);
+        fprintf(stderr, "in %s:\naround", cur_iter->file_iter->filename);
         tacc_tok_iter_dump_state(stderr, iter);
     }
     fprintf(stderr, "\n");
@@ -63,12 +66,15 @@ tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
 
 static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     va_list va;
+    struct tacc_tok_iter *cur_iter;
+
     va_start(va, msg);
 
     if (!iter->file_iter->filename) {
         fprintf(stderr, "in #if %s:\n", iter->file_iter->src);
     } else {
-        fprintf(stderr, "in %s:\naround", iter->file_iter->filename);
+        cur_iter = tacc_tok_iter_cur_iter(iter);
+        fprintf(stderr, "in %s:\naround", cur_iter->file_iter->filename);
         tacc_tok_iter_dump_state(stderr, iter);
     }
     vfprintf(stderr, msg, va);

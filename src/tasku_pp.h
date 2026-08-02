@@ -271,6 +271,8 @@ void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,
 tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
                                   enum pp_ident_kind kw);
 
+/* first, borrow: return: borrow */
+struct tacc_tok_iter *tacc_tok_iter_cur_iter(struct tacc_tok_iter *first);
 /* return: owning */
 struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry);
 /* state: borrow */
