@@ -577,6 +577,10 @@ static struct tacc_expr *tacc_parse_expr_unary(struct tacc_tok_iter *iter,
                     expr->kind = EX_SIZEOF_TY;
                     expr->extra.type =
                         tacc_parse_type_name(iter, iter->state->registry);
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                        "expected ) in type-form sizeof");
                     return expr;
                 } else {
                     tacc_tok_iter_deaccept_tok(iter, TOK_LPAREN);
