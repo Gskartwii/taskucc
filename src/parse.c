@@ -443,6 +443,21 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
 
 static void tacc_parse_expr(struct tacc_tok_iter *iter,
                             struct tacc_expr *in_expr);
+
+static void tacc_parse_assignment_expression(struct tacc_tok_iter *iter,
+                                             struct tacc_expr *in_expr);
+
+static void tacc_parse_expr_list(struct tacc_tok_iter *iter,
+                                 struct tacc_expr_list *list) {
+    struct tacc_expr *expr;
+
+    do {
+        expr = tacc_expr_new();
+        tacc_parse_assignment_expression(iter, expr);
+        tacc_expr_list_push(list, expr);
+    } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
+}
+
 static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
                                     struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
@@ -509,12 +524,13 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             expr->kind = EX_CALL;
 
             expr_list = tacc_expr_list_new();
-            tacc_parse_error(iter, "todo: calls");
-            expr->extra.op_list = expr_list;
-
-            tacc_parse_assert(iter,
-                              tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                              "unmatched lbrace");
+            if (!tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                tacc_parse_expr_list(iter, expr_list);
+                expr->extra.op_list = expr_list;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) after argument list");
+            }
         } else if (tacc_tok_iter_accept_tok(iter, TOK_DOT)) {
             tok = tacc_tok_iter_next(iter);
             tacc_parse_assert(
