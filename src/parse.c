@@ -1405,7 +1405,7 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                 tacc_tok_iter_deaccept_kw(iter, ID_VOID);
             }
             tok = tacc_tok_iter_peek(iter);
-            if (tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER) {
+            if (!tacc_tok_is_decl_specifier(tok, registry, 0)) {
                 /*
                  * only permissible in function definition, but don't check
                  * this yet
