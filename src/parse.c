@@ -1802,19 +1802,15 @@ static struct tacc_compound_member *tacc_parse_compound_member(
 }
 
 static struct tacc_funcdef *
-tacc_parse_func_def(struct tacc_decl *decl,
+tacc_parse_func_def(struct tacc_declarator *declarator,
                     struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
                     struct tacc_decl_list *old_style_param_list) {
     struct tacc_funcdef *def = tacc_funcdef_new();
-    struct tacc_declarator_list_entry *entry;
 
-    tacc_assert(tacc_declarator_list_len(decl->extra.declarators) == 1,
-                "expected only single declarator for func");
-    entry = tacc_declarator_list_get(decl->extra.declarators, 0);
-    tacc_assert(entry->content->kind == DECLARATOR_FUNC,
+    tacc_assert(declarator->kind == DECLARATOR_FUNC,
                 "expected function declarator for function definition");
-    def->func_declaration = entry->content;
+    def->func_declaration = declarator;
     def->old_style_param_list = old_style_param_list;
 
     while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
@@ -1875,13 +1871,13 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                         tacc_parse_old_style_param_types(registry, iter);
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def = tacc_parse_func_def(
-                        to_parse, registry, iter, old_style_param_list);
+                        declarator, registry, iter, old_style_param_list);
                     break;
                 }
                 if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def =
-                        tacc_parse_func_def(to_parse, registry, iter, NULL);
+                        tacc_parse_func_def(declarator, registry, iter, NULL);
                     break;
                 }
             }
