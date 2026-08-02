@@ -228,6 +228,8 @@ int main(int argc, char **argv) {
     tacc_apply_include_path(options.include_path, pp_state);
     tacc_string_list_free(options.defines);
     tacc_free(options.defines);
+    tacc_string_list_free(options.include_path);
+    tacc_free(options.include_path);
 
     input_file = tacc_open(options.filename);
     file_iter = tacc_file_iter_new_file(input_file);
