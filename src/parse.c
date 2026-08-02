@@ -12,7 +12,9 @@
 enum tacc_declaration_context {
     DECL_CONTEXT_TOP_LEVEL,
     DECL_CONTEXT_OLD_STYLE_PARAMS,
-    DECL_CONTEXT_IN_BODY
+    DECL_CONTEXT_MODERN_PARAMS,
+    DECL_CONTEXT_IN_BODY,
+    DECL_CONTEXT_STRUCT_FIELD
 };
 
 MK_DYNARRAY_OVER(tacc_untagged_ident_list,
@@ -996,7 +998,7 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
 struct tacc_declarator *
 tacc_parse_declarator(struct tacc_tok_iter *iter,
                       struct tacc_parse_registry *registry,
-                      tacc_bool allow_abstract);
+                      enum tacc_declaration_context context);
 
 static void tacc_parse_registry_add_variable(
     struct tacc_parse_registry *registry, struct tacc_string *name) {
@@ -1041,7 +1043,8 @@ static struct tacc_struct_declarator *tacc_parse_struct_declarator(
         return declarator;
     }
 
-    declarator->underlying = tacc_parse_declarator(iter, registry, 0);
+    declarator->underlying =
+        tacc_parse_declarator(iter, registry, DECL_CONTEXT_STRUCT_FIELD);
     if (tacc_tok_iter_accept_tok(iter, TOK_COLON)) {
         declarator->bitfield_size = tacc_parse_new_constant_expression(iter);
     }
@@ -1328,7 +1331,8 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
                           storage_class == STORAGE_UNSPECIFIED ||
                               storage_class == STORAGE_REGISTER,
                           "invalid storage class for function parameter");
-        param->decl = tacc_parse_declarator(iter, registry, 1);
+        param->decl =
+            tacc_parse_declarator(iter, registry, DECL_CONTEXT_MODERN_PARAMS);
 
         param_name = tacc_declarator_name(param->decl);
         if (param_name != NULL) {
@@ -1345,7 +1349,7 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
 struct tacc_declarator *
 tacc_parse_declarator(struct tacc_tok_iter *iter,
                       struct tacc_parse_registry *registry,
-                      tacc_bool allow_abstract) {
+                      enum tacc_declaration_context context) {
     struct tacc_declarator *declarator;
     struct tacc_declarator *sub;
     size_t indirection_level;
@@ -1369,14 +1373,15 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
         tacc_pp_tok_free(tok);
         tok = NULL;
     } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
-        if (allow_abstract && tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+        if ((context == DECL_CONTEXT_MODERN_PARAMS) &&
+            tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
             sub = tacc_declarator_new();
             sub->kind = DECLARATOR_ABSTRACT;
             declarator->kind = DECLARATOR_FUNC;
             declarator->extra.func_decl->sub_declarator = sub;
             declarator->extra.func_decl->param_list_kind = FUNCPARAM_EMPTY_LIST;
         } else {
-            sub = tacc_parse_declarator(iter, registry, allow_abstract);
+            sub = tacc_parse_declarator(iter, registry, context);
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                               "expected ) in declarator");
@@ -1384,7 +1389,8 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
             declarator->extra.sub_declarator = sub;
         }
     } else {
-        tacc_parse_assert(iter, allow_abstract, "expected declarator");
+        tacc_parse_assert(
+            iter, context == DECL_CONTEXT_MODERN_PARAMS, "expected declarator");
         declarator->kind = DECLARATOR_ABSTRACT;
     }
     while (1) {
@@ -1752,9 +1758,10 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
         tacc_parse_declaration_specifiers(iter, &storage_class, registry);
     to_parse->storage_class = storage_class;
     to_parse->extra.declarators = tacc_declarator_list_new();
+
     if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
         while (1) {
-            declarator = tacc_parse_declarator(iter, registry, 0);
+            declarator = tacc_parse_declarator(iter, registry, ctx);
 
             if (storage_class != STORAGE_TYPEDEF) {
                 tacc_parse_registry_add_variable(
