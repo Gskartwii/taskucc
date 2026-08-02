@@ -3116,6 +3116,8 @@ void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,
     new_tok = tacc_pp_tok_new();
     new_tok->kind = TOK_IDENT;
     new_tok->ident_kind = kw;
+    /* TODO: improve diagnostics */
+    tacc_pp_tok_assign_str(new_tok, "<deaccepted>");
     tacc_tok_iter_deaccept_pp_tok(iter, new_tok);
 }
 tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,

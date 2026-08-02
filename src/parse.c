@@ -56,7 +56,7 @@ tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
     } else {
         cur_iter = tacc_tok_iter_cur_iter(iter);
         fprintf(stderr, "in %s:\naround", cur_iter->file_iter->filename);
-        tacc_tok_iter_dump_state(stderr, iter);
+        tacc_tok_iter_dump_state(stderr, cur_iter);
     }
     fprintf(stderr, "\n");
     vfprintf(stderr, msg, va);
@@ -75,7 +75,7 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     } else {
         cur_iter = tacc_tok_iter_cur_iter(iter);
         fprintf(stderr, "in %s:\naround", cur_iter->file_iter->filename);
-        tacc_tok_iter_dump_state(stderr, iter);
+        tacc_tok_iter_dump_state(stderr, cur_iter);
     }
     vfprintf(stderr, msg, va);
     fprintf(stderr, "\n");
