@@ -262,6 +262,8 @@ struct pp_tok *tacc_tok_iter_next(struct tacc_tok_iter *iter);
 
 tacc_bool tacc_tok_iter_accept_tok(struct tacc_tok_iter *iter,
                                    enum pp_tok_kind tok);
+void tacc_tok_iter_deaccept_pp_tok(struct tacc_tok_iter *iter,
+                                   struct pp_tok *tok);
 void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
                                 enum pp_tok_kind tok);
 void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,

@@ -3,6 +3,7 @@
 #include "decl.h"
 #include "dynarray.h"
 #include "dynstring.h"
+#include "statement.h"
 #include "tasku_pp.h"
 #include "type.h"
 #include <memory.h>
@@ -1472,33 +1473,269 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
     return declarator;
 }
 
-static struct tacc_funcdef *
-tacc_parse_func_def(struct tacc_decl *decl,
-                    struct tacc_parse_registry *registry,
-                    struct tacc_tok_iter *iter) {
-#ifndef __M2__
-    (void) decl;
-    (void) registry;
-    (void) iter;
-#endif
-    tacc_parse_assert(iter, 0, "TODO: function definition body");
-    return NULL;
-}
+static struct tacc_compound_member *tacc_parse_compound_member(
+    struct tacc_parse_registry *registry, struct tacc_tok_iter *iter);
 
 static struct tacc_decl *
 tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
                     enum tacc_declaration_context accept_funcdef);
 
-static void
-tacc_parse_old_style_param_types(struct tacc_decl *decl,
-                                 struct tacc_parse_registry *registry,
-                                 struct tacc_tok_iter *iter) {
+static struct tacc_statement *tacc_parse_statement(
+    struct tacc_parse_registry *registry, struct tacc_tok_iter *iter) {
+    struct tacc_statement *statement;
+    struct pp_tok *tok;
+
+    tok = tacc_tok_iter_peek(iter);
+    statement = tacc_statement_new();
+
+    if (tok->kind == TOK_SEMICOLON) {
+        statement->kind = STMT_NULL;
+        return statement;
+    }
+    if (tok->kind == TOK_LBRACKET) {
+        statement->kind = STMT_COMPOUND;
+        statement->extra.sub_statements = tacc_compound_member_list_new();
+        while (!tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+            tacc_compound_member_list_push(
+                statement->extra.sub_statements,
+                tacc_parse_compound_member(registry, iter));
+        }
+        return statement;
+    }
+    if (tok->kind == TOK_IDENT) {
+        switch (tok->ident_kind) {
+        case ID_OTHER:
+            tok = tacc_tok_iter_next(iter);
+            if (tacc_tok_iter_accept_tok(iter, TOK_COLON)) {
+                statement->kind = STMT_LABEL_NAMED;
+                statement->extra.label = tacc_dynstring_clone(tok->str);
+                tacc_pp_tok_free(tok);
+                tok = NULL;
+            } else {
+                statement->kind = STMT_EXPRESSION;
+                tacc_tok_iter_deaccept_pp_tok(iter, tok);
+                statement->extra.expr = tacc_parse_new_expr(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                                  "expected ; after expression statement");
+            }
+            return statement;
+        case ID_CASE:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_CASE;
+            statement->extra.expr = tacc_parse_new_constant_expression(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_COLON),
+                              "expected : after case expression");
+            return statement;
+        case ID_DEFAULT:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_DEFAULT;
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_COLON),
+                              "expected : after default");
+            return statement;
+        case ID_IF:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_DEFAULT;
+            statement->extra.if_stmt = tacc_if_new();
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                              "expected ( in if");
+            statement->extra.if_stmt->controlling = tacc_parse_new_expr(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in if");
+            statement->extra.if_stmt->then =
+                tacc_parse_statement(registry, iter);
+            if (tacc_tok_iter_accept_kw(iter, ID_ELSE)) {
+                statement->extra.if_stmt->otherwise =
+                    tacc_parse_statement(registry, iter);
+            }
+            return statement;
+        case ID_SWITCH:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_SWITCH;
+            statement->extra.details = tacc_switch_while_do_new();
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                              "expected ( in switch");
+            statement->extra.details->controlling = tacc_parse_new_expr(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in switch");
+            statement->extra.details->body =
+                tacc_parse_statement(registry, iter);
+            return statement;
+        case ID_WHILE:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_WHILE;
+            statement->extra.details = tacc_switch_while_do_new();
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                              "expected ( in while");
+            statement->extra.details->controlling = tacc_parse_new_expr(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in while");
+            statement->extra.details->body =
+                tacc_parse_statement(registry, iter);
+            return statement;
+        case ID_DO:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_DO_WHILE;
+            statement->extra.details->body =
+                tacc_parse_statement(registry, iter);
+            statement->extra.details = tacc_switch_while_do_new();
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_kw(iter, ID_WHILE),
+                              "expected 'while' after do-block");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                              "expected ( in while");
+            statement->extra.details->controlling = tacc_parse_new_expr(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                              "expected ) in while");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                              "expected ; after do-while statement");
+            return statement;
+        case ID_FOR:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_FOR;
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                              "expected ( in for");
+            statement->extra.for_statement = tacc_for_new();
+            if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+                tok = tacc_tok_iter_peek(iter);
+                if (tacc_tok_is_decl_specifier(tok, registry, 0)) {
+                    statement->extra.for_statement->init_is_declaration = 1;
+                    statement->extra.for_statement->initializer.declaration =
+                        tacc_parse_new_decl(
+                            registry, iter, DECL_CONTEXT_IN_BODY);
+                } else {
+                    statement->extra.for_statement->init_is_declaration = 0;
+                    statement->extra.for_statement->initializer.expr =
+                        tacc_parse_new_expr(iter);
+                }
+            }
+            if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+                statement->extra.for_statement->controlling =
+                    tacc_parse_new_expr(iter);
+            }
+            if (!tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                statement->extra.for_statement->after =
+                    tacc_parse_new_expr(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) in for");
+            }
+            statement->extra.for_statement->body =
+                tacc_parse_statement(registry, iter);
+            return statement;
+        case ID_GOTO:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tok = tacc_tok_iter_next(iter);
+            statement->kind = STMT_GOTO;
+            statement->extra.label = tacc_dynstring_clone(tok->str);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                              "expected ; in goto");
+            return statement;
+        case ID_CONTINUE:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                              "expected after continue");
+            statement->kind = STMT_CONTINUE;
+            return statement;
+        case ID_BREAK:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                              "expected after break");
+            statement->kind = STMT_BREAK;
+            return statement;
+        case ID_RETURN:
+            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            statement->kind = STMT_RETURN;
+            statement->extra.expr = tacc_parse_new_expr(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                              "expected after break");
+            return statement;
+        default:
+            tacc_parse_assert(iter, 0, "expected statement");
+            return statement;
+        }
+    }
+    statement->kind = STMT_EXPRESSION;
+    statement->extra.expr = tacc_parse_new_expr(iter);
+    tacc_parse_assert(iter,
+                      tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                      "expected ; after expression statement");
+    return statement;
+}
+
+static struct tacc_compound_member *tacc_parse_compound_member(
+    struct tacc_parse_registry *registry, struct tacc_tok_iter *iter) {
+    struct tacc_compound_member *member;
+    struct pp_tok *tok;
+
+    member = tacc_compound_member_new();
+
+    tok = tacc_tok_iter_peek(iter);
+    if (tacc_tok_is_decl_specifier(tok, registry, 0)) {
+        member->kind = COMPOUND_MEMBER_DECL;
+        member->member.declaration =
+            tacc_parse_new_decl(registry, iter, DECL_CONTEXT_IN_BODY);
+        return member;
+    }
+
+    member->kind = COMPOUND_MEMBER_STMT;
+    member->member.statement = tacc_parse_statement(registry, iter);
+    return member;
+}
+
+static struct tacc_funcdef *
+tacc_parse_func_def(struct tacc_decl *decl,
+                    struct tacc_parse_registry *registry,
+                    struct tacc_tok_iter *iter,
+                    struct tacc_decl_list *old_style_param_list) {
+    struct tacc_funcdef *def = tacc_funcdef_new();
+    struct tacc_declarator_list_entry *entry;
+
+    tacc_assert(tacc_declarator_list_len(decl->extra.declarators) == 1,
+                "expected only single declarator for func");
+    entry = tacc_declarator_list_get(decl->extra.declarators, 0);
+    tacc_assert(entry->content->kind == DECLARATOR_FUNC,
+                "expected function declarator for function definition");
+    def->func_declaration = entry->content;
+    def->old_style_param_list = old_style_param_list;
+
+    while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
+        tacc_compound_member_list_push(
+            def->statements, tacc_parse_compound_member(registry, iter));
+    }
+
+    return def;
+}
+
+static struct tacc_decl_list *tacc_parse_old_style_param_types(
+    struct tacc_parse_registry *registry, struct tacc_tok_iter *iter) {
+    struct tacc_decl_list *old_style_param_list;
+
+    old_style_param_list = tacc_decl_list_new();
     do {
         tacc_decl_list_push(
-            decl->extra.func_def->old_style_param_list,
+            old_style_param_list,
             tacc_parse_new_decl(registry, iter, DECL_CONTEXT_OLD_STYLE_PARAMS));
     } while (!tacc_tok_iter_accept_tok(iter, TOK_LBRACKET));
+
+    return old_style_param_list;
 }
 
 static struct tacc_decl *
@@ -1507,6 +1744,7 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     enum tacc_declaration_context ctx) {
     struct tacc_decl *to_parse;
     struct tacc_declarator *declarator;
+    struct tacc_decl_list *old_style_param_list;
     enum tacc_storage_class storage_class;
 
     to_parse = tacc_decl_new();
@@ -1530,24 +1768,17 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                 if (declarator->kind == DECLARATOR_FUNC &&
                     declarator->extra.func_decl->param_list_kind ==
                         FUNCPARAM_OLD_STYLE_LIST) {
-                    tacc_parse_old_style_param_types(to_parse, registry, iter);
+                    old_style_param_list =
+                        tacc_parse_old_style_param_types(registry, iter);
                     to_parse->kind = DECL_FUNCTION_DEF;
-                    to_parse->extra.func_def =
-                        tacc_parse_func_def(to_parse, registry, iter);
-                    tacc_parse_assert(
-                        iter,
-                        tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
-                        "expected } to close function definition");
+                    to_parse->extra.func_def = tacc_parse_func_def(
+                        to_parse, registry, iter, old_style_param_list);
                     break;
                 }
                 if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def =
-                        tacc_parse_func_def(to_parse, registry, iter);
-                    tacc_parse_assert(
-                        iter,
-                        tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
-                        "expected } to close function definition");
+                        tacc_parse_func_def(to_parse, registry, iter, NULL);
                     break;
                 }
             }

@@ -14,6 +14,59 @@ MK_DYNARRAY_OVER(tacc_compound_member_list,
                  tacc_compound_member_free,
                  tacc_compound_member_list_free)
 
+struct tacc_for *tacc_for_new(void) {
+    struct tacc_for *for_stmt;
+
+    for_stmt = tacc_malloc(sizeof(struct tacc_for));
+    for_stmt->init_is_declaration = 0;
+    for_stmt->initializer.expr = NULL;
+    for_stmt->controlling = NULL;
+    for_stmt->after = NULL;
+    for_stmt->body = NULL;
+
+    return for_stmt;
+}
+
+struct tacc_if *tacc_if_new(void) {
+    struct tacc_if *if_stmt;
+
+    if_stmt = tacc_malloc(sizeof(struct tacc_if));
+    if_stmt->controlling = NULL;
+    if_stmt->then = NULL;
+    if_stmt->otherwise = NULL;
+
+    return if_stmt;
+}
+
+struct tacc_switch_while_do *tacc_switch_while_do_new(void) {
+    struct tacc_switch_while_do *switch_while_do_stmt;
+
+    switch_while_do_stmt = tacc_malloc(sizeof(struct tacc_switch_while_do));
+    switch_while_do_stmt->controlling = NULL;
+    switch_while_do_stmt->body = NULL;
+
+    return switch_while_do_stmt;
+}
+
+struct tacc_statement *tacc_statement_new(void) {
+    struct tacc_statement *statement;
+
+    statement = tacc_malloc(sizeof(struct tacc_statement));
+    statement->kind = STMT_NULL;
+
+    return statement;
+}
+
+struct tacc_compound_member *tacc_compound_member_new(void) {
+    struct tacc_compound_member *compound_member;
+
+    compound_member = tacc_malloc(sizeof(struct tacc_compound_member));
+    compound_member->kind = COMPOUND_MEMBER_STMT;
+    compound_member->member.statement = NULL;
+
+    return compound_member;
+}
+
 void tacc_compound_member_free(struct tacc_compound_member *member) {
     if (member->kind == COMPOUND_MEMBER_DECL) {
         tacc_decl_free(member->member.declaration);
@@ -56,6 +109,12 @@ void tacc_switch_while_do_free(
 
 void tacc_statement_free(struct tacc_statement *statement) {
     switch (statement->kind) {
+    case STMT_NULL:
+    case STMT_DEFAULT:
+    case STMT_CONTINUE:
+    case STMT_BREAK:
+        break;
+
     case STMT_LABEL_NAMED:
     case STMT_GOTO:
         tacc_dynstring_free(statement->extra.label);
@@ -65,11 +124,6 @@ void tacc_statement_free(struct tacc_statement *statement) {
     case STMT_EXPRESSION:
     case STMT_RETURN:
         tacc_expr_free(statement->extra.expr);
-        break;
-
-    case STMT_DEFAULT:
-    case STMT_CONTINUE:
-    case STMT_BREAK:
         break;
 
     case STMT_COMPOUND:

@@ -18,6 +18,7 @@ struct tacc_compound_member {
 };
 
 enum tacc_statement_kind {
+    STMT_NULL,
     STMT_LABEL_NAMED,
     STMT_CASE,
     STMT_DEFAULT,
@@ -107,6 +108,12 @@ struct tacc_statement {
         struct tacc_for *for_statement;
     } extra;
 };
+
+struct tacc_compound_member *tacc_compound_member_new(void);
+struct tacc_statement *tacc_statement_new(void);
+struct tacc_if *tacc_if_new(void);
+struct tacc_for *tacc_for_new(void);
+struct tacc_switch_while_do *tacc_switch_while_do_new(void);
 
 void tacc_compound_member_free(struct tacc_compound_member *compound_member);
 void tacc_for_free(struct tacc_for *for_stmt);

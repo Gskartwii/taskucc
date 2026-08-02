@@ -243,6 +243,7 @@ struct tacc_array_declarator *tacc_array_declarator_new(void);
 struct tacc_function_declarator *tacc_function_declarator_new(void);
 struct tacc_struct_declarator *tacc_struct_declarator_new(void);
 struct tacc_struct_decl *tacc_struct_decl_new(void);
+struct tacc_funcdef *tacc_funcdef_new(void);
 struct tacc_decl *tacc_decl_new(void);
 void tacc_decl_free(struct tacc_decl *decl);
 

@@ -3093,14 +3093,18 @@ tacc_bool tacc_tok_iter_accept_tok(struct tacc_tok_iter *iter,
     }
     return 0;
 }
+void tacc_tok_iter_deaccept_pp_tok(struct tacc_tok_iter *iter, struct pp_tok *tok) {
+    tok->is_final = 1;
+    tok->is_final = 1;
+    tacc_tok_iter_push_pending(iter, tok);
+}
 void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
                                 enum pp_tok_kind tok) {
     struct pp_tok* new_tok;
 
     new_tok = tacc_pp_tok_new();
     new_tok->kind = tok;
-    new_tok->is_final = 1;
-    tacc_tok_iter_push_pending(iter, new_tok);
+    tacc_tok_iter_deaccept_pp_tok(iter, new_tok);
 }
 void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,
                                 enum pp_ident_kind kw) {
@@ -3109,8 +3113,7 @@ void tacc_tok_iter_deaccept_kw(struct tacc_tok_iter *iter,
     new_tok = tacc_pp_tok_new();
     new_tok->kind = TOK_IDENT;
     new_tok->ident_kind = kw;
-    new_tok->is_final = 1;
-    tacc_tok_iter_push_pending(iter, new_tok);
+    tacc_tok_iter_deaccept_pp_tok(iter, new_tok);
 }
 tacc_bool tacc_tok_iter_accept_kw(struct tacc_tok_iter *iter,
                                   enum pp_ident_kind kw) {

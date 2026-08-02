@@ -208,6 +208,17 @@ struct tacc_declarator *tacc_declarator_new(void) {
     return declarator;
 }
 
+struct tacc_funcdef *tacc_funcdef_new(void) {
+    struct tacc_funcdef *funcdef;
+
+    funcdef = tacc_malloc(sizeof(struct tacc_funcdef));
+    funcdef->func_declaration = NULL;
+    funcdef->old_style_param_list = NULL;
+    funcdef->statements = tacc_compound_member_list_new();
+
+    return funcdef;
+}
+
 struct tacc_decl *tacc_decl_new(void) {
     struct tacc_decl *decl;
 
