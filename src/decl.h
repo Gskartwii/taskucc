@@ -92,6 +92,9 @@ struct tacc_decl_type {
     /* owning */
     struct tacc_string *referenced_name;
 
+    /* owning */
+    struct tacc_attribute_list *attributes;
+
     union {
         /* owning */
         struct tacc_struct_decl_list *struct_fields;
@@ -134,6 +137,10 @@ struct tacc_array_declarator {
 struct tacc_declarator {
     size_t indirection_level;
     enum tacc_declarator_kind kind;
+
+    /* owning */
+    struct tacc_attribute_list *attributes;
+
     union tacc_declarator_extra extra;
 };
 

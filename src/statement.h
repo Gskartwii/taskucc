@@ -88,7 +88,8 @@ struct tacc_statement {
          * a modified on another statement. This allows labels that do not point
          * at any statement; definitely a desired extension.
          *
-         * HUGE TODO: does this alter semantics in another meaningful way?
+         * Hmm. This DOES alter the semantics. It permits labels pointing to
+         * declarations.
          */
         struct tacc_string *label;
 

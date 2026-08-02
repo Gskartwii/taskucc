@@ -1,4 +1,5 @@
 #include "decl.h"
+#include "attribute.h"
 #include "dynarray.h"
 #include "statement.h"
 #include "string_list.h"
@@ -123,6 +124,9 @@ void tacc_declarator_free(struct tacc_declarator *declarator) {
         tacc_declarator_free(declarator->extra.sub_declarator);
     }
 
+    tacc_attribute_list_free(declarator->attributes);
+    tacc_free(declarator->attributes);
+
     tacc_free(declarator);
 }
 
@@ -204,6 +208,7 @@ struct tacc_declarator *tacc_declarator_new(void) {
     declarator = tacc_malloc(sizeof(struct tacc_declarator));
     declarator->kind = DECLARATOR_PLAIN;
     declarator->indirection_level = 0;
+    declarator->attributes = tacc_attribute_list_new();
 
     return declarator;
 }
@@ -296,5 +301,7 @@ void tacc_decl_type_free(struct tacc_decl_type *ty) {
     if (ty->referenced_name != NULL) {
         tacc_dynstring_free(ty->referenced_name);
     }
+    tacc_attribute_list_free(ty->attributes);
+    tacc_free(ty->attributes);
     tacc_free(ty);
 }

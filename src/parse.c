@@ -1,5 +1,6 @@
 #include "parse.h"
 #include "3rdparty/intscan.h"
+#include "attribute.h"
 #include "decl.h"
 #include "dynarray.h"
 #include "dynstring.h"
@@ -118,10 +119,11 @@ static void tacc_parse_expr_bump_to_op1(struct tacc_expr *expr) {
     expr->extra.type = NULL;
 }
 
-static struct tacc_decl_type *
-tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
-                                  enum tacc_storage_class *storage_class_out,
-                                  struct tacc_parse_registry *registry);
+static struct tacc_decl_type *tacc_parse_declaration_specifiers(
+    struct tacc_tok_iter *iter,
+    enum tacc_storage_class *storage_class_out,
+    struct tacc_parse_registry *registry,
+    struct tacc_attribute_list *inherit_attributes);
 
 static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
     struct tacc_parse_registry *registry, char *name) {
@@ -159,6 +161,7 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
         return 0;
     }
     switch (tok->ident_kind) {
+    case ID_ATTRIBUTE:
     case ID_AUTO:
     case ID_CHAR:
     case ID_CONST:
@@ -212,7 +215,7 @@ static struct tacc_type_name *tacc_parse_type_name(
 
     type_name = tacc_type_name_new();
     type_name->base_type =
-        tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+        tacc_parse_declaration_specifiers(iter, &storage_class, registry, NULL);
     tacc_parse_assert(
         iter,
         storage_class == STORAGE_UNSPECIFIED,
@@ -1056,8 +1059,8 @@ static void tacc_parse_struct_decl_list(struct tacc_struct_decl_list *out_list,
 
     while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
         field_list = tacc_struct_decl_new();
-        field_list->base_type =
-            tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+        field_list->base_type = tacc_parse_declaration_specifiers(
+            iter, &storage_class, registry, NULL);
         tacc_parse_assert(
             iter,
             storage_class == STORAGE_UNSPECIFIED,
@@ -1121,15 +1124,99 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
     }
 }
 
+static void tacc_parse_attributes(struct tacc_attribute_list *to,
+                                  struct tacc_tok_iter *iter,
+                                  struct tacc_parse_registry *registry) {
+    struct pp_tok *tok;
+    struct tacc_attribute *attr;
+
+#ifndef __M2__
+    (void) registry;
+#endif
+
+    while (tacc_tok_iter_accept_kw(iter, ID_ATTRIBUTE)) {
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                          "expected ( to start attributes");
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                          "expected ( to start attributes");
+
+        while (1) {
+            tok = tacc_tok_iter_next(iter);
+            if (tok->kind != TOK_IDENT || tok->ident_kind != ID_OTHER) {
+                break;
+            }
+            attr = tacc_attribute_new();
+            if (!strcmp("format", tacc_dynstring_as_str(tok->str))) {
+                attr->kind = ATTR_FORMAT;
+                attr->extra.format = tacc_attribute_format_new();
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "expected ( in format attribute");
+
+                tacc_pp_tok_free(tok);
+                tok = tacc_tok_iter_next(iter);
+                tacc_parse_assert(
+                    iter, tok->kind == TOK_IDENT, "expected format archetype");
+                attr->extra.format->archetype = tacc_dynstring_clone(tok->str);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "expected , in format attribute");
+                attr->extra.format->format_str_place =
+                    tacc_parse_new_constant_expression(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "expected , in format attribute");
+                attr->extra.format->args_at =
+                    tacc_parse_new_constant_expression(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) in format attribute");
+            } else if (!strcmp("noreturn", tacc_dynstring_as_str(tok->str))) {
+            } else if (!strcmp("aligned", tacc_dynstring_as_str(tok->str))) {
+                attr->kind = ATTR_ALIGNED;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "expected ( in format attribute");
+                attr->extra.expr = tacc_parse_new_constant_expression(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) in format attribute");
+            } else {
+                tacc_parse_assert(iter,
+                                  0,
+                                  "unrecognized attribute: %s",
+                                  tacc_dynstring_as_str(tok->str));
+            }
+            tacc_attribute_list_push(to, attr);
+            tacc_pp_tok_free(tok);
+            attr = NULL;
+            tok = NULL;
+            if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
+                break;
+            }
+        }
+
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                          "expected ) to end attributes");
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                          "expected ) to end attributes");
+    }
+}
+
 #define ENSURE_ONE(flag)                                               \
     tacc_parse_assert(                                                 \
         iter, (type_flags & flag) == 0, "unexpected: %s\n", tok->str); \
     type_flags = type_flags | flag
 
-static struct tacc_decl_type *
-tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
-                                  enum tacc_storage_class *storage_class_out,
-                                  struct tacc_parse_registry *registry) {
+static struct tacc_decl_type *tacc_parse_declaration_specifiers(
+    struct tacc_tok_iter *iter,
+    enum tacc_storage_class *storage_class_out,
+    struct tacc_parse_registry *registry,
+    struct tacc_attribute_list *inherit_attributes) {
     enum tacc_storage_class storage_class;
     uint32_t type_flags;
     struct pp_tok *tok;
@@ -1141,6 +1228,11 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
 
     out_type = tacc_malloc(sizeof(struct tacc_decl_type));
     out_type->referenced_name = NULL;
+    if (inherit_attributes != NULL) {
+        out_type->attributes = inherit_attributes;
+    } else {
+        out_type->attributes = tacc_attribute_list_new();
+    }
 
     tok = tacc_tok_iter_peek(iter);
     do {
@@ -1149,6 +1241,10 @@ tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
                           tacc_tok_is_decl_specifier(tok, registry, type_flags),
                           "expected declaration specifier");
         switch (tok->ident_kind) {
+        case ID_ATTRIBUTE:
+            tacc_parse_attributes(out_type->attributes, iter, registry);
+            break;
+
         case ID_AUTO:
             tacc_parse_assert(iter,
                               storage_class == STORAGE_UNSPECIFIED,
@@ -1322,8 +1418,8 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
             break;
         }
         param = tacc_function_param_new();
-        param->base_type =
-            tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+        param->base_type = tacc_parse_declaration_specifiers(
+            iter, &storage_class, registry, NULL);
         tacc_parse_assert(iter,
                           storage_class == STORAGE_UNSPECIFIED ||
                               storage_class == STORAGE_REGISTER,
@@ -1691,6 +1787,7 @@ static struct tacc_compound_member *tacc_parse_compound_member(
     member = tacc_compound_member_new();
 
     tok = tacc_tok_iter_peek(iter);
+    /* TODO: assume all attributes concern declarations */
     if (tacc_tok_is_decl_specifier(tok, registry, 0)) {
         member->kind = COMPOUND_MEMBER_DECL;
         member->member.declaration =
@@ -1752,13 +1849,14 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
 
     to_parse = tacc_decl_new();
     to_parse->base_type =
-        tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+        tacc_parse_declaration_specifiers(iter, &storage_class, registry, NULL);
     to_parse->storage_class = storage_class;
     to_parse->extra.declarators = tacc_declarator_list_new();
 
     if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
         while (1) {
             declarator = tacc_parse_declarator(iter, registry, ctx);
+            tacc_parse_attributes(declarator->attributes, iter, registry);
 
             if (storage_class != STORAGE_TYPEDEF) {
                 tacc_parse_registry_add_variable(

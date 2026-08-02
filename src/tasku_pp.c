@@ -998,6 +998,9 @@ enum pp_ident_kind tacc_recognize_ident_kind(char *ident) {
     if (!strcmp(ident, "else")) {
         return ID_ELSE;
     }
+    if (!strcmp(ident, "__attribute__")) {
+        return ID_ATTRIBUTE;
+    }
     return ID_OTHER;
 }
 
