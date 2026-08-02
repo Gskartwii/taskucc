@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "decl.h"
 #include "dynstring.h"
 #include "target_defs.h"
 #include "type.h"
@@ -18,6 +19,14 @@ struct tacc_expr *tacc_expr_new(void) {
     struct tacc_expr *expr = tacc_malloc(sizeof(struct tacc_expr));
     tacc_expr_init(expr);
     return expr;
+}
+
+struct tacc_type_name *tacc_type_name_new(void) {
+    struct tacc_type_name *type_name =
+        tacc_malloc(sizeof(struct tacc_type_name));
+    type_name->base_type = NULL;
+    type_name->type_extension = NULL;
+    return type_name;
 }
 
 struct tacc_expr *tacc_expr_clone(struct tacc_expr *in_expr) {
@@ -67,8 +76,16 @@ void tacc_expr_free(struct tacc_expr *expr) {
         tacc_val_free(expr->extra.const_val);
     } else if (expr->kind == EX_IDENT) {
         tacc_dynstring_free(expr->extra.name);
+    } else if (expr->kind == EX_SIZEOF_TY || expr->kind == EX_CAST) {
+        tacc_type_name_free(expr->extra.type);
     }
     tacc_free(expr);
+}
+
+void tacc_type_name_free(struct tacc_type_name *ty) {
+    tacc_decl_type_free(ty->base_type);
+    tacc_declarator_free(ty->type_extension);
+    tacc_free(ty);
 }
 
 MK_DYNARRAY_OVER(tacc_expr_list,

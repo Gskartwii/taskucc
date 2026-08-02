@@ -12,7 +12,7 @@
 enum tacc_declaration_context {
     DECL_CONTEXT_TOP_LEVEL,
     DECL_CONTEXT_OLD_STYLE_PARAMS,
-    DECL_CONTEXT_MODERN_PARAMS,
+    DECL_CONTEXT_TYPE_NAME,
     DECL_CONTEXT_IN_BODY,
     DECL_CONTEXT_STRUCT_FIELD
 };
@@ -112,38 +112,109 @@ static void tacc_parse_expr_bump_to_op1(struct tacc_expr *expr) {
     expr->extra.type = NULL;
 }
 
-static tacc_bool tacc_tok_gives_typename(struct pp_tok *tok) {
+static struct tacc_decl_type *
+tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
+                                  enum tacc_storage_class *storage_class_out,
+                                  struct tacc_parse_registry *registry);
+
+static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
+    struct tacc_parse_registry *registry, char *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_untagged_ident_list_entry *ident_entry;
+    struct tacc_ident_scope *scope;
+    size_t i;
+    size_t j;
+    size_t scope_len;
+
+    scope_len = tacc_ident_scope_list_len(registry->scopes);
+    for (i = 1; i <= scope_len; i = i + 1) {
+        scope_entry =
+            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
+        scope = scope_entry->content;
+        for (j = 0; j < tacc_untagged_ident_list_len(scope->untagged_idents);
+             j = j + 1) {
+            ident_entry =
+                tacc_untagged_ident_list_get(scope->untagged_idents, j);
+            if (!strcmp(name,
+                        tacc_dynstring_as_str(ident_entry->content->name))) {
+                return ident_entry->content;
+            }
+        }
+    }
+    return NULL;
+}
+
+tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
+                                     struct tacc_parse_registry *registry,
+                                     uint32_t previous_flags) {
+    struct tacc_untagged_ident *ident_descriptor;
+
     if (tok->kind != TOK_IDENT) {
         return 0;
     }
     switch (tok->ident_kind) {
+    case ID_AUTO:
+    case ID_CHAR:
     case ID_CONST:
-    case ID_RESTRICT:
-    case ID_VOLATILE:
+    case ID_DOUBLE:
     case ID_ENUM:
-    case ID_STRUCT:
-    case ID_UNION:
-    case ID_VOID:
-    case ID_SHORT:
+    case ID_EXTERN:
+    case ID_FLOAT:
+    case ID_INLINE:
     case ID_INT:
     case ID_LONG:
-    case ID_FLOAT:
-    case ID_DOUBLE:
+    case ID_REGISTER:
+    case ID_RESTRICT:
+    case ID_SHORT:
     case ID_SIGNED:
+    case ID_STATIC:
+    case ID_STRUCT:
+    case ID_TYPEDEF:
+    case ID_UNION:
     case ID_UNSIGNED:
+    case ID_VOID:
+    case ID_VOLATILE:
     case ID__BOOL:
+    case ID__COMPLEX:
+    case ID__IMAGINARY:
         return 1;
+    case ID_OTHER:
+        if ((previous_flags & ~((unsigned) (TYPEQUAL_CONST | TYPEQUAL_RESTRICT |
+                                            TYPEQUAL_VOLATILE))) != 0) {
+            return 0;
+        }
+        ident_descriptor = tacc_parse_registry_lookup_untagged(
+            registry, tacc_dynstring_as_str(tok->str));
+        if (ident_descriptor == NULL) {
+            return 0;
+        }
+        return ident_descriptor->kind == UNTAGGED_IDENT_TYPEDEF;
     default:
         return 0;
     }
 }
 
-static struct tacc_type *tacc_type_parse(struct tacc_tok_iter *iter) {
-#ifdef __STDC__
-    (void) iter;
-#endif
-    tacc_parse_error(iter, "todo: type parser");
-    return 0;
+struct tacc_declarator *
+tacc_parse_declarator(struct tacc_tok_iter *iter,
+                      struct tacc_parse_registry *registry,
+                      enum tacc_declaration_context context);
+
+static struct tacc_type_name *tacc_parse_type_name(
+    struct tacc_tok_iter *iter, struct tacc_parse_registry *registry) {
+    struct tacc_type_name *type_name;
+    enum tacc_storage_class storage_class;
+
+    type_name = tacc_type_name_new();
+    type_name->base_type =
+        tacc_parse_declaration_specifiers(iter, &storage_class, registry);
+    tacc_parse_assert(
+        iter,
+        storage_class == STORAGE_UNSPECIFIED,
+        "storage class not permitted where type name is expected");
+    type_name->type_extension =
+        tacc_parse_declarator(iter, registry, DECL_CONTEXT_TYPE_NAME);
+
+    return type_name;
 }
 
 static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
@@ -372,7 +443,7 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
 
     if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
         tok = tacc_tok_iter_peek(iter);
-        if (tacc_tok_gives_typename(tok)) {
+        if (tacc_tok_is_decl_specifier(tok, iter->state->registry, 0)) {
             expr->kind = EX_COMPOUND_LIT;
             /* TODO */
             tacc_parse_assert(iter, 0, "todo compound literals");
@@ -496,9 +567,10 @@ static struct tacc_expr *tacc_parse_expr_unary(struct tacc_tok_iter *iter,
             expr->kind = EX_SIZEOF;
             if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
                 tok = tacc_tok_iter_peek(iter);
-                if (tacc_tok_gives_typename(tok)) {
+                if (tacc_tok_is_decl_specifier(tok, iter->state->registry, 0)) {
                     expr->kind = EX_SIZEOF_TY;
-                    expr->extra.type = tacc_type_parse(iter);
+                    expr->extra.type =
+                        tacc_parse_type_name(iter, iter->state->registry);
                     return expr;
                 } else {
                     tacc_tok_iter_deaccept_tok(iter, TOK_LPAREN);
@@ -520,15 +592,15 @@ static struct tacc_expr *tacc_parse_expr_unary(struct tacc_tok_iter *iter,
 static void tacc_parse_expr_cast(struct tacc_tok_iter *iter,
                                  struct tacc_expr *in_expr) {
     struct pp_tok *tok;
-    struct tacc_type *ty;
+    struct tacc_type_name *ty;
     struct tacc_expr *expr;
 
     expr = in_expr;
 
     if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
         tok = tacc_tok_iter_peek(iter);
-        if (tacc_tok_gives_typename(tok)) {
-            ty = tacc_type_parse(iter);
+        if (tacc_tok_is_decl_specifier(tok, iter->state->registry, 0)) {
+            ty = tacc_parse_type_name(iter, iter->state->registry);
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                               "expected ) to close (");
@@ -848,33 +920,6 @@ struct tacc_ast *tacc_ast_new(void) {
     return ast;
 }
 
-static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
-    struct tacc_parse_registry *registry, char *name) {
-    struct tacc_ident_scope_list_entry *scope_entry;
-    struct tacc_untagged_ident_list_entry *ident_entry;
-    struct tacc_ident_scope *scope;
-    size_t i;
-    size_t j;
-    size_t scope_len;
-
-    scope_len = tacc_ident_scope_list_len(registry->scopes);
-    for (i = 1; i <= scope_len; i = i + 1) {
-        scope_entry =
-            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
-        scope = scope_entry->content;
-        for (j = 0; j < tacc_untagged_ident_list_len(scope->untagged_idents);
-             j = j + 1) {
-            ident_entry =
-                tacc_untagged_ident_list_get(scope->untagged_idents, j);
-            if (!strcmp(name,
-                        tacc_dynstring_as_str(ident_entry->content->name))) {
-                return ident_entry->content;
-            }
-        }
-    }
-    return NULL;
-}
-
 /*static struct tacc_compound_type *tacc_parse_registry_lookup_tagged(
     struct tacc_parse_registry *registry, char *name) {
     struct tacc_ident_scope_list_entry *scope_entry;
@@ -900,56 +945,6 @@ static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
     }
     return NULL;
 }*/
-
-tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
-                                     struct tacc_parse_registry *registry,
-                                     uint32_t previous_flags) {
-    struct tacc_untagged_ident *ident_descriptor;
-
-    if (tok->kind != TOK_IDENT) {
-        return 0;
-    }
-    switch (tok->ident_kind) {
-    case ID_AUTO:
-    case ID_CHAR:
-    case ID_CONST:
-    case ID_DOUBLE:
-    case ID_ENUM:
-    case ID_EXTERN:
-    case ID_FLOAT:
-    case ID_INLINE:
-    case ID_INT:
-    case ID_LONG:
-    case ID_REGISTER:
-    case ID_RESTRICT:
-    case ID_SHORT:
-    case ID_SIGNED:
-    case ID_STATIC:
-    case ID_STRUCT:
-    case ID_TYPEDEF:
-    case ID_UNION:
-    case ID_UNSIGNED:
-    case ID_VOID:
-    case ID_VOLATILE:
-    case ID__BOOL:
-    case ID__COMPLEX:
-    case ID__IMAGINARY:
-        return 1;
-    case ID_OTHER:
-        if ((previous_flags & ~((unsigned) (TYPEQUAL_CONST | TYPEQUAL_RESTRICT |
-                                            TYPEQUAL_VOLATILE))) != 0) {
-            return 0;
-        }
-        ident_descriptor = tacc_parse_registry_lookup_untagged(
-            registry, tacc_dynstring_as_str(tok->str));
-        if (ident_descriptor == NULL) {
-            return 0;
-        }
-        return ident_descriptor->kind == UNTAGGED_IDENT_TYPEDEF;
-    default:
-        return 0;
-    }
-}
 
 static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     while (1) {
@@ -989,16 +984,6 @@ static void tacc_parse_enumerator_list(struct tacc_enumerator_list *out_list,
         }
     }
 }
-
-static struct tacc_decl_type *
-tacc_parse_declaration_specifiers(struct tacc_tok_iter *iter,
-                                  enum tacc_storage_class *storage_class_out,
-                                  struct tacc_parse_registry *registry);
-
-struct tacc_declarator *
-tacc_parse_declarator(struct tacc_tok_iter *iter,
-                      struct tacc_parse_registry *registry,
-                      enum tacc_declaration_context context);
 
 static void tacc_parse_registry_add_variable(
     struct tacc_parse_registry *registry, struct tacc_string *name) {
@@ -1332,7 +1317,7 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
                               storage_class == STORAGE_REGISTER,
                           "invalid storage class for function parameter");
         param->decl =
-            tacc_parse_declarator(iter, registry, DECL_CONTEXT_MODERN_PARAMS);
+            tacc_parse_declarator(iter, registry, DECL_CONTEXT_TYPE_NAME);
 
         param_name = tacc_declarator_name(param->decl);
         if (param_name != NULL) {
@@ -1373,7 +1358,7 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
         tacc_pp_tok_free(tok);
         tok = NULL;
     } else if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
-        if ((context == DECL_CONTEXT_MODERN_PARAMS) &&
+        if ((context == DECL_CONTEXT_TYPE_NAME) &&
             tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
             sub = tacc_declarator_new();
             sub->kind = DECLARATOR_ABSTRACT;
@@ -1390,7 +1375,7 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
         }
     } else {
         tacc_parse_assert(
-            iter, context == DECL_CONTEXT_MODERN_PARAMS, "expected declarator");
+            iter, context == DECL_CONTEXT_TYPE_NAME, "expected declarator");
         declarator->kind = DECLARATOR_ABSTRACT;
     }
     while (1) {

@@ -84,6 +84,15 @@ DECL_DYNARRAY_OVER(tacc_expr_list,
                    tacc_expr_list_len,
                    tacc_expr_list_free)
 
+struct tacc_type_name {
+    /* owning */
+    struct tacc_decl_type *base_type;
+
+    /* owning */
+    /* always an abstract declarator */
+    struct tacc_declarator *type_extension;
+};
+
 struct tacc_expr {
     enum tacc_expr_kind kind;
 
@@ -93,18 +102,20 @@ struct tacc_expr {
 
     union {
         struct tacc_expr_list *op_list;
-        struct tacc_type *type;
+        struct tacc_type_name *type;
         struct tacc_string *name;
         struct tacc_val *const_val;
     } extra;
 };
 
 struct tacc_expr *tacc_expr_new(void);
+struct tacc_type_name *tacc_type_name_new(void);
 struct tacc_expr *tacc_expr_clone(struct tacc_expr *expr);
 void tacc_expr_init(struct tacc_expr *expr);
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                                       struct tacc_target *target,
                                       struct tacc_type_list *basic_types);
 void tacc_expr_free(struct tacc_expr *expr);
+void tacc_type_name_free(struct tacc_type_name *type_name);
 
 #endif
