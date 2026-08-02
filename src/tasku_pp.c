@@ -1360,6 +1360,14 @@ struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry) {
     return state;
 }
 
+void tacc_pp_add_include_dir(struct tacc_pp_state *state, char *dir) {
+    struct tacc_string *string;
+
+    string = tacc_dynstring_new();
+    tacc_dynstring_concat(string, dir);
+    tacc_string_list_push(state->include_path, string);
+}
+
 /* return: borrow, state: borrow, name: borrow */
 struct tacc_macro_def_list_entry *
 tacc_pp_find_macro(struct tacc_pp_state *state, char *name) {

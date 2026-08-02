@@ -167,34 +167,12 @@ in rec {
 
     buildPhase = ''
       ok=true
-      touch assert.h \
-        config.h \
-        direct.h \
-        dlfcn.h \
-        errno.h \
-        fcntl.h \
-        inttypes.h \
-        io.h \
-        malloc.h \
-        math.h \
-        setjmp.h \
-        signal.h \
-        stdarg.h \
-        stdint.h \
-        stdio.h \
-        stdlib.h \
-        string.h \
-        test.h \
-        time.h \
-        unistd.h \
-        windows.h
-      mkdir sys
-      touch sys/{time.h,mman.h,ucontext.h}
 
       file=${tinycc-src}/tcc.c
       flags="\
         -E \
         $file \
+        -I ${./tasku-libc/include} \
         -DONE_SOURCE \
         -DTCC_TARGET_X86_64=1 \
         -DBOOTSTRAP=1 \

@@ -13,6 +13,7 @@ struct tacc_options {
     char *filename;
 
     struct tacc_string_list *defines;
+    struct tacc_string_list *include_path;
     tacc_bool preprocess;
 };
 
@@ -52,6 +53,7 @@ static void tacc_parse_options(struct tacc_options *options,
 
     options->filename = NULL;
     options->defines = tacc_string_list_new();
+    options->include_path = tacc_string_list_new();
     options->preprocess = 0;
 
     count = (size_t) argc;
@@ -65,6 +67,7 @@ static void tacc_parse_options(struct tacc_options *options,
         arg = arg + 1;
         ARG_SHORT_APPEND('D', options->defines);
         ARG_SHORT_SET_FLAG('E', options->preprocess);
+        ARG_SHORT_APPEND('I', options->include_path);
         tacc_assert(0, "invalid option %s\n", argv[i]);
 #ifdef __M2__
     next:
@@ -182,6 +185,20 @@ void tacc_apply_defines(struct tacc_string_list *defines,
     }
 }
 
+void tacc_apply_include_path(struct tacc_string_list *include_path,
+                             struct tacc_pp_state *state) {
+    struct tacc_string_list_entry *str_entry;
+    struct tacc_string *str;
+    size_t i;
+
+    for (i = 0; i < tacc_string_list_len(include_path); i = i + 1) {
+        str_entry = tacc_string_list_get(include_path, i);
+        str = str_entry->content;
+
+        tacc_pp_add_include_dir(state, tacc_dynstring_as_str(str));
+    }
+}
+
 int main(int argc, char **argv) {
     struct tacc_file *input_file;
     struct tacc_file_iter *file_iter;
@@ -208,6 +225,7 @@ int main(int argc, char **argv) {
     registry = tacc_type_registry_new(target);
     pp_state = tacc_pp_state_new(registry);
     tacc_apply_defines(options.defines, pp_state);
+    tacc_apply_include_path(options.include_path, pp_state);
     tacc_string_list_free(options.defines);
     tacc_free(options.defines);
 
