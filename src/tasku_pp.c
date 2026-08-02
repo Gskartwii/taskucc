@@ -3064,7 +3064,7 @@ struct pp_tok *tacc_tok_iter_peek(struct tacc_tok_iter* iter) {
     while (1) {
         tok = tacc_tok_iter_peek_handle_directives(iter);
         if (tok->kind == TOK_FAKE_TRIVIA && !iter->want_trivia) {
-            tacc_tok_iter_drop_nomacro(iter);
+            tacc_tok_iter_drop_nomacro(tacc_tok_iter_cur_iter(iter));
         } else {
             return tok;
         }
