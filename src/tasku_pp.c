@@ -69,6 +69,7 @@ void tacc_pp_tok_init(struct pp_tok *tok) {
     tok->ident_kind = ID_OTHER;
     tok->is_final = 0;
     tok->preceded_by_ws = 0;
+    tok->preceded_by_bol = 0;
     tok->str = NULL;
 }
 
@@ -1663,6 +1664,7 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     included_file_iter = tacc_file_iter_new_file(included_file);
     included_file_tok_iter =
         tacc_tok_iter_new(included_file_iter, first->state);
+    included_file_tok_iter->want_trivia = last_iter->want_trivia;
     last_iter->override = included_file_tok_iter;
 }
 
