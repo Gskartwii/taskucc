@@ -3098,8 +3098,7 @@ tacc_bool tacc_tok_iter_accept_tok(struct tacc_tok_iter *iter,
 }
 void tacc_tok_iter_deaccept_pp_tok(struct tacc_tok_iter *iter, struct pp_tok *tok) {
     tok->is_final = 1;
-    tok->is_final = 1;
-    tacc_tok_iter_push_pending(iter, tok);
+    tacc_tok_iter_push_pending(tacc_tok_iter_cur_iter(iter), tok);
 }
 void tacc_tok_iter_deaccept_tok(struct tacc_tok_iter *iter,
                                 enum pp_tok_kind tok) {
