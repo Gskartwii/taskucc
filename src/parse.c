@@ -188,8 +188,9 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
     case ID__IMAGINARY:
         return 1;
     case ID_OTHER:
-        if ((previous_flags & ~((unsigned) (TYPEQUAL_CONST | TYPEQUAL_RESTRICT |
-                                            TYPEQUAL_VOLATILE))) != 0) {
+        if ((previous_flags &
+             ~((unsigned) (TYPEQUAL_CONST | TYPEQUAL_RESTRICT |
+                           TYPEQUAL_VOLATILE | TYPESPEC_INLINE))) != 0) {
             return 0;
         }
         ident_descriptor = tacc_parse_registry_lookup_untagged(
