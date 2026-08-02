@@ -1,6 +1,8 @@
 #ifndef TASKU_LIBC_STDINT_H
 #define TASKU_LIBC_STDINT_H
 
+#include <stddef.h>
+
 typedef signed char int8_t;
 typedef short int int16_t;
 typedef int int32_t;
