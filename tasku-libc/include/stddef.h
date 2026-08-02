@@ -3,4 +3,7 @@
 
 typedef unsigned long int size_t;
 
+/* TODO: doesn't belong here? */
+typedef signed long int ssize_t;
+
 #endif
