@@ -847,7 +847,13 @@ static void tacc_parse_expr_conditional(struct tacc_tok_iter *iter,
         expr->op2 = tacc_expr_new();
         expr->op3 = tacc_expr_new();
         tacc_parse_expr(iter, expr->op2);
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_COLON),
+                          "expected : in conditional expression");
         expr = expr->op3;
+
+        /* kickstart */
+        tacc_parse_expr_cast(iter, expr);
     }
 }
 
