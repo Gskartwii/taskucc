@@ -297,9 +297,9 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
 
     can_be_unsigned = specified_u || (base != 10);
     if (can_be_unsigned) {
-        tacc_u64_copy(&limit, target->sllong->max);
-    } else {
         tacc_u64_copy(&limit, target->ullong->max);
+    } else {
+        tacc_u64_copy(&limit, target->sllong->max);
     }
     intscan(iter, base, &limit, u64);
 
