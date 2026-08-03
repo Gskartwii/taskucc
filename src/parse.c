@@ -494,8 +494,12 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
-            tacc_parse_error(iter, "todo: string literals");
+            /* tacc_parse_error(iter, "todo: string literals"); */
+            /* TODO: string literals */
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            while (tacc_tok_iter_accept_tok(iter, TOK_STRING)) {
+                /* concatting: also TODO */
+            }
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_NUM_LIT;
             expr->extra.const_val =
