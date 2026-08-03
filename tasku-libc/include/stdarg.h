@@ -3,4 +3,6 @@
 
 typedef char va_list[1];
 
+#define va_arg(x, y) x
+
 #endif

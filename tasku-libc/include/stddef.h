@@ -3,6 +3,8 @@
 
 typedef unsigned long int size_t;
 
+typedef unsigned long int uintptr_t;
+
 /* TODO: doesn't belong here? */
 typedef signed long int ssize_t;
 
