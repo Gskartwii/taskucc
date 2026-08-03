@@ -228,19 +228,31 @@ static void tacc_format_decl_type(struct tacc_formatter *fmt,
     }
     if ((flags & TYPESPEC_ENUM) != 0) {
         tacc_format_begin_scope(fmt, "enum");
-        tacc_format_enumerators(fmt, ty->extra.enumerators);
+        if (ty->extra.enumerators != NULL) {
+            tacc_format_enumerators(fmt, ty->extra.enumerators);
+        } else {
+            tacc_format_print(fmt, " <incomplete>");
+        }
         tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_STRUCT) != 0) {
         tacc_format_print(fmt, " ");
         tacc_format_begin_scope(fmt, "struct");
-        tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        if (ty->extra.struct_fields != NULL) {
+            tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        } else {
+            tacc_format_print(fmt, " <incomplete>");
+        }
         tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_UNION) != 0) {
         tacc_format_print(fmt, " ");
         tacc_format_begin_scope(fmt, "union");
-        tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        if (ty->extra.struct_fields != NULL) {
+            tacc_format_struct_fields(fmt, ty->extra.struct_fields);
+        } else {
+            tacc_format_print(fmt, " <incomplete>");
+        }
         tacc_format_end_scope(fmt);
     }
     if ((flags & TYPESPEC_TYPEDEF) != 0) {

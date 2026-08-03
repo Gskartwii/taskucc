@@ -316,12 +316,16 @@ tacc_declarator_name(struct tacc_declarator *declarator_in) {
 
 void tacc_decl_type_free(struct tacc_decl_type *ty) {
     if ((ty->spec_qual_flags & (TYPESPEC_STRUCT | TYPESPEC_UNION)) != 0) {
-        tacc_struct_decl_list_free(ty->extra.struct_fields);
-        tacc_free(ty->extra.struct_fields);
+        if (ty->extra.struct_fields != NULL) {
+            tacc_struct_decl_list_free(ty->extra.struct_fields);
+            tacc_free(ty->extra.struct_fields);
+        }
     }
     if ((ty->spec_qual_flags & TYPESPEC_ENUM) != 0) {
-        tacc_enumerator_list_free(ty->extra.enumerators);
-        tacc_free(ty->extra.enumerators);
+        if (ty->extra.enumerators != NULL) {
+            tacc_enumerator_list_free(ty->extra.enumerators);
+            tacc_free(ty->extra.enumerators);
+        }
     }
     if (ty->referenced_name != NULL) {
         tacc_dynstring_free(ty->referenced_name);
