@@ -568,6 +568,9 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
     }
 }
 
+static void tacc_parse_expr_cast(struct tacc_tok_iter *iter,
+                                 struct tacc_expr *in_expr);
+
 static struct tacc_expr *tacc_parse_expr_unary(struct tacc_tok_iter *iter,
                                                struct tacc_expr *in_expr) {
     struct tacc_expr *expr;
@@ -583,16 +586,40 @@ static struct tacc_expr *tacc_parse_expr_unary(struct tacc_tok_iter *iter,
             expr->kind = EX_DECR_PRE;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_AMPERSAND)) {
             expr->kind = EX_ADDROF;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_ASTERISK)) {
             expr->kind = EX_DEREF;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_PLUS)) {
             expr->kind = EX_POS;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_MINUS)) {
             expr->kind = EX_NEG;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_TILDE)) {
             expr->kind = EX_BNOT;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_tok(iter, TOK_EXCLAMATION)) {
             expr->kind = EX_NOT;
+            next_expr = tacc_expr_new();
+            expr->op1 = next_expr;
+            tacc_parse_expr_cast(iter, next_expr);
+            return expr;
         } else if (tacc_tok_iter_accept_kw(iter, ID_SIZEOF)) {
             expr->kind = EX_SIZEOF;
             if (tacc_tok_iter_accept_tok(iter, TOK_LPAREN)) {
@@ -639,7 +666,7 @@ static void tacc_parse_expr_cast(struct tacc_tok_iter *iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                               "expected ) to close (");
             tok = tacc_tok_iter_peek(iter);
-            if (tok->kind == TOK_RBRACKET) {
+            if (tok->kind == TOK_LBRACKET) {
                 tacc_parse_assert(iter, 0, "todo: compound literals");
             }
             expr->kind = EX_CAST;
