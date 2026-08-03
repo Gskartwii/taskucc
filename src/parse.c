@@ -1740,9 +1740,9 @@ static struct tacc_statement *tacc_parse_statement(
         case ID_DO:
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             statement->kind = STMT_DO_WHILE;
+            statement->extra.details = tacc_switch_while_do_new();
             statement->extra.details->body =
                 tacc_parse_statement(registry, iter);
-            statement->extra.details = tacc_switch_while_do_new();
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_kw(iter, ID_WHILE),
                               "expected 'while' after do-block");
