@@ -1643,6 +1643,7 @@ static struct tacc_statement *tacc_parse_statement(
     statement = tacc_statement_new();
 
     if (tok->kind == TOK_SEMICOLON) {
+        tacc_pp_tok_free(tacc_tok_iter_next(iter));
         statement->kind = STMT_NULL;
         return statement;
     }
