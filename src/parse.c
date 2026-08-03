@@ -1616,9 +1616,10 @@ static struct tacc_statement *tacc_parse_statement(
         return statement;
     }
     if (tok->kind == TOK_LBRACKET) {
+        tacc_pp_tok_free(tacc_tok_iter_next(iter));
         statement->kind = STMT_COMPOUND;
         statement->extra.sub_statements = tacc_compound_member_list_new();
-        while (!tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+        while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
             tacc_compound_member_list_push(
                 statement->extra.sub_statements,
                 tacc_parse_compound_member(registry, iter));
@@ -1742,11 +1743,18 @@ static struct tacc_statement *tacc_parse_statement(
                     statement->extra.for_statement->init_is_declaration = 0;
                     statement->extra.for_statement->initializer.expr =
                         tacc_parse_new_expr(iter);
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                        "expected ; in for");
                 }
             }
             if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                 statement->extra.for_statement->controlling =
                     tacc_parse_new_expr(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                                  "expected ; in for");
             }
             if (!tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
                 statement->extra.for_statement->after =
