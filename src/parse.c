@@ -1796,10 +1796,14 @@ static struct tacc_statement *tacc_parse_statement(
         case ID_RETURN:
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
             statement->kind = STMT_RETURN;
-            statement->extra.expr = tacc_parse_new_expr(iter);
-            tacc_parse_assert(iter,
-                              tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
-                              "expected after break");
+            if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
+                statement->extra.expr = tacc_parse_new_expr(iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
+                                  "expected after break");
+            } else {
+                statement->extra.expr = NULL;
+            }
             return statement;
         default:
             tacc_parse_assert(iter, 0, "expected statement");

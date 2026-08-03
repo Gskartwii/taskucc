@@ -123,7 +123,9 @@ void tacc_statement_free(struct tacc_statement *statement) {
     case STMT_CASE:
     case STMT_EXPRESSION:
     case STMT_RETURN:
-        tacc_expr_free(statement->extra.expr);
+        if (statement->extra.expr != NULL) {
+            tacc_expr_free(statement->extra.expr);
+        }
         break;
 
     case STMT_COMPOUND:
