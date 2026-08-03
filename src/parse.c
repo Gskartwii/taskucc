@@ -1601,7 +1601,7 @@ static struct tacc_compound_member *tacc_parse_compound_member(
 static struct tacc_decl *
 tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
-                    enum tacc_declaration_context accept_funcdef);
+                    enum tacc_declaration_context context);
 
 static struct tacc_statement *tacc_parse_statement(
     struct tacc_parse_registry *registry, struct tacc_tok_iter *iter) {
@@ -1857,12 +1857,70 @@ static struct tacc_decl_list *tacc_parse_old_style_param_types(
     return old_style_param_list;
 }
 
+static struct tacc_initializer *tacc_parse_initializer(
+    struct tacc_tok_iter *iter, struct tacc_parse_registry *registry) {
+    struct tacc_initializer *initializer;
+    struct tacc_sub_initializer *sub_initializer;
+    struct pp_tok *tok;
+
+    initializer = tacc_initializer_new();
+
+    if (!tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+        initializer->plain_expr = 1;
+        initializer->value.expr = tacc_parse_new_assignment_expression(iter);
+        return initializer;
+    }
+
+    initializer->plain_expr = 0;
+    initializer->value.list = tacc_sub_initializer_list_new();
+    while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
+        sub_initializer = tacc_sub_initializer_new();
+
+        if (tacc_tok_iter_accept_tok(iter, TOK_DOT)) {
+            sub_initializer->designator_kind = DESIGNATOR_NAMED;
+            tok = tacc_tok_iter_next(iter);
+            tacc_parse_assert(iter,
+                              tok->kind == TOK_IDENT &&
+                                  tok->ident_kind == ID_OTHER,
+                              "expected field name after . in initializer");
+            sub_initializer->designator.name = tacc_dynstring_clone(tok->str);
+            tacc_pp_tok_free(tok);
+            tok = NULL;
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_EQ),
+                              "expected = after initializer designator");
+        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
+            sub_initializer->designator_kind = DESIGNATOR_EXPR;
+            sub_initializer->designator.expr =
+                tacc_parse_new_constant_expression(iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                              "expected ] to end initializer designator");
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_EQ),
+                              "expected = after initializer designator");
+        }
+        sub_initializer->value = tacc_parse_initializer(iter, registry);
+
+        tacc_sub_initializer_list_push(initializer->value.list,
+                                       sub_initializer);
+        if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RBRACKET),
+                              "expected } to end initializer list");
+            break;
+        }
+    }
+    return initializer;
+}
+
 static struct tacc_decl *
 tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
                     enum tacc_declaration_context ctx) {
     struct tacc_decl *to_parse;
     struct tacc_declarator *declarator;
+    struct tacc_init_declarator *init_declarator;
     struct tacc_decl_list *old_style_param_list;
     enum tacc_storage_class storage_class;
 
@@ -1870,7 +1928,7 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
     to_parse->base_type =
         tacc_parse_declaration_specifiers(iter, &storage_class, registry, NULL);
     to_parse->storage_class = storage_class;
-    to_parse->extra.declarators = tacc_declarator_list_new();
+    to_parse->extra.declarators = tacc_init_declarator_list_new();
 
     if (!tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
         while (1) {
@@ -1903,7 +1961,19 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     break;
                 }
             }
-            tacc_declarator_list_push(to_parse->extra.declarators, declarator);
+
+            init_declarator = tacc_init_declarator_new();
+            init_declarator->declarator = declarator;
+
+            if (ctx == DECL_CONTEXT_IN_BODY || ctx == DECL_CONTEXT_TOP_LEVEL) {
+                if (tacc_tok_iter_accept_tok(iter, TOK_EQ)) {
+                    init_declarator->initializer =
+                        tacc_parse_initializer(iter, registry);
+                }
+            }
+
+            tacc_init_declarator_list_push(to_parse->extra.declarators,
+                                           init_declarator);
             if (tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON)) {
                 break;
             }

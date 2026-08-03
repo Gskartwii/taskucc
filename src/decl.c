@@ -1,6 +1,7 @@
 #include "decl.h"
 #include "attribute.h"
 #include "dynarray.h"
+#include "expr.h"
 #include "statement.h"
 #include "string_list.h"
 #include "type.h"
@@ -28,6 +29,30 @@ MK_DYNARRAY_OVER(tacc_declarator_list,
                  tacc_declarator_list_len,
                  tacc_declarator_free,
                  tacc_declarator_list_free)
+
+MK_DYNARRAY_OVER(tacc_init_declarator_list,
+                 tacc_init_declarator_list_entry,
+                 struct tacc_init_declarator *,
+                 tacc_init_declarator_list_new,
+                 tacc_init_declarator_list_init,
+                 tacc_init_declarator_list_get,
+                 tacc_init_declarator_list_push,
+                 tacc_init_declarator_list_pop,
+                 tacc_init_declarator_list_len,
+                 tacc_init_declarator_free,
+                 tacc_init_declarator_list_free)
+
+MK_DYNARRAY_OVER(tacc_sub_initializer_list,
+                 tacc_sub_initializer_list_entry,
+                 struct tacc_sub_initializer *,
+                 tacc_sub_initializer_list_new,
+                 tacc_sub_initializer_list_init,
+                 tacc_sub_initializer_list_get,
+                 tacc_sub_initializer_list_push,
+                 tacc_sub_initializer_list_pop,
+                 tacc_sub_initializer_list_len,
+                 tacc_sub_initializer_free,
+                 tacc_sub_initializer_list_free)
 
 MK_DYNARRAY_OVER(tacc_function_param_list,
                  tacc_function_param_list_entry,
@@ -258,7 +283,7 @@ void tacc_decl_free(struct tacc_decl *decl) {
     if (decl->kind == DECL_FUNCTION_DEF) {
         tacc_funcdef_free(decl->extra.func_def);
     } else if (decl->kind == DECL_DECLARATORS) {
-        tacc_declarator_list_free(decl->extra.declarators);
+        tacc_init_declarator_list_free(decl->extra.declarators);
         tacc_free(decl->extra.declarators);
     }
     tacc_free(decl);
@@ -304,4 +329,62 @@ void tacc_decl_type_free(struct tacc_decl_type *ty) {
     tacc_attribute_list_free(ty->attributes);
     tacc_free(ty->attributes);
     tacc_free(ty);
+}
+
+void tacc_sub_initializer_free(struct tacc_sub_initializer *sub_initializer) {
+    if (sub_initializer->designator_kind == DESIGNATOR_EXPR) {
+        tacc_expr_free(sub_initializer->designator.expr);
+    } else if (sub_initializer->designator_kind == DESIGNATOR_NAMED) {
+        tacc_dynstring_free(sub_initializer->designator.name);
+    }
+    tacc_initializer_free(sub_initializer->value);
+    tacc_free(sub_initializer);
+}
+
+void tacc_initializer_free(struct tacc_initializer *initializer) {
+    if (initializer->plain_expr) {
+        tacc_expr_free(initializer->value.expr);
+    } else {
+        tacc_sub_initializer_list_free(initializer->value.list);
+        tacc_free(initializer->value.list);
+    }
+    tacc_free(initializer);
+}
+
+void tacc_init_declarator_free(struct tacc_init_declarator *init_declarator) {
+    tacc_declarator_free(init_declarator->declarator);
+    if (init_declarator->initializer != NULL) {
+        tacc_initializer_free(init_declarator->initializer);
+    }
+    tacc_free(init_declarator);
+}
+
+struct tacc_sub_initializer *tacc_sub_initializer_new(void) {
+    struct tacc_sub_initializer *sub_initializer;
+
+    sub_initializer = tacc_malloc(sizeof(struct tacc_sub_initializer));
+    sub_initializer->designator_kind = DESIGNATOR_NONE;
+    sub_initializer->value = NULL;
+
+    return sub_initializer;
+}
+
+struct tacc_initializer *tacc_initializer_new(void) {
+    struct tacc_initializer *initializer;
+
+    initializer = tacc_malloc(sizeof(struct tacc_initializer));
+    initializer->plain_expr = 1;
+    initializer->value.expr = NULL;
+
+    return initializer;
+}
+
+struct tacc_init_declarator *tacc_init_declarator_new(void) {
+    struct tacc_init_declarator *init_declarator;
+
+    init_declarator = tacc_malloc(sizeof(struct tacc_init_declarator));
+    init_declarator->declarator = NULL;
+    init_declarator->initializer = NULL;
+
+    return init_declarator;
 }

@@ -153,6 +153,46 @@ struct tacc_funcdef {
     struct tacc_compound_member_list *statements;
 };
 
+enum tacc_init_designator_kind {
+    DESIGNATOR_NONE,
+    DESIGNATOR_NAMED,
+    DESIGNATOR_EXPR
+};
+
+struct tacc_sub_initializer {
+    enum tacc_init_designator_kind designator_kind;
+    union {
+        /* owning */
+        struct tacc_string *name;
+
+        /* owning */
+        struct tacc_expr *expr;
+    } designator;
+
+    /* owning */
+    struct tacc_initializer *value;
+};
+
+struct tacc_initializer {
+    tacc_bool plain_expr;
+
+    union {
+        /* owning */
+        struct tacc_expr *expr;
+
+        /* owning */
+        struct tacc_sub_initializer_list *list;
+    } value;
+};
+
+struct tacc_init_declarator {
+    /* owning */
+    struct tacc_declarator *declarator;
+
+    /* owning */
+    struct tacc_initializer *initializer;
+};
+
 struct tacc_decl {
     /* owning */
     struct tacc_decl_type *base_type;
@@ -162,7 +202,7 @@ struct tacc_decl {
     /* owning */
     union {
         struct tacc_funcdef *func_def;
-        struct tacc_declarator_list *declarators;
+        struct tacc_init_declarator_list *declarators;
     } extra;
 };
 
@@ -187,6 +227,28 @@ DECL_DYNARRAY_OVER(tacc_declarator_list,
                    tacc_declarator_list_pop,
                    tacc_declarator_list_len,
                    tacc_declarator_list_free)
+
+DECL_DYNARRAY_OVER(tacc_init_declarator_list,
+                   tacc_init_declarator_list_entry,
+                   struct tacc_init_declarator *,
+                   tacc_init_declarator_list_new,
+                   tacc_init_declarator_list_init,
+                   tacc_init_declarator_list_get,
+                   tacc_init_declarator_list_push,
+                   tacc_init_declarator_list_pop,
+                   tacc_init_declarator_list_len,
+                   tacc_init_declarator_list_free)
+
+DECL_DYNARRAY_OVER(tacc_sub_initializer_list,
+                   tacc_sub_initializer_list_entry,
+                   struct tacc_sub_initializer *,
+                   tacc_sub_initializer_list_new,
+                   tacc_sub_initializer_list_init,
+                   tacc_sub_initializer_list_get,
+                   tacc_sub_initializer_list_push,
+                   tacc_sub_initializer_list_pop,
+                   tacc_sub_initializer_list_len,
+                   tacc_sub_initializer_list_free)
 
 DECL_DYNARRAY_OVER(tacc_function_param_list,
                    tacc_function_param_list_entry,
@@ -240,11 +302,18 @@ void tacc_array_declarator_free(struct tacc_array_declarator *declarator);
 void tacc_function_declarator_free(struct tacc_function_declarator *declarator);
 void tacc_struct_declarator_free(
     struct tacc_struct_declarator *struct_declarator);
+void tacc_initializer_free(struct tacc_initializer *initializer);
+void tacc_sub_initializer_free(struct tacc_sub_initializer *sub_initializer);
+void tacc_init_declarator_free(struct tacc_init_declarator *init_declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
 void tacc_decl_type_free(struct tacc_decl_type *ty);
 void tacc_struct_decl_free(struct tacc_struct_decl *decl);
+
 struct tacc_enumerator *tacc_enumerator_new(void);
 struct tacc_declarator *tacc_declarator_new(void);
+struct tacc_init_declarator *tacc_init_declarator_new(void);
+struct tacc_initializer *tacc_initializer_new(void);
+struct tacc_sub_initializer *tacc_sub_initializer_new(void);
 struct tacc_function_param *tacc_function_param_new(void);
 struct tacc_array_declarator *tacc_array_declarator_new(void);
 struct tacc_function_declarator *tacc_function_declarator_new(void);

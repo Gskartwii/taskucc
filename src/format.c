@@ -625,7 +625,7 @@ static void tacc_format_declarator(struct tacc_formatter *fmt,
 static void tacc_format_decl(struct tacc_formatter *fmt,
                              struct tacc_decl *decl) {
     size_t i;
-    struct tacc_declarator_list_entry *entry;
+    struct tacc_init_declarator_list_entry *entry;
 
     if (decl->kind == DECL_DECLARATORS) {
         tacc_format_begin_scope(fmt, "declaration");
@@ -658,11 +658,12 @@ static void tacc_format_decl(struct tacc_formatter *fmt,
     }
 
     if (decl->kind == DECL_DECLARATORS) {
-        for (i = 0; i < tacc_declarator_list_len(decl->extra.declarators);
+        for (i = 0; i < tacc_init_declarator_list_len(decl->extra.declarators);
              i = i + 1) {
             tacc_format_newline(fmt);
-            entry = tacc_declarator_list_get(decl->extra.declarators, i);
-            tacc_format_declarator(fmt, entry->content);
+            entry = tacc_init_declarator_list_get(decl->extra.declarators, i);
+            tacc_format_declarator(fmt, entry->content->declarator);
+            /* TODO: initializers? */
         }
     }
 
