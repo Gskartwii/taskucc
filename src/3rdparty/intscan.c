@@ -227,21 +227,31 @@ static const unsigned char table[] = {
 #define UINT_MAX_DIV36 0x071C71C7
 
 static int shgetc(struct tacc_file_iter *file) {
+    char ch;
     if (tacc_file_is_eof(file)) {
         return -1;
     }
-    return tacc_file_iter_consume_ch(file);
+    ch = tacc_file_iter_consume_ch(file);
+    return (int) ch;
 }
 
 #define shunget(f)                                          \
     tacc_assert((f->src != f->orig), "unget at beginning"); \
     f->src = f->src - 1
 
+static unsigned char intscan_val(int c) {
+    const unsigned char *val;
+
+    val = table + 1;
+    val = val + c;
+
+    return *val;
+}
+
 void intscan(struct tacc_file_iter *f,
              unsigned base,
              struct tacc_u64 *lim,
              struct tacc_u64 *out) {
-    const unsigned char *val;
     int c;
     int bs;
     int neg;
@@ -251,7 +261,6 @@ void intscan(struct tacc_file_iter *f,
     struct tacc_u64 aux;
     struct tacc_u64 aux1;
 
-    val = table + 1;
     neg = 0;
     tacc_u64_zero(&y);
 
@@ -263,10 +272,11 @@ void intscan(struct tacc_file_iter *f,
 
         x = 0;
         c = shgetc(f);
-        for (x = 0; (unsigned) (c - '0') < 10U && x <= UINT_MAX_DIV10 - 1;
-             c = shgetc(f))
+        for (x = 0; (unsigned) (c - '0') < 10 && x <= UINT_MAX_DIV10 - 1;
+             c = shgetc(f)) {
             x = x * 10 + (unsigned) (c - '0');
-        for (y.low = x; (unsigned) (c - '0') < 10U &&
+        }
+        for (y.low = x; (unsigned) (c - '0') < 10 &&
                         tacc_u64_ule(&y, &ullong_max_div_base);
              c = shgetc(f)) {
             aux.high = 0xFFFFFFFF;
@@ -282,7 +292,7 @@ void intscan(struct tacc_file_iter *f,
             goto done;
         }
     } else if (!(base & (base - 1))) {
-        switch ((0x17 * base) >> 5 & 7) {
+        switch (((0x17 * base) >> 5) & 7) {
         case 0:
         case 1:
         case 2:
@@ -314,12 +324,15 @@ void intscan(struct tacc_file_iter *f,
 
         c = shgetc(f);
 
-        for (x = 0; val[c] < base && x <= UINT_MAX_DIV32; c = shgetc(f))
-            x = x << bs | val[c];
-        for (y.low = x; val[c] < base && tacc_u64_ule(&y, &ullong_max_div_base);
+        for (x = 0; intscan_val(c) < base && x <= UINT_MAX_DIV32;
+             c = shgetc(f)) {
+            x = x << bs | intscan_val(c);
+        }
+        for (y.low = x;
+             intscan_val(c) < base && tacc_u64_ule(&y, &ullong_max_div_base);
              c = shgetc(f)) {
             tacc_u64_lsh_n(&y, &y, bs);
-            y.low |= val[c];
+            y.low |= intscan_val(c);
         }
     } else {
         ullong_max_div_base.low = 0xFFFFFFFF;
@@ -330,21 +343,24 @@ void intscan(struct tacc_file_iter *f,
 
         c = shgetc(f);
 
-        for (x = 0; val[c] < base && x <= UINT_MAX_DIV36 - 1; c = shgetc(f))
-            x = x * base + val[c];
-        for (y.low = x; val[c] < base && tacc_u64_ule(&y, &ullong_max_div_base);
+        for (x = 0; intscan_val(c) < base && x <= UINT_MAX_DIV36 - 1;
+             c = shgetc(f))
+            x = x * base + intscan_val(c);
+        for (y.low = x;
+             intscan_val(c) < base && tacc_u64_ule(&y, &ullong_max_div_base);
              c = shgetc(f)) {
             aux.high = 0xFFFFFFFF;
             aux.low = 0xFFFFFFFF;
-            tacc_u64_sub_u32(&aux, &aux, (uint32_t) val[c]);
+            tacc_u64_sub_u32(&aux, &aux, (uint32_t) intscan_val(c));
             tacc_u64_mul_u32(&aux1, &y, base);
             if (!(tacc_u64_ule(&aux1, &aux))) {
                 break;
             }
-            tacc_u64_add_u32(&y, &aux1, val[c]);
+            tacc_u64_add_u32(&y, &aux1, intscan_val(c));
         }
     }
-    tacc_assert(val[c] >= base, "constant number overflow, too many digits");
+    tacc_assert(intscan_val(c) >= base,
+                "constant number overflow, too many digits");
     tacc_assert(tacc_u64_ule(&y, lim),
                 "constant number overflow, out of requested range");
 done:
