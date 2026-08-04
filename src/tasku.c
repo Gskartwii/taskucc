@@ -217,7 +217,9 @@ int main(int argc, char **argv) {
 
     if (!strcmp(options.filename, "run-tests")) {
         tacc_string_list_free(options.defines);
+        tacc_string_list_free(options.include_path);
         tacc_free(options.defines);
+        tacc_free(options.include_path);
         return run_tests();
     }
 
