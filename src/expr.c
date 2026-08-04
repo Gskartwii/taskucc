@@ -1,8 +1,6 @@
 #include "expr.h"
 #include "decl.h"
 #include "dynstring.h"
-#include "target_defs.h"
-#include "type.h"
 #include "util.h"
 #include <stdarg.h>
 #include <stdio.h>
@@ -21,46 +19,25 @@ struct tacc_expr *tacc_expr_new(void) {
     return expr;
 }
 
+struct tacc_int_literal *tacc_int_literal_new(void) {
+    struct tacc_int_literal *int_literal;
+
+    int_literal = tacc_malloc(sizeof(struct tacc_int_literal));
+    int_literal->base = 10;
+    int_literal->number = tacc_u64_new();
+    int_literal->suffix_l = 0;
+    int_literal->suffix_ll = 0;
+    int_literal->suffix_u = 0;
+
+    return int_literal;
+}
+
 struct tacc_type_name *tacc_type_name_new(void) {
     struct tacc_type_name *type_name =
         tacc_malloc(sizeof(struct tacc_type_name));
     type_name->base_type = NULL;
     type_name->type_extension = NULL;
     return type_name;
-}
-
-struct tacc_expr *tacc_expr_clone(struct tacc_expr *in_expr) {
-    struct tacc_expr *expr = tacc_expr_new();
-    struct tacc_expr_list_entry *entry;
-    size_t i;
-
-    expr->kind = in_expr->kind;
-    if (in_expr->op1 != NULL) {
-        expr->op1 = tacc_expr_clone(in_expr->op1);
-    }
-    if (in_expr->op2 != NULL) {
-        expr->op2 = tacc_expr_clone(in_expr->op2);
-    }
-    if (in_expr->op3 != NULL) {
-        expr->op3 = tacc_expr_clone(in_expr->op3);
-    }
-    if (expr->kind == EX_NUM_LIT) {
-        expr->extra.const_val = tacc_val_clone(in_expr->extra.const_val);
-    } else if (expr->kind == EX_IDENT || expr->kind == EX_MEMBER ||
-               expr->kind == EX_PTR_MEMBER) {
-        expr->extra.name = tacc_dynstring_clone(in_expr->extra.name);
-    } else if (expr->kind == EX_CAST || expr->kind == EX_SIZEOF_TY) {
-        expr->extra.type = in_expr->extra.type;
-    } else if (expr->kind == EX_CALL) {
-        expr->extra.op_list = tacc_expr_list_new();
-        for (i = 0; i < tacc_expr_list_len(in_expr->extra.op_list); i = i + 1) {
-            entry = tacc_expr_list_get(in_expr->extra.op_list, i);
-            tacc_expr_list_push(expr->extra.op_list,
-                                tacc_expr_clone(entry->content));
-        }
-    }
-
-    return expr;
 }
 
 void tacc_expr_free(struct tacc_expr *expr) {
@@ -73,8 +50,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
     if (expr->op3) {
         tacc_expr_free(expr->op3);
     }
-    if (expr->kind == EX_NUM_LIT) {
-        tacc_val_free(expr->extra.const_val);
+    if (expr->kind == EX_INT_LIT) {
+        tacc_int_literal_free(expr->extra.int_literal);
     } else if (expr->kind == EX_IDENT || expr->kind == EX_MEMBER ||
                expr->kind == EX_PTR_MEMBER) {
         tacc_dynstring_free(expr->extra.name);
@@ -93,6 +70,11 @@ void tacc_type_name_free(struct tacc_type_name *ty) {
     tacc_free(ty);
 }
 
+void tacc_int_literal_free(struct tacc_int_literal *literal) {
+    tacc_free(literal->number);
+    tacc_free(literal);
+}
+
 MK_DYNARRAY_OVER(tacc_expr_list,
                  tacc_expr_list_entry,
                  struct tacc_expr *,
@@ -105,6 +87,81 @@ MK_DYNARRAY_OVER(tacc_expr_list,
                  tacc_expr_free,
                  tacc_expr_list_free)
 
+static struct tacc_val *
+tacc_int_literal_eval(struct tacc_int_literal *literal,
+                      struct tacc_target *target,
+                      struct tacc_type_list *basic_types) {
+    struct tacc_val *val;
+    tacc_bool can_be_unsigned = literal->suffix_u || (literal->base != 10);
+
+    if (tacc_u64_ugt(literal->number, target->sllong->max)) {
+        tacc_assert(can_be_unsigned, "integer literal overflow");
+    }
+
+    val = tacc_val_new();
+    val->value.int_value = tacc_u64_clone(literal->number);
+
+    if (literal->suffix_ll) {
+        if (literal->suffix_u) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+            return val;
+        }
+        if (tacc_u64_ugt(literal->number, target->sllong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+            return val;
+        }
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
+        return val;
+    }
+    if (literal->suffix_l) {
+        if (literal->suffix_u) {
+            if (tacc_u64_ule(literal->number, target->ulong->max)) {
+                val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+                return val;
+            }
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+        } else if (tacc_u64_ule(literal->number, target->slong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
+        } else if (can_be_unsigned &&
+                   tacc_u64_ule(literal->number, target->ulong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+        } else if (tacc_u64_ule(literal->number, target->sllong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
+        } else {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+        }
+        return val;
+    }
+
+    if (literal->suffix_u) {
+        if (tacc_u64_ule(literal->number, target->uint->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_UINT);
+        } else if (tacc_u64_ule(literal->number, target->ulong->max)) {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+        } else {
+            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+        }
+        return val;
+    }
+
+    if (tacc_u64_ule(literal->number, target->sint->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SINT);
+    } else if (can_be_unsigned &&
+               tacc_u64_ule(literal->number, target->uint->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_UINT);
+    } else if (tacc_u64_ule(literal->number, target->slong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
+    } else if (can_be_unsigned &&
+               tacc_u64_ule(literal->number, target->ulong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
+    } else if (tacc_u64_ule(literal->number, target->sllong->max)) {
+        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
+    } else {
+        val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+    }
+    return val;
+}
+
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                                       struct tacc_target *target,
                                       struct tacc_type_list *basic_types) {
@@ -116,8 +173,12 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
     case EX_UNINIT:
         tacc_assert(0, "invalid uninitialized expr");
         break;
-    case EX_NUM_LIT:
-        return tacc_val_clone(expr->extra.const_val);
+    case EX_INT_LIT:
+        return tacc_int_literal_eval(
+            expr->extra.int_literal, target, basic_types);
+    case EX_CHAR_LIT:
+        tacc_assert(0, "todo: char-literal consteval");
+        break;
     case EX_STRING_LIT:
         tacc_assert(0, "todo: string consteval");
         break;

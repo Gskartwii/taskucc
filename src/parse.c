@@ -6,7 +6,6 @@
 #include "dynstring.h"
 #include "statement.h"
 #include "tasku_pp.h"
-#include "type.h"
 #include <memory.h>
 #include <stdarg.h>
 
@@ -113,7 +112,7 @@ static void tacc_parse_expr_bump_to_op1(struct tacc_expr *expr) {
     memcpy(new_expr, expr, sizeof(struct tacc_expr));
     tacc_expr_init(expr);
     expr->op1 = new_expr;
-    expr->extra.const_val = NULL;
+    expr->extra.int_literal = NULL;
     expr->extra.name = NULL;
     expr->extra.op_list = NULL;
     expr->extra.type = NULL;
@@ -231,38 +230,29 @@ static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
     return tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER;
 }
 
-static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
-                                          struct tacc_type_list *basic_types,
-                                          struct pp_tok *tok) {
-    struct tacc_val *val;
-    struct tacc_u64 *u64;
+static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
+    struct tacc_int_literal *literal;
     char *cstr;
     char *cstr_last;
     size_t len;
     unsigned int base;
     int count_l;
     tacc_bool specified_u;
-    tacc_bool can_be_unsigned;
     struct tacc_file_iter *iter;
     struct tacc_u64 limit;
 
-    val = tacc_val_new();
+    literal = tacc_int_literal_new();
     tacc_assert(tok->str != NULL, "need str to parse numlit");
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
     tok = NULL;
 
     tacc_assert(len > 0, "invalid empty ppnumber");
-
-    u64 = tacc_u64_new();
-    val->value.int_value = u64;
-
     if (len == 1) {
-        tacc_u64_zero(u64);
-        tacc_u64_add_u32(u64, u64, (uint32_t) (*cstr - '0'));
-        val->type = tacc_get_basic_type(basic_types, TYK_SINT);
+        tacc_u64_add_u32(
+            literal->number, literal->number, (uint32_t) (*cstr - '0'));
         tacc_free(cstr);
-        return val;
+        return literal;
     }
     cstr_last = cstr + len - 1;
 
@@ -299,75 +289,22 @@ static struct tacc_val *tacc_parse_numlit(struct tacc_target *target,
         }
     }
 
-    can_be_unsigned = specified_u || (base != 10);
-    if (can_be_unsigned) {
-        tacc_u64_copy(&limit, target->ullong->max);
-    } else {
-        tacc_u64_copy(&limit, target->sllong->max);
-    }
-    intscan(iter, base, &limit, u64);
+    limit.high = 0xFFFFFFFF;
+    limit.low = 0xFFFFFFFF;
+    intscan(iter, base, &limit, literal->number);
 
     tacc_file_iter_free(iter);
-
+    literal->base = base;
     if (count_l == 2) {
-        if (specified_u) {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-            return val;
-        }
-        if (tacc_u64_ugt(u64, target->sllong->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-            return val;
-        }
-        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
-        return val;
+        literal->suffix_ll = 1;
+    } else if (count_l == 1) {
+        literal->suffix_l = 1;
     }
-    if (count_l == 1) {
-        if (specified_u) {
-            if (tacc_u64_ule(u64, target->ulong->max)) {
-                val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
-                return val;
-            }
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-        } else if (tacc_u64_ule(u64, target->slong->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
-        } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
-        } else if (tacc_u64_ule(u64, target->sllong->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
-        } else {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-        }
-        return val;
-    }
-
-    if (specified_u) {
-        if (tacc_u64_ule(u64, target->uint->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_UINT);
-        } else if (tacc_u64_ule(u64, target->ulong->max)) {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
-        } else {
-            val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-        }
-        return val;
-    }
-
-    if (tacc_u64_ule(u64, target->sint->max)) {
-        val->type = tacc_get_basic_type(basic_types, TYK_SINT);
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->uint->max)) {
-        val->type = tacc_get_basic_type(basic_types, TYK_UINT);
-    } else if (tacc_u64_ule(u64, target->slong->max)) {
-        val->type = tacc_get_basic_type(basic_types, TYK_SLONG);
-    } else if (can_be_unsigned && tacc_u64_ule(u64, target->ulong->max)) {
-        val->type = tacc_get_basic_type(basic_types, TYK_ULONG);
-    } else if (tacc_u64_ule(u64, target->sllong->max)) {
-        val->type = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
-    } else {
-        val->type = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
-    }
-    return val;
+    literal->suffix_u = specified_u;
+    return literal;
 }
 
-static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
+/*static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
                                            struct tacc_type_list *basic_types,
                                            struct pp_tok *tok) {
     struct tacc_u64 *u64;
@@ -442,7 +379,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     val->type = tacc_get_basic_type(basic_types, TYK_SINT);
 
     return val;
-}
+}*/
 
 static void tacc_parse_expr(struct tacc_tok_iter *iter,
                             struct tacc_expr *in_expr);
@@ -489,11 +426,8 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             expr->extra.name = tacc_dynstring_clone(tok->str);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_PPNUM) {
-            expr->kind = EX_NUM_LIT;
-            expr->extra.const_val =
-                tacc_parse_numlit(iter->state->registry->target,
-                                  iter->state->registry->basic_types,
-                                  tok);
+            expr->kind = EX_INT_LIT;
+            expr->extra.int_literal = tacc_parse_numlit(tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
@@ -504,11 +438,11 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
                 /* concatting: also TODO */
             }
         } else if (tok->kind == TOK_CHAR) {
-            expr->kind = EX_NUM_LIT;
-            expr->extra.const_val =
+            expr->kind = EX_CHAR_LIT;
+            /* expr->extra.const_val =
                 tacc_parse_charlit(iter->state->registry->target,
                                    iter->state->registry->basic_types,
-                                   tok);
+                                   tok);  TODO*/
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(

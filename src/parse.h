@@ -3,7 +3,6 @@
 
 #include "expr.h"
 #include "tasku_pp.h"
-#include "type.h"
 
 enum tacc_untagged_ident_kind { UNTAGGED_IDENT_OBJECT, UNTAGGED_IDENT_TYPEDEF };
 

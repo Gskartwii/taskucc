@@ -272,3 +272,40 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
     tacc_assert(0, "couldn't find registred type for basic type");
     return NULL;
 }
+
+tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind) {
+    switch (type_kind) {
+    case TYK_CHAR:
+    case TYK_UCHAR:
+    case TYK_SCHAR:
+    case TYK_USHORT:
+    case TYK_SSHORT:
+    case TYK_UINT:
+    case TYK_SINT:
+    case TYK_ULONG:
+    case TYK_SLONG:
+    case TYK_ULONGLONG:
+    case TYK_SLONGLONG:
+    case TYK_FLOAT:
+    case TYK_DOUBLE:
+    case TYK_LONGDOUBLE:
+    case TYK_BOOL:
+        return 1;
+    case TYK_VOID:
+        return 0;
+    case TYK_COMPOUND:
+        /* maybe */
+        return 0;
+    }
+    return 0;
+}
+
+tacc_bool tacc_type_is_scalar(struct tacc_type *type) {
+    if (tacc_type_kind_is_certainly_scalar(type->kind)) {
+        return 1;
+    }
+    if (type->kind == TYK_COMPOUND) {
+        return type->extra->kind == TYC_PTR || type->extra->kind == TYC_ENUM;
+    }
+    return 0;
+}

@@ -4,12 +4,12 @@
 #include "dynarray.h"
 #include "dynstring.h"
 #include "machine.h"
-#include "type.h"
 
 enum tacc_expr_kind {
     EX_UNINIT,
 
-    EX_NUM_LIT,
+    EX_INT_LIT,
+    EX_CHAR_LIT,
     EX_STRING_LIT,
     EX_IDENT,
 
@@ -93,6 +93,18 @@ struct tacc_type_name {
     struct tacc_declarator *type_extension;
 };
 
+struct tacc_int_literal {
+    struct tacc_u64 *number;
+    size_t base;
+    tacc_bool suffix_u;
+    tacc_bool suffix_l;
+    tacc_bool suffix_ll;
+};
+
+struct tacc_char_literal {
+    struct tacc_u64 *number;
+};
+
 struct tacc_expr {
     enum tacc_expr_kind kind;
 
@@ -104,17 +116,19 @@ struct tacc_expr {
         struct tacc_expr_list *op_list;
         struct tacc_type_name *type;
         struct tacc_string *name;
-        struct tacc_val *const_val;
+        struct tacc_int_literal *int_literal;
+        struct tacc_char_literal *char_literal;
     } extra;
 };
 
 struct tacc_expr *tacc_expr_new(void);
+struct tacc_int_literal *tacc_int_literal_new(void);
 struct tacc_type_name *tacc_type_name_new(void);
-struct tacc_expr *tacc_expr_clone(struct tacc_expr *expr);
 void tacc_expr_init(struct tacc_expr *expr);
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                                       struct tacc_target *target,
                                       struct tacc_type_list *basic_types);
+void tacc_int_literal_free(struct tacc_int_literal *int_literal);
 void tacc_expr_free(struct tacc_expr *expr);
 void tacc_type_name_free(struct tacc_type_name *type_name);
 

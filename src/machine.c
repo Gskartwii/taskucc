@@ -49,30 +49,7 @@ tacc_bool tacc_val_is_signed(struct tacc_val *val, struct tacc_target *target) {
 }
 
 tacc_bool tacc_val_is_scalar(struct tacc_val *val) {
-    switch (val->type->kind) {
-    case TYK_CHAR:
-    case TYK_UCHAR:
-    case TYK_SCHAR:
-    case TYK_USHORT:
-    case TYK_SSHORT:
-    case TYK_UINT:
-    case TYK_SINT:
-    case TYK_ULONG:
-    case TYK_SLONG:
-    case TYK_ULONGLONG:
-    case TYK_SLONGLONG:
-    case TYK_FLOAT:
-    case TYK_DOUBLE:
-    case TYK_LONGDOUBLE:
-    case TYK_BOOL:
-        return 1;
-    case TYK_VOID:
-        return 0;
-    case TYK_COMPOUND:
-        return (val->type->extra->kind == TYC_PTR) ||
-               (val->type->extra->kind == TYC_ENUM);
-    }
-    return 0;
+    return tacc_type_is_scalar(val->type);
 }
 
 tacc_bool tacc_val_is_arithmetic(struct tacc_val *val) {

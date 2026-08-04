@@ -4,7 +4,6 @@
 #include "expr.h"
 #include "statement.h"
 #include "string_list.h"
-#include "type.h"
 
 MK_DYNARRAY_OVER(tacc_decl_list,
                  tacc_decl_list_entry,

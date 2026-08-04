@@ -21,6 +21,7 @@ struct tacc_target {
     struct tacc_int_type *ulong;
     struct tacc_int_type *sllong;
     struct tacc_int_type *ullong;
+    struct tacc_int_type *bool_ty;
 };
 
 struct tacc_target *tacc_target_new(char *desc);

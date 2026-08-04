@@ -40,6 +40,7 @@ struct tacc_target *tacc_target_new(char *desc) {
     target->ulong = tacc_mk_twos_complement(64, 0);
     target->sllong = tacc_mk_twos_complement(64, 1);
     target->ullong = tacc_mk_twos_complement(64, 0);
+    target->bool_ty = tacc_mk_twos_complement(8, 0);
 
     return target;
 }
@@ -61,5 +62,6 @@ void tacc_target_free(struct tacc_target *target) {
     tacc_free_int_type(target->ulong);
     tacc_free_int_type(target->sllong);
     tacc_free_int_type(target->ullong);
+    tacc_free_int_type(target->bool_ty);
     tacc_free(target);
 }

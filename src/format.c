@@ -283,12 +283,21 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
         tacc_format_begin_scope(fmt, "uninit-expr");
         n = 0;
         break;
-    case EX_NUM_LIT:
+    case EX_INT_LIT:
         tacc_format_begin_scope(fmt, "num-lit-expr");
         tacc_format_field_name(fmt, "val");
-        tacc_format_number(fmt, expr->extra.const_val->value.int_value);
-        tacc_format_field_name(fmt, "ty");
-        /* tacc_format_decl_type(fmt, expr->extra.const_val->type); */
+        tacc_format_number(fmt, expr->extra.int_literal->number);
+        tacc_format_field_name(fmt, "base");
+        tacc_format_print(fmt, "%d", expr->extra.int_literal->base);
+        if (expr->extra.int_literal->suffix_ll) {
+            tacc_format_field_name(fmt, "suffix-ll");
+        }
+        if (expr->extra.int_literal->suffix_l) {
+            tacc_format_field_name(fmt, "suffix-l");
+        }
+        if (expr->extra.int_literal->suffix_u) {
+            tacc_format_field_name(fmt, "suffix-u");
+        }
         n = 0;
         break;
     case EX_STRING_LIT:

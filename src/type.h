@@ -129,6 +129,8 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
                                    struct tacc_target *target);
+tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind);
+tacc_bool tacc_type_is_scalar(struct tacc_type *type);
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
                               enum tacc_type_kind superset,
                               struct tacc_target *target);
