@@ -373,10 +373,12 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
     struct tacc_u64 *u64;
     struct tacc_val *val;
     char *str;
+    char *base_str;
     int input;
 
     tacc_assert(tok->str != NULL, "need str to parse charlit");
     str = tacc_dynstring_take_str(tok->str);
+    base_str = str;
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
@@ -433,6 +435,7 @@ static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
         str = str + 1;
         u64->low = u64->low | ((uint32_t) input);
     }
+    tacc_free(base_str);
 
     val = tacc_val_new();
     val->value.int_value = u64;
@@ -527,10 +530,10 @@ static void tacc_parse_expr_postfix(struct tacc_tok_iter *iter,
             tacc_parse_expr_bump_to_op1(expr);
             expr->kind = EX_CALL;
 
-            expr_list = tacc_expr_list_new();
             if (!tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
-                tacc_parse_expr_list(iter, expr_list);
+                expr_list = tacc_expr_list_new();
                 expr->extra.op_list = expr_list;
+                tacc_parse_expr_list(iter, expr_list);
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                                   "expected ) after argument list");
@@ -1693,7 +1696,7 @@ static struct tacc_statement *tacc_parse_statement(
             return statement;
         case ID_IF:
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
-            statement->kind = STMT_DEFAULT;
+            statement->kind = STMT_IF;
             statement->extra.if_stmt = tacc_if_new();
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
@@ -1803,6 +1806,8 @@ static struct tacc_statement *tacc_parse_statement(
             tok = tacc_tok_iter_next(iter);
             statement->kind = STMT_GOTO;
             statement->extra.label = tacc_dynstring_clone(tok->str);
+            tacc_pp_tok_free(tok);
+            tok = NULL;
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_SEMICOLON),
                               "expected ; in goto");
@@ -1993,12 +1998,16 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                         FUNCPARAM_OLD_STYLE_LIST) {
                     old_style_param_list =
                         tacc_parse_old_style_param_types(registry, iter);
+                    tacc_init_declarator_list_free(to_parse->extra.declarators);
+                    tacc_free(to_parse->extra.declarators);
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def = tacc_parse_func_def(
                         declarator, registry, iter, old_style_param_list);
                     break;
                 }
                 if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+                    tacc_init_declarator_list_free(to_parse->extra.declarators);
+                    tacc_free(to_parse->extra.declarators);
                     to_parse->kind = DECL_FUNCTION_DEF;
                     to_parse->extra.func_def =
                         tacc_parse_func_def(declarator, registry, iter, NULL);

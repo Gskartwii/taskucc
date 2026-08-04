@@ -90,6 +90,9 @@ struct tacc_statement {
          *
          * Hmm. This DOES alter the semantics. It permits labels pointing to
          * declarations.
+         *
+         * It also forbids forms such as if (1) x: stmt();. Needs to be
+         * reworked.
          */
         struct tacc_string *label;
 

@@ -46,7 +46,8 @@ struct tacc_expr *tacc_expr_clone(struct tacc_expr *in_expr) {
     }
     if (expr->kind == EX_NUM_LIT) {
         expr->extra.const_val = tacc_val_clone(in_expr->extra.const_val);
-    } else if (expr->kind == EX_IDENT) {
+    } else if (expr->kind == EX_IDENT || expr->kind == EX_MEMBER ||
+               expr->kind == EX_PTR_MEMBER) {
         expr->extra.name = tacc_dynstring_clone(in_expr->extra.name);
     } else if (expr->kind == EX_CAST || expr->kind == EX_SIZEOF_TY) {
         expr->extra.type = in_expr->extra.type;
@@ -74,10 +75,14 @@ void tacc_expr_free(struct tacc_expr *expr) {
     }
     if (expr->kind == EX_NUM_LIT) {
         tacc_val_free(expr->extra.const_val);
-    } else if (expr->kind == EX_IDENT) {
+    } else if (expr->kind == EX_IDENT || expr->kind == EX_MEMBER ||
+               expr->kind == EX_PTR_MEMBER) {
         tacc_dynstring_free(expr->extra.name);
     } else if (expr->kind == EX_SIZEOF_TY || expr->kind == EX_CAST) {
         tacc_type_name_free(expr->extra.type);
+    } else if (expr->kind == EX_CALL && expr->extra.op_list != NULL) {
+        tacc_expr_list_free(expr->extra.op_list);
+        tacc_free(expr->extra.op_list);
     }
     tacc_free(expr);
 }

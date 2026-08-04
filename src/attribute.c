@@ -34,6 +34,9 @@ struct tacc_attribute_format *tacc_attribute_format_new(void) {
 }
 
 void tacc_attribute_format_free(struct tacc_attribute_format *attr) {
+    tacc_dynstring_free(attr->archetype);
+    tacc_expr_free(attr->format_str_place);
+    tacc_expr_free(attr->args_at);
     tacc_free(attr);
 }
 
