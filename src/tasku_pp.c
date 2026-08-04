@@ -3,7 +3,6 @@
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
-#include "machine.h"
 #include "parse.h"
 #include "util.h"
 #include <stdint.h>
