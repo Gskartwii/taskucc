@@ -46,38 +46,6 @@ static void tacc_compile_output_int(struct tacc_compiler *compiler,
     }
 }
 
-static void tacc_compile_compound_ty_val(struct tacc_compiler *compiler,
-                                         struct tacc_compound_type *ty,
-                                         struct tacc_val *val) {
-#ifndef __M2__
-    (void) compiler;
-    (void) val;
-#endif
-    switch (ty->kind) {
-    case TYC_PTR:
-        tacc_assert(0, "TODO: compile ptr constant");
-        break;
-    case TYC_STRUCT:
-        tacc_assert(0, "TODO: compile struct constant");
-        break;
-    case TYC_UNION:
-        tacc_assert(0, "TODO: compile union constant");
-        break;
-    case TYC_ENUM:
-        tacc_assert(0, "TODO: compile enum constant");
-        break;
-    case TYC_ARRAY:
-        tacc_assert(0, "TODO: compile array constant");
-        break;
-    case TYC_ARRAY_FLEX:
-        tacc_assert(0, "TODO: compile flexible array constant");
-        break;
-    case TYC_FN:
-        tacc_assert(0, "TODO: compile fn constant (?)");
-        break;
-    }
-}
-
 static void tacc_compile_val(struct tacc_compiler *compiler,
                              struct tacc_val *val) {
     size_t bits;
@@ -105,9 +73,27 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
     case TYK_VOID:
         tacc_assert(0, "cannot output value of void type");
         return;
-    case TYK_COMPOUND:
-        tacc_compile_compound_ty_val(compiler, val->type->extra, val);
-        return;
+    case TYK_PTR:
+        tacc_assert(0, "TODO: compile ptr constant");
+        break;
+    case TYK_STRUCT:
+        tacc_assert(0, "TODO: compile struct constant");
+        break;
+    case TYK_UNION:
+        tacc_assert(0, "TODO: compile union constant");
+        break;
+    case TYK_ENUM:
+        tacc_assert(0, "TODO: compile enum constant");
+        break;
+    case TYK_ARRAY:
+        tacc_assert(0, "TODO: compile array constant");
+        break;
+    case TYK_ARRAY_FLEX:
+        tacc_assert(0, "TODO: compile flexible array constant");
+        break;
+    case TYK_FN:
+        tacc_assert(0, "TODO: compile fn constant (?)");
+        break;
     default:
         tacc_assert(0, "unexpected type kind");
         return;

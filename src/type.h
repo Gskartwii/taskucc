@@ -6,16 +6,6 @@
 #include "target/target.h"
 #include "util.h"
 
-enum tacc_compound_type_kind {
-    TYC_PTR,
-    TYC_STRUCT,
-    TYC_UNION,
-    TYC_ENUM,
-    TYC_ARRAY,
-    TYC_ARRAY_FLEX,
-    TYC_FN
-};
-
 enum tacc_type_kind {
     TYK_CHAR,
     TYK_UCHAR,
@@ -35,7 +25,13 @@ enum tacc_type_kind {
     TYK_BOOL,
     TYK_VOID,
 
-    TYK_COMPOUND
+    TYK_PTR,
+    TYK_STRUCT,
+    TYK_UNION,
+    TYK_ENUM,
+    TYK_ARRAY,
+    TYK_ARRAY_FLEX,
+    TYK_FN
 };
 
 enum tacc_int_rank {
@@ -68,26 +64,19 @@ struct tacc_array_type {
     struct tacc_expr *dimension;
 };
 
-struct tacc_compound_type {
-    enum tacc_compound_type_kind kind;
-
-    /* owning */
-    struct tacc_string *name;
-    union {
-        /* owning */
-        struct tacc_function_type *function;
-        /* owning */
-        struct tacc_type *contained;
-        /* owning */
-        struct tacc_array_type *array;
-    } extra;
-};
-
 struct tacc_type {
     enum tacc_type_kind kind;
 
-    /* borrow/owning, depends on compound type kind */
-    struct tacc_compound_type *extra;
+    union {
+        /* owning */
+        struct tacc_function_type *function;
+
+        /* owning */
+        struct tacc_array_type *array;
+    } extra;
+
+    /* owning */
+    struct tacc_string *name;
 
     /* owning */
     struct tacc_type *derived_ptr;
@@ -98,17 +87,6 @@ struct tacc_type {
     /* owning */
     struct tacc_type_list *derived_func_types;
 };
-
-DECL_DYNARRAY_OVER(tacc_compound_type_list,
-                   tacc_compound_type_list_entry,
-                   struct tacc_compound_type *,
-                   tacc_compound_type_list_new,
-                   tacc_compound_type_list_init,
-                   tacc_compound_type_list_get,
-                   tacc_compound_type_list_push,
-                   tacc_compound_type_list_pop,
-                   tacc_compound_type_list_len,
-                   tacc_compound_type_list_free)
 
 DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_entry,
@@ -122,14 +100,13 @@ DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_free)
 
 struct tacc_type *tacc_type_new(void);
-struct tacc_compound_type *tacc_compound_type_new(void);
 struct tacc_array_type *tacc_array_type_new(void);
 struct tacc_function_type *tacc_function_type_new(void);
 struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
                                    struct tacc_target *target);
-tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind);
+tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
                               enum tacc_type_kind superset,
@@ -143,6 +120,7 @@ size_t tacc_type_alignment_p2(struct tacc_target *target,
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 void tacc_type_free(struct tacc_type *type);
-void tacc_compound_type_free(struct tacc_compound_type *type);
+void tacc_array_type_free(struct tacc_array_type *type);
+void tacc_function_type_free(struct tacc_function_type *type);
 
 #endif

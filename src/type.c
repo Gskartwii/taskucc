@@ -1,18 +1,6 @@
 #include "type.h"
 #include "dynarray.h"
 
-MK_DYNARRAY_OVER(tacc_compound_type_list,
-                 tacc_compound_type_list_entry,
-                 struct tacc_compound_type *,
-                 tacc_compound_type_list_new,
-                 tacc_compound_type_list_init,
-                 tacc_compound_type_list_get,
-                 tacc_compound_type_list_push,
-                 tacc_compound_type_list_pop,
-                 tacc_compound_type_list_len,
-                 tacc_compound_type_free,
-                 tacc_compound_type_list_free)
-
 MK_DYNARRAY_OVER(tacc_type_list,
                  tacc_type_list_entry,
                  struct tacc_type *,
@@ -191,11 +179,16 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
 }
 
 void tacc_type_free(struct tacc_type *type) {
-    if (type->kind == TYK_COMPOUND) {
-        if (type->extra->kind != TYC_STRUCT && type->extra->kind != TYC_UNION &&
-            type->extra->kind != TYC_ENUM) {
-            tacc_compound_type_free(type->extra);
-        }
+    switch (type->kind) {
+    case TYK_ARRAY:
+    case TYK_ARRAY_FLEX:
+        tacc_array_type_free(type->extra.array);
+        break;
+    case TYK_FN:
+        tacc_function_type_free(type->extra.function);
+        break;
+    default:
+        break;
     }
 
     if (type->derived_ptr != NULL) {
@@ -208,22 +201,6 @@ void tacc_type_free(struct tacc_type *type) {
     tacc_free(type);
 }
 
-void tacc_compound_type_free(struct tacc_compound_type *type) {
-    switch (type->kind) {
-    case TYC_PTR:
-    case TYC_ARRAY:
-    case TYC_ARRAY_FLEX:
-    case TYC_FN:
-        break;
-    case TYC_STRUCT:
-    case TYC_UNION:
-    case TYC_ENUM:
-        tacc_assert(0, "TODO: struct/union/enum type");
-        break;
-    }
-    tacc_free(type);
-}
-
 struct tacc_type *tacc_type_new(void) {
     struct tacc_type *type;
 
@@ -232,16 +209,6 @@ struct tacc_type *tacc_type_new(void) {
     type->derived_array_types = tacc_type_list_new();
     type->derived_func_types = tacc_type_list_new();
     type->derived_ptr = NULL;
-
-    return type;
-}
-
-struct tacc_compound_type *tacc_compound_type_new(void) {
-    struct tacc_compound_type *type;
-
-    type = tacc_malloc(sizeof(struct tacc_compound_type));
-    type->kind = TYC_PTR;
-    type->name = NULL;
 
     return type;
 }
@@ -296,6 +263,7 @@ tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind) {
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_BOOL:
+    case TYK_ENUM:
         return 1;
     default:
         return 0;
@@ -306,13 +274,10 @@ tacc_bool tacc_type_is_integral(struct tacc_type *type) {
     if (tacc_type_kind_is_integral(type->kind)) {
         return 1;
     }
-    if (type->kind == TYK_COMPOUND) {
-        return type->extra->kind == TYC_ENUM;
-    }
     return 0;
 }
 
-tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind) {
+tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind) {
     switch (type_kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
@@ -329,22 +294,15 @@ tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind) {
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
     case TYK_BOOL:
+    case TYK_PTR:
+    case TYK_ENUM:
         return 1;
-    case TYK_VOID:
-        return 0;
-    case TYK_COMPOUND:
-        /* maybe */
+    default:
         return 0;
     }
     return 0;
 }
 
 tacc_bool tacc_type_is_scalar(struct tacc_type *type) {
-    if (tacc_type_kind_is_certainly_scalar(type->kind)) {
-        return 1;
-    }
-    if (type->kind == TYK_COMPOUND) {
-        return type->extra->kind == TYC_PTR || type->extra->kind == TYC_ENUM;
-    }
-    return 0;
+    return tacc_type_kind_is_scalar(type->kind);
 }
