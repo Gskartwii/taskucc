@@ -8,5 +8,6 @@ CompileFlags:
     -Werror,
     -Wconversion,
     -Warith-conversion,
-    -Wtype-limits
+    -Wtype-limits,
+    -Isrc
   ]
