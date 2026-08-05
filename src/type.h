@@ -53,15 +53,20 @@ enum tacc_function_param_list_kind {
 
 struct tacc_function_type {
     enum tacc_function_param_list_kind param_list_kind;
+
+    /* list: owning, content: borrow */
     struct tacc_type_list *param_types;
+
+    /* borrow */
     struct tacc_type *return_type;
 };
 
 struct tacc_array_type {
     /* borrow */
     struct tacc_type *element_type;
+
     /* owning */
-    struct tacc_expr *dimension;
+    struct tacc_u64 *dimension;
 };
 
 struct tacc_type {

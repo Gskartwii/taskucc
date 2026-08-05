@@ -306,3 +306,20 @@ tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind) {
 tacc_bool tacc_type_is_scalar(struct tacc_type *type) {
     return tacc_type_kind_is_scalar(type->kind);
 }
+
+void tacc_array_type_free(struct tacc_array_type *array_type) {
+    if (array_type->dimension != NULL) {
+        tacc_free(array_type->dimension);
+    }
+    tacc_free(array_type);
+}
+
+void tacc_function_type_free(struct tacc_function_type *function_type) {
+    /*
+     * do not use tacc_type_list_free, that would free the borrowed contents.
+     * Only free the list.
+     */
+    tacc_free(function_type->param_types->list->buffer);
+    tacc_free(function_type->param_types);
+    tacc_free(function_type);
+}
