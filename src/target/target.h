@@ -5,6 +5,7 @@
 
 struct tacc_int_type {
     size_t bit_width;
+    size_t alignment_p2;
     struct tacc_u64 *min;
     struct tacc_u64 *max;
 };

@@ -86,9 +86,9 @@ tacc_bool tacc_val_is_truthy(struct tacc_val *val) {
     return 0;
 }
 
-static void tacc_val_convert(struct tacc_val *val,
-                             enum tacc_type_kind into,
-                             struct tacc_target *target) {
+void tacc_val_convert(struct tacc_val *val,
+                      enum tacc_type_kind into,
+                      struct tacc_target *target) {
     if (tacc_type_is_subset(val->type->kind, into, target)) {
         /* already fits into destination type */
         return;

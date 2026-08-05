@@ -134,8 +134,12 @@ tacc_bool tacc_type_is_scalar(struct tacc_type *type);
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
                               enum tacc_type_kind superset,
                               struct tacc_target *target);
+tacc_bool tacc_type_is_integral(struct tacc_type *type);
+tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind);
 size_t tacc_type_bit_width(struct tacc_target *target,
                            enum tacc_type_kind kind);
+size_t tacc_type_alignment_p2(struct tacc_target *target,
+                              struct tacc_type *type);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 void tacc_type_free(struct tacc_type *type);

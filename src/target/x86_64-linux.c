@@ -2,11 +2,13 @@
 #include "util.h"
 
 static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
+                                                     size_t alignment_p2,
                                                      tacc_bool is_signed) {
     struct tacc_int_type *ret;
 
     ret = tacc_malloc(sizeof(struct tacc_int_type));
     ret->bit_width = bit_size;
+    ret->alignment_p2 = alignment_p2;
     ret->min = tacc_u64_new();
     ret->max = tacc_u64_new();
 
@@ -28,17 +30,17 @@ struct tacc_target *tacc_target_new(void) {
     target = tacc_malloc(sizeof(struct tacc_target));
 
     target->signed_char = 0;
-    target->schar = tacc_mk_twos_complement(8, 1);
-    target->uchar = tacc_mk_twos_complement(8, 0);
-    target->sshort = tacc_mk_twos_complement(16, 1);
-    target->ushort = tacc_mk_twos_complement(16, 0);
-    target->sint = tacc_mk_twos_complement(32, 1);
-    target->uint = tacc_mk_twos_complement(32, 0);
-    target->slong = tacc_mk_twos_complement(64, 1);
-    target->ulong = tacc_mk_twos_complement(64, 0);
-    target->sllong = tacc_mk_twos_complement(64, 1);
-    target->ullong = tacc_mk_twos_complement(64, 0);
-    target->bool_ty = tacc_mk_twos_complement(8, 0);
+    target->schar = tacc_mk_twos_complement(8, 0, 1);
+    target->uchar = tacc_mk_twos_complement(8, 0, 0);
+    target->sshort = tacc_mk_twos_complement(16, 1, 1);
+    target->ushort = tacc_mk_twos_complement(16, 1, 0);
+    target->sint = tacc_mk_twos_complement(32, 2, 1);
+    target->uint = tacc_mk_twos_complement(32, 2, 0);
+    target->slong = tacc_mk_twos_complement(64, 3, 1);
+    target->ulong = tacc_mk_twos_complement(64, 3, 0);
+    target->sllong = tacc_mk_twos_complement(64, 3, 1);
+    target->ullong = tacc_mk_twos_complement(64, 3, 0);
+    target->bool_ty = tacc_mk_twos_complement(8, 0, 0);
 
     return target;
 }

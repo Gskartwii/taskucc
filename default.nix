@@ -43,11 +43,13 @@ let
     "parse.h"
     "format.h"
     "tasku_pp.h"
+    "compile.h"
     "test.h"
   ];
   src = [
     "util.c"
     "3rdparty/intscan.c"
+    "compile.c"
     "dynarray.c"
     "dynhash.c"
     "dynstring.c"

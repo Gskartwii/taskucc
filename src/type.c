@@ -102,6 +102,15 @@ size_t tacc_type_bit_width(struct tacc_target *target,
     return ty->bit_width;
 }
 
+size_t tacc_type_alignment_p2(struct tacc_target *target,
+                              struct tacc_type *type) {
+    struct tacc_int_type *ty;
+
+    ty = tacc_target_int_type(target, type->kind);
+
+    return ty->alignment_p2;
+}
+
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
                               enum tacc_type_kind superset,
                               struct tacc_target *target) {
@@ -271,6 +280,36 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
     }
     tacc_assert(0, "couldn't find registred type for basic type");
     return NULL;
+}
+
+tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind) {
+    switch (type_kind) {
+    case TYK_CHAR:
+    case TYK_UCHAR:
+    case TYK_SCHAR:
+    case TYK_USHORT:
+    case TYK_SSHORT:
+    case TYK_UINT:
+    case TYK_SINT:
+    case TYK_ULONG:
+    case TYK_SLONG:
+    case TYK_ULONGLONG:
+    case TYK_SLONGLONG:
+    case TYK_BOOL:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+tacc_bool tacc_type_is_integral(struct tacc_type *type) {
+    if (tacc_type_kind_is_integral(type->kind)) {
+        return 1;
+    }
+    if (type->kind == TYK_COMPOUND) {
+        return type->extra->kind == TYC_ENUM;
+    }
+    return 0;
 }
 
 tacc_bool tacc_type_kind_is_certainly_scalar(enum tacc_type_kind type_kind) {
