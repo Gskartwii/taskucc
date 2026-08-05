@@ -35,7 +35,7 @@ let
     "soft_u64.h"
     "type.h"
     "machine.h"
-    "target_defs.h"
+    "target/target.h"
     "expr.h"
     "attribute.h"
     "statement.h"
@@ -61,11 +61,12 @@ let
     "statement.c"
     "parse.c"
     "format.c"
-    "target_defs.c"
     "tasku_file.c"
     "tasku_pp.c"
     "test.c"
     "tasku.c"
+
+    "target/x86_64-linux.c"
   ];
 
   m2-all = includes ++ local_hdrs ++ src;
@@ -85,6 +86,7 @@ let
     "-Wconversion"
     "-Warith-conversion"
     "-Wno-variadic-macros"
+    "-I${./src}"
   ];
   cflags-debug =
     cflags

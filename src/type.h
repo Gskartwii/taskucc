@@ -3,7 +3,7 @@
 
 #include "dynarray.h"
 #include "dynstring.h"
-#include "target_defs.h"
+#include "target/target.h"
 #include "util.h"
 
 enum tacc_compound_type_kind {

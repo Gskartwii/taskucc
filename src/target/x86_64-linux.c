@@ -1,6 +1,5 @@
-#include "target_defs.h"
+#include "target/target.h"
 #include "util.h"
-#include <string.h>
 
 static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
                                                      tacc_bool is_signed) {
@@ -23,11 +22,10 @@ static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
     return ret;
 }
 
-struct tacc_target *tacc_target_new(char *desc) {
+struct tacc_target *tacc_target_new(void) {
     struct tacc_target *target;
 
     target = tacc_malloc(sizeof(struct tacc_target));
-    tacc_assert(!strcmp(desc, "x86_64-linux"), "unsupported target %s", desc);
 
     target->signed_char = 0;
     target->schar = tacc_mk_twos_complement(8, 1);

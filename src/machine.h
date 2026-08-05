@@ -2,7 +2,7 @@
 #define TACC_MACHINE_H
 
 #include "soft_u64.h"
-#include "target_defs.h"
+#include "target/target.h"
 #include "type.h"
 
 struct tacc_val {

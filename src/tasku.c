@@ -2,7 +2,7 @@
 #include "format.h"
 #include "gcc_compat.h"
 #include "parse.h"
-#include "target_defs.h"
+#include "target/target.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
 #include "test.h"
@@ -223,7 +223,7 @@ int main(int argc, char **argv) {
         return run_tests();
     }
 
-    target = tacc_target_new("x86_64-linux");
+    target = tacc_target_new();
     registry = tacc_type_registry_new(target);
     pp_state = tacc_pp_state_new(registry);
     tacc_apply_defines(options.defines, pp_state);
