@@ -35,20 +35,16 @@ DECL_DYNARRAY_OVER(tacc_ident_scope_list,
 
 struct tacc_ident_scope {
     struct tacc_untagged_ident_list *untagged_idents;
-    struct tacc_compound_type_list *tagged_types;
 };
 
 void tacc_ident_scope_free(struct tacc_ident_scope *scope);
 
 struct tacc_parse_registry {
-    struct tacc_target *target;
-    struct tacc_type_list *basic_types;
-
     struct tacc_ident_scope_list *scopes;
 };
 
-struct tacc_parse_registry *tacc_type_registry_new(struct tacc_target *target);
-void tacc_type_registry_free(struct tacc_parse_registry *registry);
+struct tacc_parse_registry *tacc_parse_registry_new(void);
+void tacc_parse_registry_free(struct tacc_parse_registry *registry);
 struct tacc_expr *tacc_parse_new_expr(struct tacc_tok_iter *iter);
 struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
                                  struct tacc_tok_iter *iter);

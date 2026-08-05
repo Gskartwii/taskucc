@@ -87,7 +87,6 @@ static struct tacc_ident_scope *tacc_ident_scope_new(void) {
 
     scope = tacc_malloc(sizeof(struct tacc_ident_scope));
     scope->untagged_idents = tacc_untagged_ident_list_new();
-    scope->tagged_types = tacc_compound_type_list_new();
 
     return scope;
 }
@@ -2007,60 +2006,25 @@ void tacc_untagged_ident_free(struct tacc_untagged_ident *ident) {
 }
 
 void tacc_ident_scope_free(struct tacc_ident_scope *scope) {
-    tacc_compound_type_list_free(scope->tagged_types);
-    tacc_free(scope->tagged_types);
     tacc_untagged_ident_list_free(scope->untagged_idents);
     tacc_free(scope->untagged_idents);
     tacc_free(scope);
 }
 
-static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
-    struct tacc_type *type;
-
-    type = tacc_type_new();
-    type->kind = kind;
-
-    return type;
-}
-
-struct tacc_parse_registry *tacc_type_registry_new(struct tacc_target *target) {
+struct tacc_parse_registry *tacc_parse_registry_new(void) {
     struct tacc_parse_registry *registry;
     struct tacc_ident_scope *scope;
 
     registry = tacc_malloc(sizeof(struct tacc_parse_registry));
-    registry->target = target;
-    registry->basic_types = tacc_type_list_new();
     registry->scopes = tacc_ident_scope_list_new();
 
     scope = tacc_ident_scope_new();
     tacc_ident_scope_list_push(registry->scopes, scope);
 
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_CHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SCHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UCHAR));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SSHORT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_USHORT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SINT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_UINT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_SLONG));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_ULONG));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_SLONGLONG));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_ULONGLONG));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_FLOAT));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_DOUBLE));
-    tacc_type_list_push(registry->basic_types,
-                        tacc_mk_basic_type(TYK_LONGDOUBLE));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_BOOL));
-    tacc_type_list_push(registry->basic_types, tacc_mk_basic_type(TYK_VOID));
-
     return registry;
 }
 
-void tacc_type_registry_free(struct tacc_parse_registry *registry) {
-    tacc_type_list_free(registry->basic_types);
-    tacc_free(registry->basic_types);
+void tacc_parse_registry_free(struct tacc_parse_registry *registry) {
     tacc_ident_scope_list_free(registry->scopes);
     tacc_free(registry->scopes);
     tacc_free(registry);

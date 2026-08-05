@@ -224,8 +224,8 @@ int main(int argc, char **argv) {
     }
 
     target = tacc_target_new();
-    registry = tacc_type_registry_new(target);
-    pp_state = tacc_pp_state_new(registry);
+    registry = tacc_parse_registry_new();
+    pp_state = tacc_pp_state_new(registry, target);
     tacc_apply_defines(options.defines, pp_state);
     tacc_apply_include_path(options.include_path, pp_state);
     tacc_string_list_free(options.defines);
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
     }
 
     tacc_tok_iter_free(tok_iter);
-    tacc_type_registry_free(registry);
+    tacc_parse_registry_free(registry);
     tacc_target_free(target);
     tacc_pp_state_free(pp_state);
 

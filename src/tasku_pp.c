@@ -3,6 +3,7 @@
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
+#include "machine.h"
 #include "parse.h"
 #include "util.h"
 #include <stdint.h>
@@ -1336,9 +1337,19 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
     return tok;
 }
 
+static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
+    struct tacc_type *type;
+
+    type = tacc_type_new();
+    type->kind = kind;
+
+    return type;
+}
+
 /* state: borrow */
-void tacc_pp_state_init(struct tacc_pp_state *state,
-                        struct tacc_parse_registry *registry) {
+static void tacc_pp_state_init(struct tacc_pp_state *state,
+                               struct tacc_parse_registry *registry,
+                               struct tacc_target *target) {
     struct tacc_string *thisdir_incpath;
 
     state->registry = registry;
@@ -1348,16 +1359,34 @@ void tacc_pp_state_init(struct tacc_pp_state *state,
     tacc_dynstring_concat(thisdir_incpath, ".");
     tacc_string_list_push(state->include_path, thisdir_incpath);
     state->macros = tacc_macro_def_list_new(8192);
+    state->target = target;
+    state->basic_types = tacc_type_list_new();
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SCHAR));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_UCHAR));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SSHORT));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_USHORT));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SINT));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_UINT));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SLONG));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_ULONG));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SLONGLONG));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_ULONGLONG));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_FLOAT));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_DOUBLE));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_LONGDOUBLE));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_BOOL));
+    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_VOID));
 
     tacc_pp_define(state, "__STDC__", "1");
 }
 
 /* return: owning */
-struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry) {
+struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry,
+                                        struct tacc_target *target) {
     struct tacc_pp_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_pp_state));
-    tacc_pp_state_init(state, registry);
+    tacc_pp_state_init(state, registry, target);
 
     return state;
 }
@@ -1941,9 +1970,8 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr,
-                               first->state->registry->target,
-                               first->state->registry->basic_types);
+    val = tacc_expr_const_eval(
+        expr, first->state->target, first->state->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -2004,9 +2032,8 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok_iter->in_if = 1;
 
     expr = tacc_parse_new_expr(tok_iter);
-    val = tacc_expr_const_eval(expr,
-                               first->state->registry->target,
-                               first->state->registry->basic_types);
+    val = tacc_expr_const_eval(
+        expr, first->state->target, first->state->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(tok->kind == TOK_EOF,
@@ -3151,6 +3178,8 @@ void tacc_tok_iter_dump_state(FILE *to, struct tacc_tok_iter *iter) {
 }
 
 void tacc_pp_state_free(struct tacc_pp_state *state) {
+    tacc_type_list_free(state->basic_types);
+    tacc_free(state->basic_types);
     tacc_string_list_free(state->include_path);
     tacc_free(state->include_path);
     tacc_macro_def_list_free(state->macros);

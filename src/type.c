@@ -1,4 +1,5 @@
 #include "type.h"
+#include "decl.h"
 #include "dynarray.h"
 
 MK_DYNARRAY_OVER(tacc_type_list,
@@ -13,11 +14,8 @@ MK_DYNARRAY_OVER(tacc_type_list,
                  tacc_type_free,
                  tacc_type_list_free)
 
-tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
-                                   struct tacc_target *target) {
+tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
     switch (kind) {
-    case TYK_CHAR:
-        return target->signed_char;
     case TYK_SCHAR:
     case TYK_SSHORT:
     case TYK_SINT:
@@ -32,12 +30,6 @@ tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
 static struct tacc_int_type *tacc_target_int_type(struct tacc_target *target,
                                                   enum tacc_type_kind kind) {
     switch (kind) {
-    case TYK_CHAR:
-        if (target->signed_char) {
-            return target->schar;
-        } else {
-            return target->uchar;
-        }
     case TYK_UCHAR:
         return target->uchar;
     case TYK_SCHAR:
@@ -107,8 +99,8 @@ tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
     struct tacc_u64 *max_val_subset;
     struct tacc_u64 *min_val_subset;
 
-    if (tacc_type_kind_is_signed(subset, target)) {
-        if (!tacc_type_kind_is_signed(superset, target)) {
+    if (tacc_type_kind_is_signed(subset)) {
+        if (!tacc_type_kind_is_signed(superset)) {
             return 0;
         }
         min_val_subset = tacc_type_min_val(target, subset);
@@ -130,7 +122,6 @@ enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
     switch (kind) {
     case TYK_BOOL:
         return IRANK_BOOL;
-    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
         return IRANK_CHAR;
@@ -154,7 +145,6 @@ enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
 
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     switch (kind) {
-    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
         return TYK_UCHAR;
@@ -228,7 +218,7 @@ struct tacc_function_type *tacc_function_type_new(void) {
 
     type = tacc_malloc(sizeof(struct tacc_function_type));
     type->param_types = NULL;
-    type->param_list_kind = FUNCPARAM_LIST;
+    type->is_vararg = 0;
     type->return_type = NULL;
 
     return type;
@@ -251,7 +241,6 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
 
 tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind) {
     switch (type_kind) {
-    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:
@@ -279,7 +268,6 @@ tacc_bool tacc_type_is_integral(struct tacc_type *type) {
 
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind) {
     switch (type_kind) {
-    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:

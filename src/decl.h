@@ -111,6 +111,14 @@ struct tacc_function_param {
     struct tacc_declarator *decl;
 };
 
+enum tacc_function_param_list_kind {
+    FUNCPARAM_EMPTY_LIST,
+    FUNCPARAM_VOID,
+    FUNCPARAM_LIST,
+    FUNCPARAM_LIST_VARARG,
+    FUNCPARAM_OLD_STYLE_LIST
+};
+
 struct tacc_function_declarator {
     /* owning */
     struct tacc_declarator *sub_declarator;

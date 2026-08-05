@@ -1,13 +1,13 @@
 #ifndef TACC_TYPE_H
 #define TACC_TYPE_H
 
+#include "decl.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "target/target.h"
 #include "util.h"
 
 enum tacc_type_kind {
-    TYK_CHAR,
     TYK_UCHAR,
     TYK_SCHAR,
     TYK_USHORT,
@@ -43,16 +43,8 @@ enum tacc_int_rank {
     IRANK_LLONG
 };
 
-enum tacc_function_param_list_kind {
-    FUNCPARAM_EMPTY_LIST,
-    FUNCPARAM_VOID,
-    FUNCPARAM_LIST,
-    FUNCPARAM_LIST_VARARG,
-    FUNCPARAM_OLD_STYLE_LIST
-};
-
 struct tacc_function_type {
-    enum tacc_function_param_list_kind param_list_kind;
+    tacc_bool is_vararg;
 
     /* list: owning, content: borrow */
     struct tacc_type_list *param_types;
@@ -109,8 +101,7 @@ struct tacc_array_type *tacc_array_type_new(void);
 struct tacc_function_type *tacc_function_type_new(void);
 struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
-tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind,
-                                   struct tacc_target *target);
+tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);
 tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,

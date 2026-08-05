@@ -3,7 +3,7 @@
 
 #include "dynarray.h"
 #include "dynstring.h"
-#include "machine.h"
+#include "util.h"
 
 enum tacc_expr_kind {
     EX_UNINIT,
@@ -125,9 +125,6 @@ struct tacc_expr *tacc_expr_new(void);
 struct tacc_int_literal *tacc_int_literal_new(void);
 struct tacc_type_name *tacc_type_name_new(void);
 void tacc_expr_init(struct tacc_expr *expr);
-struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
-                                      struct tacc_target *target,
-                                      struct tacc_type_list *basic_types);
 void tacc_int_literal_free(struct tacc_int_literal *int_literal);
 void tacc_expr_free(struct tacc_expr *expr);
 void tacc_type_name_free(struct tacc_type_name *type_name);
