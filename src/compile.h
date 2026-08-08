@@ -11,5 +11,6 @@ struct tacc_compiler {
 
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                                            struct tacc_decl_type *type);
-
+void tacc_compile_top_decl(struct tacc_compiler *compiler,
+                           struct tacc_decl *decl);
 #endif

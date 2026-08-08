@@ -1,3 +1,5 @@
+#include "compile.h"
+#include "decl.h"
 #include "dynstring.h"
 #include "format.h"
 #include "gcc_compat.h"
@@ -6,6 +8,7 @@
 #include "tasku_file.h"
 #include "tasku_pp.h"
 #include "test.h"
+#include "type.h"
 #include "util.h"
 #include <string.h>
 
@@ -15,6 +18,7 @@ struct tacc_options {
     struct tacc_string_list *defines;
     struct tacc_string_list *include_path;
     tacc_bool preprocess;
+    tacc_bool dump_ast;
 };
 
 #define ARG_SHORT_APPEND(ch, to_list)                                         \
@@ -42,6 +46,13 @@ struct tacc_options {
             goto next;                                                        \
         }                                                                     \
     } while (0)
+#define ARG_LONG_SET_FLAG(name, flag) \
+    do {                              \
+        if (!strcmp(arg, name)) {     \
+            flag = 1;                 \
+            goto next;                \
+        }                             \
+    } while (0)
 
 static void tacc_parse_options(struct tacc_options *options,
                                int argc,
@@ -55,6 +66,7 @@ static void tacc_parse_options(struct tacc_options *options,
     options->defines = tacc_string_list_new();
     options->include_path = tacc_string_list_new();
     options->preprocess = 0;
+    options->dump_ast = 0;
 
     count = (size_t) argc;
     for (i = 1; i < count; i = i + 1) {
@@ -67,6 +79,7 @@ static void tacc_parse_options(struct tacc_options *options,
         arg = arg + 1;
         ARG_SHORT_APPEND('D', options->defines);
         ARG_SHORT_SET_FLAG('E', options->preprocess);
+        ARG_LONG_SET_FLAG("dA", options->dump_ast);
         ARG_SHORT_APPEND('I', options->include_path);
         tacc_assert(0, "invalid option %s\n", argv[i]);
 #ifdef __M2__
@@ -199,6 +212,30 @@ void tacc_apply_include_path(struct tacc_string_list *include_path,
     }
 }
 
+static void tacc_dump_ast(struct tacc_ast *ast) {
+    struct tacc_formatter fmt;
+    fmt.indent = 0;
+    tacc_format_ast(&fmt, ast);
+}
+
+static void tacc_compile_ast(struct tacc_target *target, struct tacc_ast *ast) {
+    struct tacc_decl_list_entry *entry;
+    struct tacc_compiler compiler;
+    size_t i;
+
+    compiler.target = target;
+    compiler.basic_types = tacc_type_list_new();
+    tacc_gen_basic_types(compiler.basic_types);
+
+    for (i = 0; i < tacc_decl_list_len(ast->declarations); i = i + 1) {
+        entry = tacc_decl_list_get(ast->declarations, i);
+        tacc_compile_top_decl(&compiler, entry->content);
+    }
+
+    tacc_type_list_free(compiler.basic_types);
+    tacc_free(compiler.basic_types);
+}
+
 int main(int argc, char **argv) {
     struct tacc_file *input_file;
     struct tacc_file_iter *file_iter;
@@ -208,7 +245,6 @@ int main(int argc, char **argv) {
     struct tacc_target *target;
     struct tacc_parse_registry *registry;
     struct tacc_options options;
-    struct tacc_formatter fmt;
 
     init_io();
 
@@ -242,8 +278,11 @@ int main(int argc, char **argv) {
         tacc_output_pp(tok_iter);
     } else {
         ast = tacc_parse_file(registry, tok_iter);
-        fmt.indent = 0;
-        tacc_format_ast(&fmt, ast);
+        if (options.dump_ast) {
+            tacc_dump_ast(ast);
+        } else {
+            tacc_compile_ast(target, ast);
+        }
         tacc_ast_free(ast);
     }
 

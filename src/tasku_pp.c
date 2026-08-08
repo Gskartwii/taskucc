@@ -5,6 +5,7 @@
 #include "expr.h"
 #include "machine.h"
 #include "parse.h"
+#include "type.h"
 #include "util.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -1337,15 +1338,6 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
     return tok;
 }
 
-static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
-    struct tacc_type *type;
-
-    type = tacc_type_new();
-    type->kind = kind;
-
-    return type;
-}
-
 /* state: borrow */
 static void tacc_pp_state_init(struct tacc_pp_state *state,
                                struct tacc_parse_registry *registry,
@@ -1361,21 +1353,7 @@ static void tacc_pp_state_init(struct tacc_pp_state *state,
     state->macros = tacc_macro_def_list_new(8192);
     state->target = target;
     state->basic_types = tacc_type_list_new();
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SCHAR));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_UCHAR));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SSHORT));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_USHORT));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SINT));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_UINT));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SLONG));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_ULONG));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_SLONGLONG));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_ULONGLONG));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_FLOAT));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_DOUBLE));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_LONGDOUBLE));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_BOOL));
-    tacc_type_list_push(state->basic_types, tacc_mk_basic_type(TYK_VOID));
+    tacc_gen_basic_types(state->basic_types);
 
     tacc_pp_define(state, "__STDC__", "1");
 }

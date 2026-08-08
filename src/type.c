@@ -311,3 +311,30 @@ void tacc_function_type_free(struct tacc_function_type *function_type) {
     tacc_free(function_type->param_types);
     tacc_free(function_type);
 }
+
+static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
+    struct tacc_type *type;
+
+    type = tacc_type_new();
+    type->kind = kind;
+
+    return type;
+}
+
+void tacc_gen_basic_types(struct tacc_type_list *into) {
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SCHAR));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_UCHAR));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SSHORT));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_USHORT));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SINT));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_UINT));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_ULONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SLONGLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_ULONGLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_FLOAT));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_DOUBLE));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_LONGDOUBLE));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_BOOL));
+    tacc_type_list_push(into, tacc_mk_basic_type(TYK_VOID));
+}

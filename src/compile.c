@@ -41,7 +41,11 @@ static void tacc_compile_output_int(struct tacc_compiler *compiler,
     tacc_compile_output_directive(compiler, "byte ");
 
     for (i = 0; i < bits; i = i + 8) {
+        if (i != 0) {
+            tacc_compile_output(compiler, ", ");
+        }
         tacc_u64_rsh_n(&aux, int_val, (int) i);
+        tacc_compile_output(compiler, "%u", (unsigned) (aux.low & 0xFF));
     }
 }
 
@@ -131,8 +135,10 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
             val = tacc_expr_const_eval(
                 expr, compiler->target, compiler->basic_types);
             tacc_val_convert(val, for_type->kind, compiler->target);
+            val->type = for_type;
         }
         tacc_compile_val(compiler, val, name);
+        tacc_val_free(val);
         return;
     }
     tacc_assert(0, "TODO: non-scalar data");
@@ -143,6 +149,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
     enum tacc_type_kind base_type;
     uint32_t typespec;
     struct tacc_type *ty;
+    struct tacc_type_list_entry *entry;
 
     typespec = type->spec_qual_flags & ~((uint32_t) TYPEQUAL_CONST |
                                          TYPEQUAL_RESTRICT | TYPEQUAL_VOLATILE);
@@ -173,6 +180,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         break;
     case 0:
     case TYPESPEC_INT:
+    case TYPESPEC_SIGNED:
     case /* TYPESPEC_INT | TYPESPEC_SIGNED */ 0x21:
         base_type = TYK_SINT;
         break;
@@ -182,16 +190,22 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         break;
     case TYPESPEC_LONG:
     case /* TYPESPEC_LONG | TYPESPEC_SIGNED */ 0x41:
+    case /* TYPESPEC_LONG | TYPESPEC_INT */ 0x60:
+    case /* TYPESPEC_LONG | TYPESPEC_INT | TYPESPEC_SIGNED */ 0x61:
         base_type = TYK_SLONG;
         break;
     case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED */ 0x42:
+    case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED | TYPESPEC_INT */ 0x62:
         base_type = TYK_ULONG;
         break;
     case TYPESPEC_LONG_2:
     case /* TYPESPEC_LONG_2 | TYPESPEC_SIGNED */ 0x81:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_INT */ 0xa0:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_SIGNED */ 0xa1:
         base_type = TYK_SLONGLONG;
         break;
     case /* TYPESPEC_LONG_2 | TYPESPEC_UNSIGNED */ 0x82:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_UNSIGNED */ 0xa2:
         base_type = TYK_ULONGLONG;
         break;
     default:
@@ -199,8 +213,8 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         return NULL;
     }
 
-    ty = tacc_type_new();
-    ty->kind = base_type;
+    entry = tacc_type_list_get(compiler->basic_types, base_type);
+    ty = entry->content;
 
     return ty;
 }
@@ -226,4 +240,5 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
                     "TODO: non-plain declarator");
         tacc_compile_data(compiler, type, data_name, declarator->initializer);
     }
+    tacc_compile_output(compiler, "\n");
 }

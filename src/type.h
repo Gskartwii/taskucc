@@ -115,6 +115,7 @@ size_t tacc_type_alignment_p2(struct tacc_target *target,
                               struct tacc_type *type);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
+void tacc_gen_basic_types(struct tacc_type_list *into);
 void tacc_type_free(struct tacc_type *type);
 void tacc_array_type_free(struct tacc_array_type *type);
 void tacc_function_type_free(struct tacc_function_type *type);
