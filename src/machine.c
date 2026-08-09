@@ -153,6 +153,13 @@ void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
     }
 }
 
+tacc_bool tacc_val_is_negative(struct tacc_val *val) {
+    if (!tacc_val_is_signed(val)) {
+        return 0;
+    }
+    return (val->value.int_value->high >> 31) != 0;
+}
+
 tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b) {
     tacc_assert(tacc_val_is_integral(a) && tacc_val_is_integral(b),
                 "TODO: non-integral eq");
@@ -330,6 +337,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         break;
     case EX_AND:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        if (l_result == NULL) {
+            return NULL;
+        }
         tacc_assert(tacc_val_is_scalar(l_result), "&& takes a scalar operand");
         if (!tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -339,6 +349,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         l_result = NULL;
 
         r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        if (r_result == NULL) {
+            return NULL;
+        }
         if (!tacc_val_is_truthy(r_result)) {
             tacc_val_free(r_result);
             return tacc_val_from_int(0, sint_ty);
@@ -349,6 +362,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_val_from_int(1, sint_ty);
     case EX_OR:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        if (l_result == NULL) {
+            return NULL;
+        }
         tacc_assert(tacc_val_is_scalar(l_result), "|| takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -358,6 +374,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         l_result = NULL;
 
         r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        if (r_result == NULL) {
+            return NULL;
+        }
         if (tacc_val_is_truthy(r_result)) {
             tacc_val_free(r_result);
             return tacc_val_from_int(1, sint_ty);
@@ -368,6 +387,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_val_from_int(0, sint_ty);
     case EX_NOT:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        if (l_result == NULL) {
+            return NULL;
+        }
         tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
@@ -377,7 +399,13 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_val_from_int(1, sint_ty);
     case EX_EQ:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        if (l_result == NULL) {
+            return NULL;
+        }
         r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        if (r_result == NULL) {
+            return NULL;
+        }
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic eq consteval");
@@ -392,7 +420,13 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_val_from_int(1, sint_ty);
     case EX_NE:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        if (l_result == NULL) {
+            return NULL;
+        }
         r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        if (r_result == NULL) {
+            return NULL;
+        }
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic ne consteval");

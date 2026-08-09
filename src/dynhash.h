@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <stddef.h>
+#include <string.h>
 
 struct tacc_dynhash {
     void *buffer;
@@ -123,7 +124,7 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         if (deinit_func != NULL) {                                          \
             for (i = 0; i < map->map->cap; i = i + 1) {                     \
                 to_free = tacc_dynhash_probe(map->map, i);                  \
-                if (to_free) {                                              \
+                if (to_free != NULL && to_free->content != NULL) {          \
                     deinit_func(to_free->content);                          \
                 }                                                           \
             }                                                               \

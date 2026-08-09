@@ -1,5 +1,4 @@
 #include "type.h"
-#include "decl.h"
 #include "dynarray.h"
 
 MK_DYNARRAY_OVER(tacc_type_list,
@@ -13,6 +12,30 @@ MK_DYNARRAY_OVER(tacc_type_list,
                  tacc_type_list_len,
                  tacc_type_free,
                  tacc_type_list_free)
+
+MK_DYNHASH_OVER(tacc_type_map,
+                name->string,
+                tacc_type_map_entry,
+                struct tacc_type *,
+                tacc_type_map_new,
+                tacc_type_map_init,
+                tacc_type_map_get,
+                tacc_type_map_insert,
+                tacc_type_map_count,
+                tacc_type_free,
+                tacc_type_map_free)
+
+MK_DYNARRAY_OVER(tacc_field_list,
+                 tacc_field_list_entry,
+                 struct tacc_field *,
+                 tacc_field_list_new,
+                 tacc_field_list_init,
+                 tacc_field_list_get,
+                 tacc_field_list_push,
+                 tacc_field_list_pop,
+                 tacc_field_list_len,
+                 tacc_field_free,
+                 tacc_field_list_free)
 
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
     switch (kind) {
@@ -82,11 +105,86 @@ size_t tacc_type_bit_width(struct tacc_target *target,
     return ty->bit_width;
 }
 
+size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type) {
+    struct tacc_int_type *ty;
+
+    switch (type->kind) {
+    case TYK_FLOAT:
+    case TYK_DOUBLE:
+    case TYK_LONGDOUBLE:
+        tacc_assert(0, "TODO: floating point type size");
+        return 0;
+    case TYK_VOID:
+        tacc_assert(0, "cannot take size of void");
+        return 0;
+    case TYK_PTR:
+        return target->pointer_ty.bit_width >> 3;
+    case TYK_STRUCT:
+        return type->extra.structure->size;
+    case TYK_UNION:
+        return type->extra.onion->size;
+    case TYK_ENUM:
+        return tacc_type_size(target, type->extra.enumeration->underlying_type);
+    case TYK_ARRAY:
+        tacc_assert(type->extra.array->dimension->high == 0,
+                    "TODO: array too large for sizeof");
+        /* TODO: overflow in multiplication? */
+        return tacc_type_size(target, type->extra.array->element_type) *
+               type->extra.array->dimension->low;
+    case TYK_INCOMPLETE_ARRAY:
+        tacc_assert(0, "cannot take size of incomplete array type");
+        return 0;
+    case TYK_VLA:
+        tacc_assert(0, "cannot take constant size of VLA.");
+        return 0;
+    case TYK_DECAYING_VLA:
+        tacc_assert(0, "cannot take constant size of decaying VLA.");
+        return 0;
+    case TYK_FN:
+        tacc_assert(0, "cannot take size of function");
+        return 0;
+    default:
+        ty = tacc_target_int_type(target, type->kind);
+        break;
+    }
+
+    return ty->bit_width >> 3;
+}
+
 size_t tacc_type_alignment_p2(struct tacc_target *target,
                               struct tacc_type *type) {
     struct tacc_int_type *ty;
 
-    ty = tacc_target_int_type(target, type->kind);
+    switch (type->kind) {
+    case TYK_FLOAT:
+    case TYK_DOUBLE:
+    case TYK_LONGDOUBLE:
+        tacc_assert(0, "TODO: floating point type alignment_p2");
+        return 0;
+    case TYK_VOID:
+        tacc_assert(0, "cannot take alignment of void");
+        return 0;
+    case TYK_PTR:
+        return target->pointer_ty.alignment_p2;
+    case TYK_STRUCT:
+        return type->extra.structure->alignment_p2;
+    case TYK_UNION:
+        return type->extra.onion->alignment_p2;
+    case TYK_ENUM:
+        return tacc_type_alignment_p2(target,
+                                      type->extra.enumeration->underlying_type);
+    case TYK_ARRAY:
+    case TYK_INCOMPLETE_ARRAY:
+    case TYK_VLA:
+    case TYK_DECAYING_VLA:
+        return tacc_type_alignment_p2(target, type->extra.array->element_type);
+    case TYK_FN:
+        tacc_assert(0, "cannot take alignment of function");
+        return 0;
+    default:
+        ty = tacc_target_int_type(target, type->kind);
+        break;
+    }
 
     return ty->alignment_p2;
 }
@@ -171,7 +269,9 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
 void tacc_type_free(struct tacc_type *type) {
     switch (type->kind) {
     case TYK_ARRAY:
-    case TYK_ARRAY_FLEX:
+    case TYK_INCOMPLETE_ARRAY:
+    case TYK_VLA:
+    case TYK_DECAYING_VLA:
         tacc_array_type_free(type->extra.array);
         break;
     case TYK_FN:
@@ -321,6 +421,26 @@ static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
     return type;
 }
 
+struct tacc_type *tacc_type_to_pointer(struct tacc_type *base_type,
+                                       size_t indirection_level) {
+    struct tacc_type *ty;
+    size_t i;
+
+    ty = base_type;
+    for (i = 0; i < indirection_level; i = i + 1) {
+        if (ty->derived_ptr != NULL) {
+            ty = ty->derived_ptr;
+            continue;
+        }
+        ty->derived_ptr = tacc_type_new();
+        ty->derived_ptr->kind = TYK_PTR;
+        ty->derived_ptr->extra.pointee = ty;
+        ty = ty->derived_ptr;
+    }
+
+    return ty;
+}
+
 void tacc_gen_basic_types(struct tacc_type_list *into) {
     tacc_type_list_push(into, tacc_mk_basic_type(TYK_SCHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(TYK_UCHAR));
@@ -337,4 +457,57 @@ void tacc_gen_basic_types(struct tacc_type_list *into) {
     tacc_type_list_push(into, tacc_mk_basic_type(TYK_LONGDOUBLE));
     tacc_type_list_push(into, tacc_mk_basic_type(TYK_BOOL));
     tacc_type_list_push(into, tacc_mk_basic_type(TYK_VOID));
+}
+
+struct tacc_enumeration_type *tacc_enumeration_type_new(void) {
+    struct tacc_enumeration_type *type;
+
+    type = tacc_malloc(sizeof(struct tacc_enumeration_type));
+    type->underlying_type = NULL;
+
+    return type;
+}
+
+struct tacc_struct_type *tacc_struct_type_new(void) {
+    struct tacc_struct_type *type;
+
+    type = tacc_malloc(sizeof(struct tacc_struct_type));
+    type->alignment_p2 = 0;
+    type->size = 0;
+    type->fields = tacc_field_list_new();
+
+    return type;
+}
+
+struct tacc_union_type *tacc_union_type_new(void) {
+    struct tacc_union_type *type;
+
+    type = tacc_malloc(sizeof(struct tacc_union_type));
+    type->alignment_p2 = 0;
+    type->size = 0;
+    type->fields = tacc_field_list_new();
+
+    return type;
+}
+
+struct tacc_field *tacc_field_new(void) {
+    struct tacc_field *type;
+
+    type = tacc_malloc(sizeof(struct tacc_field));
+    type->type = NULL;
+    type->name = NULL;
+
+    type->is_bitfield = 0;
+    type->bit_offset = 0;
+    type->bit_width = 0;
+    type->offset = 0;
+
+    return type;
+}
+
+void tacc_field_free(struct tacc_field *field) {
+    if (field->name != NULL) {
+        tacc_dynstring_free(field->name);
+    }
+    tacc_free(field);
 }

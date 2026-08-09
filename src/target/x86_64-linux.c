@@ -41,6 +41,8 @@ struct tacc_target *tacc_target_new(void) {
     target->sllong = tacc_mk_twos_complement(64, 3, 1);
     target->ullong = tacc_mk_twos_complement(64, 3, 0);
     target->bool_ty = tacc_mk_twos_complement(8, 0, 0);
+    target->pointer_ty.alignment_p2 = 3;
+    target->pointer_ty.bit_width = 64;
 
     return target;
 }

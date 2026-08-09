@@ -23,6 +23,10 @@ struct tacc_target {
     struct tacc_int_type *sllong;
     struct tacc_int_type *ullong;
     struct tacc_int_type *bool_ty;
+    struct {
+        size_t bit_width;
+        size_t alignment_p2;
+    } pointer_ty;
 };
 
 struct tacc_target *tacc_target_new(void);

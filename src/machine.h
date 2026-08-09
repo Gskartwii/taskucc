@@ -22,6 +22,7 @@ tacc_bool tacc_val_is_scalar(struct tacc_val *val);
 tacc_bool tacc_val_is_arithmetic(struct tacc_val *val);
 tacc_bool tacc_val_is_signed(struct tacc_val *val);
 tacc_bool tacc_val_is_truthy(struct tacc_val *val);
+tacc_bool tacc_val_is_negative(struct tacc_val *val);
 tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b);
 void tacc_val_convert(struct tacc_val *val,
                       enum tacc_type_kind into,

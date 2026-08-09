@@ -1926,6 +1926,13 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
             }
 
             if (ctx == DECL_CONTEXT_TOP_LEVEL) {
+                /*
+                 * TODO: may fail to recognize nested old-style function
+                 * declarations. For example:
+                 *
+                 * int (*(x(z)))(void) int z; { return main; }
+                 *
+                 */
                 if (declarator->kind == DECLARATOR_FUNC &&
                     declarator->extra.func_decl->param_list_kind ==
                         FUNCPARAM_OLD_STYLE_LIST) {

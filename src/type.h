@@ -3,6 +3,7 @@
 
 #include "decl.h"
 #include "dynarray.h"
+#include "dynhash.h"
 #include "dynstring.h"
 #include "target/target.h"
 #include "util.h"
@@ -30,7 +31,9 @@ enum tacc_type_kind {
     TYK_UNION,
     TYK_ENUM,
     TYK_ARRAY,
-    TYK_ARRAY_FLEX,
+    TYK_INCOMPLETE_ARRAY,
+    TYK_VLA,
+    TYK_DECAYING_VLA,
     TYK_FN
 };
 
@@ -61,6 +64,64 @@ struct tacc_array_type {
     struct tacc_u64 *dimension;
 };
 
+struct tacc_enumeration_type {
+    /* borrow */
+    /*
+     * For strictly conforming C99, in practice this should be either TYK_SINT
+     * or TYK_UINT, for GCC compatibility. As a GNU extension, GCC also permits
+     * larger-sized integer types, with a warning on -Wpedantic.
+     *
+     * Expressions of enumerators can have a different type than the
+     * enumeration's representation type. This gives the type used for storing
+     * and passing values declared with the type of the enumeration (the
+     * representation type).
+     */
+    struct tacc_type *underlying_type;
+
+    /* TODO: should we define enumerators here? */
+};
+
+struct tacc_field {
+    size_t offset;
+    tacc_bool is_bitfield;
+
+    size_t bit_offset;
+    size_t bit_width;
+
+    /* borrow */
+    struct tacc_type *type;
+
+    /* owning */
+    struct tacc_string *name;
+};
+
+DECL_DYNARRAY_OVER(tacc_field_list,
+                   tacc_field_list_entry,
+                   struct tacc_field *,
+                   tacc_field_list_new,
+                   tacc_field_list_init,
+                   tacc_field_list_get,
+                   tacc_field_list_push,
+                   tacc_field_list_pop,
+                   tacc_field_list_len,
+                   tacc_field_list_free)
+
+struct tacc_struct_type {
+    size_t alignment_p2;
+    size_t size;
+
+    /* owning */
+    struct tacc_field_list *fields;
+};
+
+struct tacc_union_type {
+    size_t alignment_p2;
+    size_t size;
+
+    /* owning */
+    struct tacc_field_list *fields;
+};
+
 struct tacc_type {
     enum tacc_type_kind kind;
 
@@ -70,6 +131,18 @@ struct tacc_type {
 
         /* owning */
         struct tacc_array_type *array;
+
+        /* owning */
+        struct tacc_enumeration_type *enumeration;
+
+        /* owning */
+        struct tacc_struct_type *structure;
+
+        /* owning */
+        struct tacc_union_type *onion;
+
+        /* borrow */
+        struct tacc_type *pointee;
     } extra;
 
     /* owning */
@@ -95,12 +168,27 @@ DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_pop,
                    tacc_type_list_len,
                    tacc_type_list_free)
+DECL_DYNHASH_OVER(tacc_type_map,
+                  tacc_type_map_entry,
+                  struct tacc_type *,
+                  tacc_type_map_new,
+                  tacc_type_map_init,
+                  tacc_type_map_get,
+                  tacc_type_map_insert,
+                  tacc_type_map_count,
+                  tacc_type_map_free)
 
 struct tacc_type *tacc_type_new(void);
 struct tacc_array_type *tacc_array_type_new(void);
 struct tacc_function_type *tacc_function_type_new(void);
+struct tacc_enumeration_type *tacc_enumeration_type_new(void);
+struct tacc_struct_type *tacc_struct_type_new(void);
+struct tacc_union_type *tacc_union_type_new(void);
+struct tacc_field *tacc_field_new(void);
 struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
+struct tacc_type *tacc_type_to_pointer(struct tacc_type *base_type,
+                                       size_t indirection_level);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);
@@ -113,11 +201,16 @@ size_t tacc_type_bit_width(struct tacc_target *target,
                            enum tacc_type_kind kind);
 size_t tacc_type_alignment_p2(struct tacc_target *target,
                               struct tacc_type *type);
+size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 void tacc_gen_basic_types(struct tacc_type_list *into);
 void tacc_type_free(struct tacc_type *type);
 void tacc_array_type_free(struct tacc_array_type *type);
 void tacc_function_type_free(struct tacc_function_type *type);
+void tacc_enumeration_type_free(struct tacc_enumeration_type *type);
+void tacc_struct_type_free(struct tacc_struct_type *type);
+void tacc_union_type_free(struct tacc_union_type *type);
+void tacc_field_free(struct tacc_field *field);
 
 #endif
