@@ -153,20 +153,41 @@ void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list arg) {
     int consumed;
     char *end;
 
+    if (*fmt == 0) {
+        return;
+    }
+    /*
+     * Heuristic. Also, on M2libc, vsnprintf violates the standard and reports
+     * only how many characters were written, not how many need to be written.
+     * So if zero bytes are available in remining capacity, the code would
+     * attempt to allocate space for 0 further characters.
+     */
+    tacc_dynstring_ensure_further_cap(string, strlen(fmt));
     remaining = string->cap - string->len;
-
     while (1) {
+#ifdef __M2__
+        /* HACK: M2 va_copy is completely broken. Hope this works. */
+        consumed = vsnprintf(string->string + string->len, remaining, fmt, arg);
+#else
         va_copy(va, arg);
         consumed = vsnprintf(string->string + string->len, remaining, fmt, va);
+#endif
+
         tacc_assert(consumed >= 0, "invalid printf");
-        if (((size_t) consumed) >= remaining) {
-            tacc_dynstring_ensure_further_cap(string, ((size_t) consumed) * 2);
+        if (((size_t) consumed + 1) >= remaining) {
+            /* Always allocate at least one more character. */
+            tacc_dynstring_ensure_further_cap(string,
+                                              ((size_t) consumed + 1) * 2);
             remaining = string->cap - string->len;
         } else {
+#ifndef __M2__
             va_end(va);
+#endif
             break;
         }
+#ifndef __M2__
         va_end(va);
+#endif
     }
 
     string->len = string->len + (size_t) remaining;
