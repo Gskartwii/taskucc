@@ -9,8 +9,9 @@ void tacc_die(char *err, ...) {
     va_list args;
 
     va_start(args, err);
-
     vfprintf(stderr, err, args);
+    va_end(args);
+
     fputs("", stderr);
     kill_io();
     exit(1);

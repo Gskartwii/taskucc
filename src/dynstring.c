@@ -1,5 +1,7 @@
 #include "dynstring.h"
 #include "util.h"
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -143,4 +145,31 @@ char *tacc_dynstring_take_str(tacc_string_p string) {
     tacc_dynstring_init(string);
 
     return str;
+}
+
+void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list arg) {
+    va_list va;
+    size_t remaining;
+    int consumed;
+    char *end;
+
+    remaining = string->cap - string->len;
+
+    while (1) {
+        va_copy(va, arg);
+        consumed = vsnprintf(string->string + string->len, remaining, fmt, va);
+        tacc_assert(consumed >= 0, "invalid printf");
+        if (((size_t) consumed) >= remaining) {
+            tacc_dynstring_ensure_further_cap(string, ((size_t) consumed) * 2);
+            remaining = string->cap - string->len;
+        } else {
+            va_end(va);
+            break;
+        }
+        va_end(va);
+    }
+
+    string->len = string->len + (size_t) remaining;
+    end = string->string + string->len;
+    *end = 0;
 }

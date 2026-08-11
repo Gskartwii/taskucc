@@ -35,6 +35,8 @@ let
     "soft_u64.h"
     "type.h"
     "machine.h"
+    "target/codegen.h"
+    "codegen.h"
     "target/target.h"
     "expr.h"
     "attribute.h"
@@ -49,6 +51,7 @@ let
   src = [
     "util.c"
     "3rdparty/intscan.c"
+    "codegen.c"
     "compile.c"
     "dynarray.c"
     "dynhash.c"
@@ -69,6 +72,7 @@ let
     "tasku.c"
 
     "target/x86_64-linux.c"
+    "target/x86_64-linux/codegen.c"
   ];
 
   m2-all = includes ++ local_hdrs ++ src;
@@ -80,7 +84,8 @@ let
   };
 
   cflags = [
-    "-std=c90"
+    "-std=c99"
+    "-Wlong-long"
     "-Wall"
     "-Wextra"
     "-Wpedantic"
@@ -109,8 +114,8 @@ let
       version = "0.1.0";
       src = ./src;
       buildPhase = ''
-        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cf} -c ${file}") src}
-        $CC ${builtins.concatStringsSep " " cf} -o tasku $(basename --multiple ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings [".c"] [".o"]) src})
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cf} -o ${builtins.replaceStrings ["/" ".c"] ["_" ".o"] file} -c ${file}") src}
+        $CC ${builtins.concatStringsSep " " cf} -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".c"] ["_" ".o"]) src}
       '';
       installPhase = ''
         mkdir -p $out/bin

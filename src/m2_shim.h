@@ -15,6 +15,7 @@ static void tacc_assert(int cond, char *err, ...) {
     }
 
     vfprintf(stderr, err, args);
+    va_end(args);
     fputs("", stderr);
     kill_io();
     exit(1);

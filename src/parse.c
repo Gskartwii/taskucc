@@ -61,6 +61,7 @@ tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
     fprintf(stderr, "\n");
     vfprintf(stderr, msg, va);
     fprintf(stderr, "\n");
+    va_end(va);
     tacc_assert(0, "parse error");
 }
 
@@ -78,6 +79,7 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
         tacc_tok_iter_dump_state(stderr, cur_iter);
     }
     vfprintf(stderr, msg, va);
+    va_end(va);
     fprintf(stderr, "\n");
     tacc_assert(0, "parse error");
 }

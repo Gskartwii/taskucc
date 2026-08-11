@@ -31,6 +31,7 @@ static void tacc_format_print(struct tacc_formatter *fmt, char *format, ...) {
 
     va_start(list, format);
     vprintf(format, list);
+    va_end(list);
 }
 
 static void tacc_format_begin_scope(struct tacc_formatter *fmt, char *name) {

@@ -1,10 +1,5 @@
 #include "soft_u64.h"
 
-/* M2 unconditionally sign-extends 0xffffffff on x86_64, but might store x in a
- * zero-extended register. So a naive comparison doesn't work. */
-#define IS_U32_MAX(x)                                                \
-    ((((x) & 0x7FFFFFFF) == 0x7FFFFFFF) && ((((x) >> 31) & 1) == 1))
-
 struct tacc_u64 *tacc_u64_new(void) {
     struct tacc_u64 *u64;
 

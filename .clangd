@@ -1,7 +1,8 @@
 CompileFlags:
   Add: [
     -xc,
-    -std=c90,
+    -std=c99,
+    -Wlong-long,
     -Wall,
     -Wextra,
     -Wpedantic,

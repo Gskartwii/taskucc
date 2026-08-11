@@ -1,6 +1,7 @@
 #ifndef TACC_DYNSTRING_H
 #define TACC_DYNSTRING_H
 
+#include <stdarg.h>
 #include <stddef.h>
 
 struct tacc_string {
@@ -14,6 +15,8 @@ tacc_string_p tacc_dynstring_new(void);
 void tacc_dynstring_init(tacc_string_p string);
 void tacc_dynstring_reset(tacc_string_p string);
 void tacc_dynstring_concat(tacc_string_p string, char *continuation);
+void tacc_dynstring_printf(tacc_string_p string, char *fmt, ...);
+void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list va);
 void tacc_dynstring_join(tacc_string_p string, tacc_string_p continuation);
 void tacc_dynstring_push(tacc_string_p string, char to_push);
 char *tacc_dynstring_as_str(tacc_string_p string);

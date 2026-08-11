@@ -1,4 +1,5 @@
 #include "compile.h"
+#include "codegen.h"
 #include "decl.h"
 #include "dynarray.h"
 #include "expr.h"
@@ -42,6 +43,7 @@ static void tacc_compile_output_directive(struct tacc_compiler *compiler,
     va_start(va, directive_fmt);
     printf("\n\t.");
     vprintf(directive_fmt, va);
+    va_end(va);
 }
 
 static void tacc_compile_output(struct tacc_compiler *compiler,
@@ -55,6 +57,7 @@ static void tacc_compile_output(struct tacc_compiler *compiler,
 
     va_start(va, fmt);
     vprintf(fmt, va);
+    va_end(va);
 }
 
 static void tacc_compile_output_int(struct tacc_compiler *compiler,
@@ -469,6 +472,7 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                   curr_type->extra.function,
                                   curr_declarator->extra.func_decl,
                                   def_param_names);
+        curr_declarator = curr_declarator->extra.func_decl->sub_declarator;
     }
 }
 
@@ -766,6 +770,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
                                       struct tacc_decl *function_def) {
     struct tacc_string_list *param_list;
     struct tacc_type *function_type;
+    struct tacc_codegen_state *state;
 
     param_list = tacc_string_list_new();
     function_type = tacc_type_adjust_from_declarator(
@@ -773,7 +778,29 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
         tacc_type_from_decl_type(compiler, function_def->base_type),
         function_def->extra.func_def->func_declaration,
         param_list);
+    tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
+                "TODO: old-style function parameter types");
+
+#ifndef __M2__
     (void) function_type;
+#endif
+
+    state = tacc_codegen_state_new(compiler->target, compiler->basic_types);
+    tacc_codegen_compile_statements(state,
+                                    function_def->extra.func_def->statements);
+    tacc_compile_output_directive(
+        compiler,
+        "globl %s",
+        tacc_dynstring_as_str(tacc_declarator_name(
+            function_def->extra.func_def->func_declaration)));
+    tacc_compile_output(compiler,
+                        "\n%s:",
+                        tacc_dynstring_as_str(tacc_declarator_name(
+                            function_def->extra.func_def->func_declaration)));
+    tacc_compile_output(
+        compiler, "%s", tacc_dynstring_as_str(state->code_buffer));
+    tacc_compile_output(compiler, "\n.Lepilog:");
+    tacc_compile_output(compiler, "\n\t ret\n");
 }
 
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
