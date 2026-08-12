@@ -25,7 +25,8 @@ for case_dir in cases/*; do
         ok=false
         continue
     fi
-    if ! timeout 1 qemu-${QEMU_TARGET} "$RUN_TMP/driver"; then
+    # Bring your own qemu-user or fail
+    if ! "$RUN_TMP/driver"; then
         echo "RUN $case_dir/test.c: fail"
         ok=false
         continue

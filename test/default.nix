@@ -1,10 +1,10 @@
 {
   stdenv,
-  qemu-user,
-  pkgsBuildTarget,
-  stdenvNoCC,
+  which,
   tasku-m2,
   tasku-gcc,
+  binutils,
+  stdenvNoCC,
   fetchgit,
   lib,
   newScope,
@@ -20,25 +20,22 @@ in
     with self; {
       # We want cc and binutils to target targetPlatform so we can link with
       # the output of our taskucc.
-      unit-test = pkgsBuildTarget.stdenv.mkDerivation {
+      unit-test = stdenv.mkDerivation {
         pname = "taskucc-unit-test";
         version = "0.1.0";
         dontUnpack = true;
 
-        nativeBuildInputs = [qemu-user];
-        strictDeps = true;
-
-        env.QEMU_TARGET = stdenv.targetPlatform.qemuArch;
+        nativeBuildInputs = [which tasku-m2 tasku-gcc.debug];
 
         buildPhase = ''
           cd ${./.}
           ok=true
           echo "=== TASKU-M2 ==="
-          if ! ./run.sh "${lib.getExe tasku-m2}"; then
+          if ! ./run.sh tasku-m2; then
             ok=false
           fi
           echo "=== TASKU-GCC ==="
-          if ! ./run.sh "${lib.getExe tasku-gcc.debug}"; then
+          if ! ./run.sh tasku-gcc; then
             ok=false
           fi
           if $ok; then
@@ -50,7 +47,7 @@ in
         pname = "compare-taskucc-across-m2-gcc";
         version = "0.1.0";
         dontUnpack = true;
-        nativeBuildInputs = [pv];
+        nativeBuildInputs = [pv tasku-m2 tasku-gcc.debug];
 
         buildPhase = ''
           ok=true
@@ -77,11 +74,11 @@ in
             -DTCC_VERSION=\"0.9.28\" \
             -DCONFIG_TCC_SEMLOCK=0"
 
-          if ! timeout 5 ${lib.getExe tasku-gcc.debug} $flags | pv -r  > tasku-gcc-test; then
+          if ! timeout 5 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
             ok=false
             echo "tasku-gcc failed on $file"
           fi
-          if ! timeout 90 ${lib.getExe tasku-m2} $flags | pv -r > tasku-m2-test; then
+          if ! timeout 90 tasku-m2 $flags | pv -r > tasku-m2-test; then
             ok=false
             echo "tasku-m2 failed on $file; timeout"
           fi
