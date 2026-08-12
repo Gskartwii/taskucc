@@ -1,4 +1,5 @@
 {
+  stdenv,
   stdenvNoCC,
   tasku-m2,
   tasku-gcc,
@@ -15,7 +16,7 @@
 in
   lib.makeScope newScope (self:
     with self; {
-      unit-test = stdenvNoCC.mkDerivation {
+      unit-test = stdenv.mkDerivation {
         pname = "taskucc-unit-test";
         version = "0.1.0";
         dontUnpack = true;
