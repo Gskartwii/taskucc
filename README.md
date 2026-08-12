@@ -29,3 +29,13 @@ Restrictions placed by M2-Planet:
 - Pointer arithmetic on non-char types requires `tacc_sizeadj`
 
 Tasku C Compiler is licensed under the EUPL.
+
+## Implemented in an extended subset of C90?
+
+TaskuCC depends on two C99 features:
+
+- `va_copy`
+- `snprintf`
+
+Especially the first of these would be exceedingly difficult to implement
+correctly without C99.
