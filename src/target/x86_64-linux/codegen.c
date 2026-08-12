@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "compile.h"
 #include "util.h"
 
 enum tacc_target_register {
@@ -198,4 +199,10 @@ void tacc_target_codegen_return_top_int(struct tacc_codegen_state *state) {
     tacc_target_codegen_move(state, tacc_codegen_get_top(state), REG_RAX);
     tacc_codegen_pop(state);
     tacc_codegen_output(state, "\n\t jmp .Lepilog");
+}
+
+void tacc_target_codegen_prelude(struct tacc_compiler *compiler) {
+    /* When using GNU linker, avoid warning about executable stack. */
+    tacc_compile_output_directive(compiler,
+                                  "section .note.GNU-stack,\"\",@progbits");
 }

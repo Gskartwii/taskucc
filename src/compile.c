@@ -5,6 +5,7 @@
 #include "expr.h"
 #include "machine.h"
 #include "string_list.h"
+#include "target/codegen.h"
 #include "type.h"
 #include <stdarg.h>
 
@@ -31,9 +32,9 @@ MK_DYNHASH_OVER(tacc_compile_ident_map,
                 tacc_compile_ident_free,
                 tacc_compile_ident_map_free)
 
-static void tacc_compile_output_directive(struct tacc_compiler *compiler,
-                                          char *directive_fmt,
-                                          ...) {
+void tacc_compile_output_directive(struct tacc_compiler *compiler,
+                                   char *directive_fmt,
+                                   ...) {
     va_list va;
 
 #ifndef __M2__
@@ -46,9 +47,7 @@ static void tacc_compile_output_directive(struct tacc_compiler *compiler,
     va_end(va);
 }
 
-static void tacc_compile_output(struct tacc_compiler *compiler,
-                                char *fmt,
-                                ...) {
+void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...) {
     va_list va;
 
 #ifndef __M2__
@@ -788,6 +787,8 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     state = tacc_codegen_state_new(compiler->target, compiler->basic_types);
     tacc_codegen_compile_statements(state,
                                     function_def->extra.func_def->statements);
+
+    tacc_compile_output_directive(compiler, "section .text, \"ax\", @progbits");
     tacc_compile_output_directive(
         compiler,
         "globl %s",
@@ -801,6 +802,10 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
         compiler, "%s", tacc_dynstring_as_str(state->code_buffer));
     tacc_compile_output(compiler, "\n.Lepilog:");
     tacc_compile_output(compiler, "\n\t ret\n");
+}
+
+void tacc_compile_prelude(struct tacc_compiler *compiler) {
+    tacc_target_codegen_prelude(compiler);
 }
 
 void tacc_compile_top_decl(struct tacc_compiler *compiler,

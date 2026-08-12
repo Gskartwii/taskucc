@@ -55,8 +55,14 @@ struct tacc_compiler {
 struct tacc_block_scope *tacc_block_scope_new(void);
 void tacc_block_scope_free(struct tacc_block_scope *scope);
 void tacc_compile_ident_free(struct tacc_compile_ident *ident);
+void tacc_compile_prelude(struct tacc_compiler *compiler);
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                                            struct tacc_decl_type *type);
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
                            struct tacc_decl *decl);
+void tacc_compile_output_directive(struct tacc_compiler *compiler,
+                                   char *directive_fmt,
+                                   ...);
+void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...);
+
 #endif
