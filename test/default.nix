@@ -29,7 +29,7 @@ in
             ok=false
           fi
           echo "=== TASKU-GCC ==="
-          if ! ./run.sh "${lib.getExe tasku-gcc}"; then
+          if ! ./run.sh "${lib.getExe tasku-gcc.debug}"; then
             ok=false
           fi
           if $ok; then
@@ -68,7 +68,7 @@ in
             -DTCC_VERSION=\"0.9.28\" \
             -DCONFIG_TCC_SEMLOCK=0"
 
-          if ! timeout 5 ${lib.getExe tasku-gcc} $flags | pv -r  > tasku-gcc-test; then
+          if ! timeout 5 ${lib.getExe tasku-gcc.debug} $flags | pv -r  > tasku-gcc-test; then
             ok=false
             echo "tasku-gcc failed on $file"
           fi
