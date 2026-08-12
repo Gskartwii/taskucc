@@ -3,6 +3,7 @@
   stdenvNoCC,
   fetchFromGitHub,
   minimal-bootstrap,
+  srcFiles,
 }: let
   inherit (import ./common.nix) src;
   system = stdenvNoCC.hostPlatform.system;
@@ -76,7 +77,7 @@
     "compile.h"
     "test.h"
   ];
-  m2-all = includes ++ local_hdrs ++ src;
+  m2-all = includes ++ local_hdrs ++ srcFiles;
 in
   stdenvNoCC.mkDerivation {
     pname = "tasku-cc";

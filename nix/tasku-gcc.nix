@@ -1,8 +1,8 @@
 {
   stdenv,
   lib,
+  srcFiles,
 }: let
-  inherit (import ./common.nix) src;
   cflags = [
     "-std=c99"
     "-Wlong-long"
@@ -34,8 +34,8 @@
       version = "0.1.0";
       src = ../src;
       buildPhase = ''
-        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cf} -o ${builtins.replaceStrings ["/" ".c"] ["_" ".o"] file} -c ${file}") src}
-        $CC ${builtins.concatStringsSep " " cf} -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".c"] ["_" ".o"]) src}
+        ${lib.strings.concatMapStringsSep "\n" (file: "$CC ${builtins.concatStringsSep " " cf} -o ${builtins.replaceStrings ["/" ".c"] ["_" ".o"] file} -c ${file}") srcFiles}
+        $CC ${builtins.concatStringsSep " " cf} -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".c"] ["_" ".o"]) srcFiles}
       '';
       installPhase = ''
         mkdir -p $out/bin

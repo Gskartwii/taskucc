@@ -1,5 +1,7 @@
 {
   stdenv,
+  qemu-user,
+  pkgsBuildTarget,
   stdenvNoCC,
   tasku-m2,
   tasku-gcc,
@@ -16,10 +18,17 @@
 in
   lib.makeScope newScope (self:
     with self; {
-      unit-test = stdenv.mkDerivation {
+      # We want cc and binutils to target targetPlatform so we can link with
+      # the output of our taskucc.
+      unit-test = pkgsBuildTarget.stdenv.mkDerivation {
         pname = "taskucc-unit-test";
         version = "0.1.0";
         dontUnpack = true;
+
+        nativeBuildInputs = [qemu-user];
+        strictDeps = true;
+
+        env.QEMU_TARGET = stdenv.targetPlatform.qemuArch;
 
         buildPhase = ''
           cd ${./.}

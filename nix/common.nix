@@ -1,4 +1,6 @@
-{
+{stdenvNoCC}: let
+  system = stdenvNoCC.targetPlatform.system;
+in {
   src = [
     "util.c"
     "3rdparty/intscan.c"
@@ -22,7 +24,7 @@
     "test.c"
     "tasku.c"
 
-    "target/x86_64-linux.c"
-    "target/x86_64-linux/codegen.c"
+    "target/${system}.c"
+    "target/${system}/codegen.c"
   ];
 }

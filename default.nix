@@ -1,10 +1,14 @@
 let
   pkgs = import (builtins.getFlake "nixpkgs") {};
-  lib = pkgs.lib;
-  tasku-m2 = pkgs.callPackage ./nix/tasku-m2.nix {};
-  tasku-gcc = pkgs.callPackage ./nix/tasku-gcc.nix {};
+  tasku-m2 = pkgs.callPackage ./nix/tasku-m2.nix {
+    srcFiles = common.src;
+  };
+  tasku-gcc = pkgs.callPackage ./nix/tasku-gcc.nix {
+    srcFiles = common.src;
+  };
+  common = pkgs.callPackage ./nix/common.nix {};
 in
-  lib.makeScope pkgs.newScope (self:
+  pkgs.lib.makeScope pkgs.newScope (self:
     with self; {
       inherit tasku-m2 tasku-gcc;
       tasku-both = pkgs.symlinkJoin {
