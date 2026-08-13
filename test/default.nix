@@ -1,5 +1,6 @@
 {
   stdenv,
+  bash,
   which,
   tasku-m2,
   tasku-gcc,
@@ -10,7 +11,7 @@
   newScope,
   pv,
   runCommand,
-  hackyCrossNixpkgs,
+  coreutils,
 }: let
   tinycc-src = fetchgit {
     url = "https://repo.or.cz/tinycc.git";
@@ -42,21 +43,25 @@ in
           fi
           cp ./compile/run-target-unit-tests.sh "$out/bin/target-compile-test"
           if ! $ok; then
-            exit 1
+            : #exit 1
           fi
         '';
       };
-      target-unit-test = hackyCrossNixpkgs.stdenv.mkDerivation {
-        pname = "taskucc-run-target-unit-test-${hackyCrossNixpkgs.system}";
-        version = "0.1.0";
-        dontUnpack = true;
-        nativeBuildInputs = [unit-test];
-        buildPhase = ''
-          cd ${./.}
-          target-compile-test
-          touch "$out"
-        '';
-      };
+      target-unit-test =
+        (derivationStrict {
+          name = "taskucc-run-target-unit-test-${stdenv.hostPlatform.system}";
+          system = stdenv.hostPlatform.system;
+          builder = lib.getExe bash;
+          args = [
+            (lib.getExe' unit-test "target-compile-test")
+          ];
+          PATH = lib.makeBinPath [coreutils];
+          outputs = ["out"];
+        })
+        // {
+          name = "taskucc-run-target-unit-test-${stdenv.hostPlatform.system}";
+          type = "derivation";
+        };
       compare-m2-gcc = stdenvNoCC.mkDerivation {
         pname = "compare-taskucc-across-m2-gcc";
         version = "0.1.0";

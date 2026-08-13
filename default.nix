@@ -6,9 +6,6 @@
   pkgsBase = pkgsImport {
     inherit localSystem crossSystem;
   };
-  pkgsTarget = pkgsImport {
-    system = crossSystem;
-  };
 in
   (pkgsBase.extend (final: prev:
     with final; {
@@ -23,7 +20,5 @@ in
         name = "tasku";
         paths = [tasku-m2 tasku-gcc.debug];
       };
-      tasku-test = targetPackages.callPackage ./test {
-        hackyCrossNixpkgs = pkgsTarget;
-      };
+      tasku-test = targetPackages.callPackage ./test {};
     })).buildPackages

@@ -18,3 +18,4 @@ if ! $ok; then
     exit 1
 fi
 echo "PASS"
+touch "$out"

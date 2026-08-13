@@ -13,10 +13,13 @@ let
 in
   builtins.listToAttrs (builtins.concatMap (localSystem:
     map (crossSystem: {
-      name = "${localSystem}-${crossSystem}";
+      name = "unit-${localSystem}-${crossSystem}";
       value = testOn {
         inherit localSystem crossSystem;
       };
     })
     systems)
   systems)
+  // {
+    recurseForDerivations = true;
+  }
