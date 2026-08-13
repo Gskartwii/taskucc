@@ -2,7 +2,7 @@
   localSystem ? "x86_64-unknown-linux-gnu",
   crossSystem ? "x86_64-unknown-linux-gnu",
 }: let
-  pkgsImport = import (builtins.getFlake "nixpkgs");
+  pkgsImport = import (builtins.getFlake "github:Gskartwii/nixpkgs/minboot-more-platforms");
   pkgsBase = pkgsImport {
     inherit localSystem crossSystem;
   };
