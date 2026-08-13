@@ -7,6 +7,8 @@ cd "$SCRIPT_DIR"
 RUN_TMP=$(mktemp -d)
 ok=true
 
+mkdir -p "$out/bin/compile-test/"
+
 for case_dir in cases/*; do
     if [ -x "$case_dir/run.sh" ]; then
         if ! "$case_dir/run.sh" "$RUNNER"; then
@@ -25,17 +27,12 @@ for case_dir in cases/*; do
         ok=false
         continue
     fi
-    # Bring your own qemu-user or fail
-    if ! "$RUN_TMP/driver"; then
-        echo "RUN $case_dir/test.c: fail"
-        ok=false
-        continue
-    fi
+    mv "$RUN_TMP/driver" "$out/bin/compile-test/$(basename $case_dir)-$RUNNER"
     echo "$case_dir: ok"
 done
+
 if ! $ok; then
     echo "FAIL"
     exit 1
 fi
 echo "PASS"
-

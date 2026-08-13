@@ -9,6 +9,8 @@
   lib,
   newScope,
   pv,
+  runCommand,
+  hackyCrossNixpkgs,
 }: let
   tinycc-src = fetchgit {
     url = "https://repo.or.cz/tinycc.git";
@@ -38,9 +40,21 @@ in
           if ! ./run.sh tasku-gcc; then
             ok=false
           fi
-          if $ok; then
-            touch "$out"
+          cp ./compile/run-target-unit-tests.sh "$out/bin/target-compile-test"
+          if ! $ok; then
+            exit 1
           fi
+        '';
+      };
+      target-unit-test = hackyCrossNixpkgs.stdenv.mkDerivation {
+        pname = "taskucc-run-target-unit-test-${hackyCrossNixpkgs.system}";
+        version = "0.1.0";
+        dontUnpack = true;
+        nativeBuildInputs = [unit-test];
+        buildPhase = ''
+          cd ${./.}
+          target-compile-test
+          touch "$out"
         '';
       };
       compare-m2-gcc = stdenvNoCC.mkDerivation {
