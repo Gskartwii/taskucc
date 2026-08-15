@@ -43,12 +43,14 @@ struct tacc_codegen_state *tacc_codegen_state_new(
 
 void tacc_codegen_compile_expr(struct tacc_codegen_state *state,
                                struct tacc_expr *expr) {
+    struct tacc_val *val;
+
     switch (expr->kind) {
     case EX_UNINIT:
     case EX_INT_LIT:
-        tacc_target_codegen_int(
-            state,
-            tacc_expr_const_eval(expr, state->target, state->basic_types));
+        val = tacc_expr_const_eval(expr, state->target, state->basic_types);
+        tacc_target_codegen_int(state, val);
+        tacc_val_free(val);
         break;
     case EX_CHAR_LIT:
     case EX_STRING_LIT:
