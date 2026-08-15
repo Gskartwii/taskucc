@@ -10,6 +10,12 @@
 #define IS_U32_MAX(x)                                                \
     ((((x) & 0x7FFFFFFF) == 0x7FFFFFFF) && ((((x) >> 31) & 1) == 1))
 
+#ifdef __M2__
+#define TACC_UNUSED(x) 0
+#else
+#define TACC_UNUSED(x) (void) x
+#endif
+
 typedef int tacc_bool;
 
 void tacc_die(char *err, ...);

@@ -37,9 +37,7 @@ void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    ...) {
     va_list va;
 
-#ifndef __M2__
-    (void) compiler;
-#endif
+    TACC_UNUSED(compiler);
 
     va_start(va, directive_fmt);
     printf("\n\t.");
@@ -50,9 +48,7 @@ void tacc_compile_output_directive(struct tacc_compiler *compiler,
 void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...) {
     va_list va;
 
-#ifndef __M2__
-    (void) compiler;
-#endif
+    TACC_UNUSED(compiler);
 
     va_start(va, fmt);
     vprintf(fmt, va);
@@ -781,9 +777,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
                 "TODO: old-style function parameter types");
 
-#ifndef __M2__
-    (void) function_type;
-#endif
+    TACC_UNUSED(function_type);
 
     state = tacc_codegen_state_new(compiler->target, compiler->basic_types);
     tacc_codegen_compile_statements(state,

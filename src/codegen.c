@@ -162,10 +162,8 @@ void tacc_codegen_compile_statements(
 
 void tacc_codegen_slot_spill(struct tacc_codegen_state *state,
                              struct tacc_slot *slot) {
-#ifndef __M2__
-    (void) state;
-    (void) slot;
-#endif
+    TACC_UNUSED(state);
+    TACC_UNUSED(slot);
     tacc_assert(0, "TODO: spill");
 }
 

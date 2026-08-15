@@ -25,9 +25,7 @@ static void tacc_format_deindent(struct tacc_formatter *fmt) {
 static void tacc_format_print(struct tacc_formatter *fmt, char *format, ...) {
     va_list list;
 
-#ifndef __M2__
-    (void) fmt;
-#endif
+    TACC_UNUSED(fmt);
 
     va_start(list, format);
     vprintf(format, list);

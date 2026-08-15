@@ -1122,9 +1122,7 @@ static void tacc_parse_attributes(struct tacc_attribute_list *to,
     struct pp_tok *tok;
     struct tacc_attribute *attr;
 
-#ifndef __M2__
-    (void) registry;
-#endif
+    TACC_UNUSED(registry);
 
     while (tacc_tok_iter_accept_kw(iter, ID_ATTRIBUTE)) {
         tacc_parse_assert(iter,
