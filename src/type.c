@@ -407,8 +407,11 @@ void tacc_function_type_free(struct tacc_function_type *function_type) {
      * do not use tacc_type_list_free, that would free the borrowed contents.
      * Only free the list.
      */
-    tacc_free(function_type->param_types->list->buffer);
-    tacc_free(function_type->param_types);
+    if (function_type->param_types != NULL) {
+        tacc_free(function_type->param_types->list->buffer);
+        tacc_free(function_type->param_types->list);
+        tacc_free(function_type->param_types);
+    }
     tacc_free(function_type);
 }
 
