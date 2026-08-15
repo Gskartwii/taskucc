@@ -209,3 +209,41 @@ void tacc_codegen_push_reg(struct tacc_codegen_state *state,
 
     tacc_slot_list_push(state->stack, slot);
 }
+
+uint32_t tacc_target_codegen_alloc_reg(struct tacc_codegen_state *state,
+                                       uint32_t desired_registers) {
+    size_t i;
+    size_t oldest_matching;
+    tacc_bool found_matching;
+    uint32_t occupied_registers;
+    uint32_t available;
+    struct tacc_slot_list_entry *slot_entry;
+    uint32_t reg_chosen;
+
+    /* steal slot from oldest stack entry that uses a desirable register */
+    found_matching = 0;
+    occupied_registers = 0;
+    oldest_matching = 0;
+    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
+        slot_entry = tacc_slot_list_get(state->stack, i);
+        if (slot_entry->content->place_kind == PLACE_REGISTER) {
+            if ((slot_entry->content->place.reg->reg & desired_registers) !=
+                0) {
+                if (!found_matching) {
+                    found_matching = 1;
+                    oldest_matching = i;
+                }
+                occupied_registers =
+                    occupied_registers | slot_entry->content->place.reg->reg;
+            }
+        }
+    }
+    if (occupied_registers == desired_registers) {
+        slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
+        reg_chosen = slot_entry->content->place.reg->reg;
+        tacc_codegen_slot_spill(state, slot_entry->content);
+        return reg_chosen;
+    }
+    available = desired_registers & ~(occupied_registers);
+    return available & (-available);
+}

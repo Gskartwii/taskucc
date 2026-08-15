@@ -64,6 +64,7 @@
     "soft_u64.h"
     "type.h"
     "machine.h"
+    "target/${stdenvNoCC.targetPlatform.system}/registers.h"
     "target/codegen.h"
     "codegen.h"
     "target/target.h"

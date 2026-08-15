@@ -1,44 +1,10 @@
 #include "codegen.h"
 #include "compile.h"
+#include "target/aarch64-linux/registers.h"
 #include "util.h"
-
-enum tacc_target_register {
-    REG_X0 = 0x1,
-    REG_X1 = 0x2,
-    REG_X2 = 0x4,
-    REG_X3 = 0x8,
-    REG_X4 = 0x10,
-    REG_X5 = 0x20,
-    REG_X6 = 0x40,
-    REG_X7 = 0x80,
-    REG_X8 = 0x100,
-    REG_X9 = 0x200,
-    REG_X10 = 0x400,
-    REG_X11 = 0x800,
-    REG_X12 = 0x1000,
-    REG_X13 = 0x2000,
-    REG_X14 = 0x4000,
-    REG_X15 = 0x8000,
-    REG_X19 = 0x10000,
-    REG_X20 = 0x20000,
-    REG_X21 = 0x40000,
-    REG_X22 = 0x80000,
-    REG_X23 = 0x100000,
-    REG_X24 = 0x200000,
-    REG_X25 = 0x400000,
-    REG_X26 = 0x800000,
-    REG_X27 = 0x1000000,
-    REG_X28 = 0x2000000,
-};
-
-#define REG_ANY 0x3FFFFFF
 
 struct tacc_target_codegen_state {
     int x;
-};
-
-struct tacc_target_place_register {
-    enum tacc_target_register reg;
 };
 
 struct tacc_target_codegen_state *tacc_target_codegen_state_new(void) {
@@ -47,44 +13,6 @@ struct tacc_target_codegen_state *tacc_target_codegen_state_new(void) {
     state = tacc_malloc(sizeof(struct tacc_target_codegen_state));
 
     return state;
-}
-
-static enum tacc_target_register tacc_target_codegen_alloc_reg(
-    struct tacc_codegen_state *state, uint32_t desired_registers) {
-    size_t i;
-    size_t oldest_matching;
-    tacc_bool found_matching;
-    uint32_t occupied_registers;
-    uint32_t available;
-    struct tacc_slot_list_entry *slot_entry;
-    enum tacc_target_register reg_chosen;
-
-    /* steal slot from oldest stack entry that uses a desirable register */
-    found_matching = 0;
-    occupied_registers = 0;
-    oldest_matching = 0;
-    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
-        slot_entry = tacc_slot_list_get(state->stack, i);
-        if (slot_entry->content->place_kind == PLACE_REGISTER) {
-            if ((slot_entry->content->place.reg->reg & desired_registers) !=
-                0) {
-                if (!found_matching) {
-                    found_matching = 1;
-                    oldest_matching = i;
-                }
-                occupied_registers =
-                    occupied_registers | slot_entry->content->place.reg->reg;
-            }
-        }
-    }
-    if (occupied_registers == desired_registers) {
-        slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
-        reg_chosen = slot_entry->content->place.reg->reg;
-        tacc_codegen_slot_spill(state, slot_entry->content);
-        return reg_chosen;
-    }
-    available = desired_registers & ~(occupied_registers);
-    return available & (-available);
 }
 
 static char *tacc_target_register_as_64(enum tacc_target_register reg) {
