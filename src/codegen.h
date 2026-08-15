@@ -52,6 +52,7 @@ void tacc_codegen_push_reg(struct tacc_codegen_state *state,
 void tacc_codegen_output(struct tacc_codegen_state *state, char *fmt, ...);
 struct tacc_slot *tacc_codegen_get_top(struct tacc_codegen_state *state);
 void tacc_codegen_pop(struct tacc_codegen_state *state);
+void tacc_codegen_state_free(struct tacc_codegen_state *state);
 void tacc_slot_free(struct tacc_slot *slot);
 
 struct tacc_target_place_register *tacc_target_place_register_new(void);

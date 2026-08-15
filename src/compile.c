@@ -803,6 +803,9 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
         compiler, "%s", tacc_dynstring_as_str(state->code_buffer));
     tacc_compile_output(compiler, "\n.Lepilog:");
     tacc_compile_output(compiler, "\n\t ret\n");
+
+    tacc_codegen_state_free(state);
+    state = NULL;
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {

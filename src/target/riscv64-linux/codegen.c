@@ -138,3 +138,7 @@ void tacc_target_codegen_prelude(struct tacc_compiler *compiler) {
     tacc_compile_output_directive(compiler,
                                   "section .note.GNU-stack,\"\",@progbits");
 }
+
+void tacc_target_codegen_state_free(struct tacc_target_codegen_state *state) {
+    tacc_free(state);
+}

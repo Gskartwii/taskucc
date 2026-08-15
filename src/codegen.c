@@ -261,3 +261,11 @@ struct tacc_target_place_register *tacc_target_place_register_new(void) {
 void tacc_target_place_register_free(struct tacc_target_place_register *reg) {
     tacc_free(reg);
 }
+
+void tacc_codegen_state_free(struct tacc_codegen_state *state) {
+    tacc_target_codegen_state_free(state->target_state);
+    tacc_dynstring_free(state->code_buffer);
+    tacc_slot_list_free(state->stack);
+    tacc_free(state->stack);
+    tacc_free(state);
+}
