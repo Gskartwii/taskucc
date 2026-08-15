@@ -806,6 +806,10 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
 
     tacc_codegen_state_free(state);
     state = NULL;
+
+    /* free collected param_list */
+    tacc_string_list_free(param_list);
+    tacc_free(param_list);
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {

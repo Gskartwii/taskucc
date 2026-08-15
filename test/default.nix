@@ -43,7 +43,7 @@ in
           fi
           cp ./compile/run-target-unit-tests.sh "$out/bin/target-compile-test"
           if ! $ok; then
-            : #exit 1
+            exit 1
           fi
         '';
       };

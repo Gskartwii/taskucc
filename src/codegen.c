@@ -179,7 +179,7 @@ struct tacc_slot *tacc_codegen_get_top(struct tacc_codegen_state *state) {
 }
 
 void tacc_codegen_pop(struct tacc_codegen_state *state) {
-    tacc_slot_list_pop(state->stack);
+    tacc_slot_free(tacc_slot_list_pop(state->stack));
 }
 
 void tacc_slot_free(struct tacc_slot *slot) {
