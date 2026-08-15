@@ -19,7 +19,7 @@ MK_DYNARRAY_OVER(tacc_slot_list,
                  tacc_slot_free,
                  tacc_slot_list_free)
 
-void tacc_codegen_output(struct tacc_codegen_state *state, char *fmt, ...) {
+void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...) {
     va_list va;
 
     va_start(va, fmt);
@@ -27,12 +27,12 @@ void tacc_codegen_output(struct tacc_codegen_state *state, char *fmt, ...) {
     va_end(va);
 }
 
-struct tacc_codegen_state *tacc_codegen_state_new(
-    struct tacc_target *target, struct tacc_type_list *basic_types) {
-    struct tacc_codegen_state *state;
+struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
+                                        struct tacc_type_list *basic_types) {
+    struct tacc_cg_state *state;
 
-    state = tacc_malloc(sizeof(struct tacc_codegen_state));
-    state->target_state = tacc_target_codegen_state_new();
+    state = tacc_malloc(sizeof(struct tacc_cg_state));
+    state->target_state = tacc_target_cg_state_new();
     state->target = target;
     state->basic_types = basic_types;
     state->code_buffer = tacc_dynstring_new();
@@ -41,15 +41,14 @@ struct tacc_codegen_state *tacc_codegen_state_new(
     return state;
 }
 
-void tacc_codegen_compile_expr(struct tacc_codegen_state *state,
-                               struct tacc_expr *expr) {
+void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
 
     switch (expr->kind) {
     case EX_UNINIT:
     case EX_INT_LIT:
         val = tacc_expr_const_eval(expr, state->target, state->basic_types);
-        tacc_target_codegen_int(state, val);
+        tacc_target_cg_int(state, val);
         tacc_val_free(val);
         break;
     case EX_CHAR_LIT:
@@ -109,26 +108,26 @@ void tacc_codegen_compile_expr(struct tacc_codegen_state *state,
     }
 }
 
-static tacc_bool tacc_codegen_top_is_int(struct tacc_codegen_state *state) {
+static tacc_bool tacc_cg_top_is_int(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
 
-    slot = tacc_codegen_get_top(state);
+    slot = tacc_cg_get_top(state);
 
     return tacc_type_is_integral(slot->ty);
 }
 
-void tacc_codegen_compile_body_member(struct tacc_codegen_state *state,
-                                      struct tacc_compound_member *member) {
+void tacc_cg_compile_body_member(struct tacc_cg_state *state,
+                                 struct tacc_compound_member *member) {
     tacc_assert(member->kind == COMPOUND_MEMBER_STMT,
                 "TODO: compile declaration in body");
     switch (member->member.statement->kind) {
     case STMT_NULL:
         break;
     case STMT_RETURN:
-        tacc_codegen_compile_expr(state, member->member.statement->extra.expr);
-        tacc_assert(tacc_codegen_top_is_int(state),
+        tacc_cg_compile_expr(state, member->member.statement->extra.expr);
+        tacc_assert(tacc_cg_top_is_int(state),
                     "TODO: return of non-integral type");
-        tacc_target_codegen_return_top_int(state);
+        tacc_target_cg_return_top_int(state);
         break;
     case STMT_LABEL_NAMED:
     case STMT_CASE:
@@ -148,26 +147,24 @@ void tacc_codegen_compile_body_member(struct tacc_codegen_state *state,
     }
 }
 
-void tacc_codegen_compile_statements(
-    struct tacc_codegen_state *state,
-    struct tacc_compound_member_list *statements) {
+void tacc_cg_compile_statements(struct tacc_cg_state *state,
+                                struct tacc_compound_member_list *statements) {
     size_t i;
     struct tacc_compound_member_list_entry *entry;
 
     for (i = 0; i < tacc_compound_member_list_len(statements); i = i + 1) {
         entry = tacc_compound_member_list_get(statements, i);
-        tacc_codegen_compile_body_member(state, entry->content);
+        tacc_cg_compile_body_member(state, entry->content);
     }
 }
 
-void tacc_codegen_slot_spill(struct tacc_codegen_state *state,
-                             struct tacc_slot *slot) {
+void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
     TACC_UNUSED(state);
     TACC_UNUSED(slot);
     tacc_assert(0, "TODO: spill");
 }
 
-struct tacc_slot *tacc_codegen_get_top(struct tacc_codegen_state *state) {
+struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state) {
     struct tacc_slot_list_entry *entry;
 
     entry =
@@ -176,7 +173,7 @@ struct tacc_slot *tacc_codegen_get_top(struct tacc_codegen_state *state) {
     return entry->content;
 }
 
-void tacc_codegen_pop(struct tacc_codegen_state *state) {
+void tacc_cg_pop(struct tacc_cg_state *state) {
     tacc_slot_free(tacc_slot_list_pop(state->stack));
 }
 
@@ -198,9 +195,9 @@ struct tacc_slot *tacc_slot_new(void) {
     return slot;
 }
 
-void tacc_codegen_push_reg(struct tacc_codegen_state *state,
-                           struct tacc_target_place_register *reg,
-                           struct tacc_type *ty) {
+void tacc_cg_push_reg(struct tacc_cg_state *state,
+                      struct tacc_target_place_register *reg,
+                      struct tacc_type *ty) {
     struct tacc_slot *slot;
 
     slot = tacc_slot_new();
@@ -211,8 +208,8 @@ void tacc_codegen_push_reg(struct tacc_codegen_state *state,
     tacc_slot_list_push(state->stack, slot);
 }
 
-uint32_t tacc_target_codegen_alloc_reg(struct tacc_codegen_state *state,
-                                       uint32_t desired_registers) {
+uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
+                                  uint32_t desired_registers) {
     size_t i;
     size_t oldest_matching;
     tacc_bool found_matching;
@@ -242,7 +239,7 @@ uint32_t tacc_target_codegen_alloc_reg(struct tacc_codegen_state *state,
     if (occupied_registers == desired_registers) {
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
         reg_chosen = slot_entry->content->place.reg->reg;
-        tacc_codegen_slot_spill(state, slot_entry->content);
+        tacc_cg_slot_spill(state, slot_entry->content);
         return reg_chosen;
     }
     available = desired_registers & ~(occupied_registers);
@@ -262,8 +259,8 @@ void tacc_target_place_register_free(struct tacc_target_place_register *reg) {
     tacc_free(reg);
 }
 
-void tacc_codegen_state_free(struct tacc_codegen_state *state) {
-    tacc_target_codegen_state_free(state->target_state);
+void tacc_cg_state_free(struct tacc_cg_state *state) {
+    tacc_target_cg_state_free(state->target_state);
     tacc_dynstring_free(state->code_buffer);
     tacc_slot_list_free(state->stack);
     tacc_free(state->stack);

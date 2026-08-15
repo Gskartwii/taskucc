@@ -766,7 +766,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
                                       struct tacc_decl *function_def) {
     struct tacc_string_list *param_list;
     struct tacc_type *function_type;
-    struct tacc_codegen_state *state;
+    struct tacc_cg_state *state;
 
     param_list = tacc_string_list_new();
     function_type = tacc_type_adjust_from_declarator(
@@ -779,9 +779,8 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
 
     TACC_UNUSED(function_type);
 
-    state = tacc_codegen_state_new(compiler->target, compiler->basic_types);
-    tacc_codegen_compile_statements(state,
-                                    function_def->extra.func_def->statements);
+    state = tacc_cg_state_new(compiler->target, compiler->basic_types);
+    tacc_cg_compile_statements(state, function_def->extra.func_def->statements);
 
     tacc_compile_output_directive(compiler, "section .text, \"ax\", @progbits");
     tacc_compile_output_directive(
@@ -798,7 +797,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_compile_output(compiler, "\n.Lepilog:");
     tacc_compile_output(compiler, "\n\t ret\n");
 
-    tacc_codegen_state_free(state);
+    tacc_cg_state_free(state);
     state = NULL;
 
     /* free collected param_list */
@@ -807,7 +806,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {
-    tacc_target_codegen_prelude(compiler);
+    tacc_target_cg_prelude(compiler);
 }
 
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
