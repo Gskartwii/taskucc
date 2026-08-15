@@ -190,7 +190,7 @@ void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list arg) {
 #endif
     }
 
-    string->len = string->len + (size_t) remaining;
+    string->len = string->len + (size_t) consumed;
     end = string->string + string->len;
     *end = 0;
 }
