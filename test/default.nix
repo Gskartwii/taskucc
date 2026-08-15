@@ -46,6 +46,11 @@ in
             exit 1
           fi
         '';
+
+        # LSAN breaks under qemu-user
+        env = lib.optionalAttrs stdenv.buildPlatform.isRiscV {
+          ASAN_OPTIONS = "detect_leaks=0";
+        };
       };
       target-unit-test =
         (derivationStrict {
