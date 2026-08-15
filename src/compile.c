@@ -465,6 +465,7 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
             tacc_type_to_pointer(curr_type, curr_declarator->indirection_level);
         curr_type = tacc_type_new();
         curr_type->kind = TYK_FN;
+        tacc_type_list_push(sub_type->derived_func_types, curr_type);
         curr_type->extra.function = tacc_function_type_new();
         curr_type->extra.function->return_type = sub_type;
         tacc_type_adjust_function(compiler,
