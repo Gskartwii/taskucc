@@ -72,15 +72,6 @@ static char *tacc_target_register_as_64(enum tacc_target_register reg) {
     }
 }
 
-static struct tacc_target_place_register *tacc_target_place_register_new(void) {
-    struct tacc_target_place_register *reg;
-
-    reg = tacc_malloc(sizeof(struct tacc_target_place_register));
-    reg->reg = 0;
-
-    return reg;
-}
-
 void tacc_target_codegen_int(struct tacc_codegen_state *state,
                              struct tacc_val *val) {
     enum tacc_target_register register_place;

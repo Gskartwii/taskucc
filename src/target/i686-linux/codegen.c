@@ -35,15 +35,6 @@ static char *tacc_target_register_as_32(enum tacc_target_register reg) {
     }
 }
 
-static struct tacc_target_place_register *tacc_target_place_register_new(void) {
-    struct tacc_target_place_register *reg;
-
-    reg = tacc_malloc(sizeof(struct tacc_target_place_register));
-    reg->reg = 0;
-
-    return reg;
-}
-
 static tacc_bool tacc_type_is_reg_pair(struct tacc_type *ty) {
     return ty->kind == TYK_SLONGLONG || ty->kind == TYK_ULONGLONG;
 }

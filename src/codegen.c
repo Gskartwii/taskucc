@@ -4,6 +4,7 @@
 #include "machine.h"
 #include "statement.h"
 #include "target/codegen.h"
+#include "target/target.h"
 #include "type.h"
 
 MK_DYNARRAY_OVER(tacc_slot_list,
@@ -180,10 +181,10 @@ void tacc_codegen_pop(struct tacc_codegen_state *state) {
 }
 
 void tacc_slot_free(struct tacc_slot *slot) {
-    /* TODO: free */
-#ifndef __M2__
-    (void) slot;
-#endif
+    if (slot->place_kind == PLACE_REGISTER) {
+        tacc_target_place_register_free(slot->place.reg);
+    }
+    tacc_free(slot);
 }
 
 struct tacc_slot *tacc_slot_new(void) {
@@ -246,4 +247,17 @@ uint32_t tacc_target_codegen_alloc_reg(struct tacc_codegen_state *state,
     }
     available = desired_registers & ~(occupied_registers);
     return available & (-available);
+}
+
+struct tacc_target_place_register *tacc_target_place_register_new(void) {
+    struct tacc_target_place_register *reg;
+
+    reg = tacc_malloc(sizeof(struct tacc_target_place_register));
+    reg->reg = 0;
+
+    return reg;
+}
+
+void tacc_target_place_register_free(struct tacc_target_place_register *reg) {
+    tacc_free(reg);
 }

@@ -4,6 +4,7 @@
 #include "dynarray.h"
 #include "statement.h"
 #include "target/codegen.h"
+#include "target/target.h"
 
 enum tacc_place_kind {
     PLACE_REGISTER,
@@ -52,6 +53,9 @@ void tacc_codegen_output(struct tacc_codegen_state *state, char *fmt, ...);
 struct tacc_slot *tacc_codegen_get_top(struct tacc_codegen_state *state);
 void tacc_codegen_pop(struct tacc_codegen_state *state);
 void tacc_slot_free(struct tacc_slot *slot);
+
+struct tacc_target_place_register *tacc_target_place_register_new(void);
+void tacc_target_place_register_free(struct tacc_target_place_register *reg);
 uint32_t tacc_target_codegen_alloc_reg(struct tacc_codegen_state *state,
                                        uint32_t desired_registers);
 
