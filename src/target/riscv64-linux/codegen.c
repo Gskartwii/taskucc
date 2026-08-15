@@ -164,17 +164,22 @@ void tacc_target_codegen_int(struct tacc_codegen_state *state,
         state, "\n\t li %s, 0x%x", reg, val->value.int_value->high);
     tacc_codegen_output(state, "\n\t slli %s, %s, 12", reg, reg);
     tacc_codegen_output(state,
-                        "\n\t addi %s, 0x%x",
+                        "\n\t addi %s, %s, 0x%x",
+                        reg,
                         reg,
                         (val->value.int_value->low >> 20) & 0x3FF);
     tacc_codegen_output(state, "\n\t slli %s, %s, 12", reg, reg);
     tacc_codegen_output(state,
-                        "\n\t addi %s, 0x%x",
+                        "\n\t addi %s, %s, 0x%x",
+                        reg,
                         reg,
                         (val->value.int_value->low >> 8) & 0x3FF);
     tacc_codegen_output(state, "\n\t slli %s, %s, 8", reg, reg);
-    tacc_codegen_output(
-        state, "\n\t addi %s, 0x%x", reg, val->value.int_value->low & 0xFF);
+    tacc_codegen_output(state,
+                        "\n\t addi %s, %s, 0x%x",
+                        reg,
+                        reg,
+                        val->value.int_value->low & 0xFF);
 
     reg_place = tacc_target_place_register_new();
     reg_place->reg = register_place;
@@ -194,8 +199,8 @@ static void tacc_target_codegen_move(struct tacc_codegen_state *state,
     if (slot->place_kind == PLACE_REGISTER) {
         tacc_codegen_output(state,
                             "\n\t mv %s, %s",
-                            tacc_target_register_as_64(slot->place.reg->reg),
-                            tacc_target_register_as_64(new_reg));
+                            tacc_target_register_as_64(new_reg),
+                            tacc_target_register_as_64(slot->place.reg->reg));
         slot->place.reg->reg = new_reg;
     } else {
         tacc_assert(0, "TODO: move from stack to register");
@@ -205,7 +210,7 @@ static void tacc_target_codegen_move(struct tacc_codegen_state *state,
 void tacc_target_codegen_return_top_int(struct tacc_codegen_state *state) {
     tacc_target_codegen_move(state, tacc_codegen_get_top(state), REG_A0);
     tacc_codegen_pop(state);
-    tacc_codegen_output(state, "\n\t b .Lepilog");
+    tacc_codegen_output(state, "\n\t j .Lepilog");
 }
 
 void tacc_target_codegen_prelude(struct tacc_compiler *compiler) {
