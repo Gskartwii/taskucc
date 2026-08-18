@@ -219,29 +219,8 @@ void tacc_target_cg_int(struct tacc_cg_state *state,
     tacc_cg_push_reg(state, reg_place, val->type);
 }
 
-static void tacc_target_cg_move(struct tacc_cg_state *state,
-                                struct tacc_slot *slot,
-                                uint32_t to_reg) {
-    enum tacc_target_register new_reg;
-
-    if (slot->place_kind == PLACE_REGISTER &&
-        (slot->place.reg->reg & to_reg) != 0) {
-        return;
-    }
-    new_reg = tacc_target_cg_alloc_reg(state, to_reg);
-    if (slot->place_kind == PLACE_REGISTER) {
-        tacc_cg_output(state,
-                       "\n\t movq %s, %s",
-                       tacc_target_register_as_64(slot->place.reg->reg),
-                       tacc_target_register_as_64(new_reg));
-        slot->place.reg->reg = new_reg;
-    } else {
-        tacc_assert(0, "TODO: move from stack to register");
-    }
-}
-
 void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
-    tacc_target_cg_move(state, tacc_cg_get_top(state), REG_RAX);
+    tacc_cg_move(state, tacc_cg_get_top(state), REG_RAX);
     tacc_cg_pop(state);
     tacc_cg_output(state, "\n\t jmp .Lepilog");
 }

@@ -20,9 +20,6 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                             size_t from_width,
                             size_t to_width,
                             tacc_bool is_sext);
-void tacc_target_cg_move(struct tacc_cg_state *state,
-                         struct tacc_slot *slot,
-                         uint32_t to_reg);
 void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
                                  uint32_t from_reg,
                                  uint32_t to_reg);

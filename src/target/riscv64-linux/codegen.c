@@ -173,3 +173,31 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
             state, "\n\t srli %s, %s, %d", reg_name, reg_name, width);
     }
 }
+
+void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
+                                 uint32_t from,
+                                 uint32_t to) {
+    char *reg_name;
+    char *reg_name_2;
+
+    reg_name = tacc_target_register_as_64(from);
+    reg_name_2 = tacc_target_register_as_64(to);
+    tacc_cg_output(state, "\n\t mv %s, %s", reg_name_2, reg_name);
+}
+
+void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
+                                 uint32_t reg_a,
+                                 uint32_t reg_b) {
+    char *reg_name;
+    char *reg_name_2;
+
+    reg_name = tacc_target_register_as_64(reg_a);
+    reg_name_2 = tacc_target_register_as_64(reg_b);
+
+    tacc_cg_output(
+        state, "\n\t xor %s, %s, %s", reg_name, reg_name, reg_name_2);
+    tacc_cg_output(
+        state, "\n\t xor %s, %s, %s", reg_name_2, reg_name, reg_name);
+    tacc_cg_output(
+        state, "\n\t xor %s, %s, %s", reg_name, reg_name, reg_name_2);
+}

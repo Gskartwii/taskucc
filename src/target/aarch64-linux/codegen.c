@@ -134,6 +134,21 @@ static char *tacc_target_register_as_32(enum tacc_target_register reg) {
     }
 }
 
+static char *tacc_target_register_name(enum tacc_target_register reg,
+                                       size_t width) {
+    switch (width) {
+    case 64:
+        return tacc_target_register_as_64(reg);
+    case 32:
+    case 16:
+    case 8:
+        return tacc_target_register_as_32(reg);
+    default:
+        tacc_assert(0, "invalid width %d", width);
+        return NULL;
+    }
+}
+
 void tacc_target_cg_int(struct tacc_cg_state *state,
                         struct tacc_val *val,
                         size_t width) {
@@ -175,29 +190,8 @@ void tacc_target_cg_int(struct tacc_cg_state *state,
     tacc_cg_push_reg(state, reg_place, val->type);
 }
 
-static void tacc_target_cg_move(struct tacc_cg_state *state,
-                                struct tacc_slot *slot,
-                                uint32_t to_reg) {
-    enum tacc_target_register new_reg;
-
-    if (slot->place_kind == PLACE_REGISTER &&
-        (slot->place.reg->reg & to_reg) != 0) {
-        return;
-    }
-    new_reg = tacc_target_cg_alloc_reg(state, to_reg);
-    if (slot->place_kind == PLACE_REGISTER) {
-        tacc_cg_output(state,
-                       "\n\t mov %s, %s",
-                       tacc_target_register_as_64(slot->place.reg->reg),
-                       tacc_target_register_as_64(new_reg));
-        slot->place.reg->reg = new_reg;
-    } else {
-        tacc_assert(0, "TODO: move from stack to register");
-    }
-}
-
 void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
-    tacc_target_cg_move(state, tacc_cg_get_top(state), REG_X0);
+    tacc_cg_move(state, tacc_cg_get_top(state), REG_X0);
     tacc_cg_pop(state);
     tacc_cg_output(state, "\n\t b .Lepilog");
 }
@@ -228,7 +222,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     int width;
 
     slot = tacc_cg_get_top(state);
-    tacc_target_cg_move(state, slot, REG_ANY);
+    tacc_cg_move(state, slot, REG_ANY);
     top_reg = slot->place.reg->reg;
     width = (int) from_width;
     if (to_width <= 32) {
@@ -243,4 +237,32 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
         tacc_cg_output(
             state, "\n\t ubfx %s, %s, #0, #%d", reg_name, reg_name, width);
     }
+}
+
+void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
+                                 uint32_t from,
+                                 uint32_t to) {
+    char *reg_name;
+    char *reg_name_2;
+
+    reg_name = tacc_target_register_name(from, 64);
+    reg_name_2 = tacc_target_register_name(to, 64);
+    tacc_cg_output(state, "\n\t mov %s, %s", reg_name_2, reg_name);
+}
+
+void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
+                                 uint32_t reg_a,
+                                 uint32_t reg_b) {
+    char *reg_name;
+    char *reg_name_2;
+
+    reg_name = tacc_target_register_name(reg_a, 64);
+    reg_name_2 = tacc_target_register_name(reg_b, 64);
+
+    tacc_cg_output(
+        state, "\n\t eor %s, %s, %s", reg_name, reg_name, reg_name_2);
+    tacc_cg_output(
+        state, "\n\t eor %s, %s, %s", reg_name_2, reg_name, reg_name);
+    tacc_cg_output(
+        state, "\n\t eor %s, %s, %s", reg_name, reg_name, reg_name_2);
 }
