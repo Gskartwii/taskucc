@@ -12,7 +12,7 @@ struct tacc_target_cg_state *tacc_target_cg_state_new(void);
 void tacc_target_cg_int(struct tacc_cg_state *state,
                         struct tacc_val *val,
                         size_t width);
-void tacc_target_cg_return_top_int(struct tacc_cg_state *state);
+void tacc_target_cg_return_top_int(struct tacc_cg_state *state, size_t width);
 void tacc_target_cg_prelude(struct tacc_compiler *compiler);
 void tacc_target_cg_state_free(struct tacc_target_cg_state *state);
 tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty);

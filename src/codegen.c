@@ -148,7 +148,10 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
         tacc_cg_convert_top(state, state->func_type->return_type);
         tacc_assert(tacc_cg_top_is_int(state),
                     "TODO: return of non-integral type");
-        tacc_target_cg_return_top_int(state);
+        tacc_target_cg_return_top_int(
+            state,
+            tacc_type_bit_width(state->target,
+                                state->func_type->return_type->kind));
         break;
     case STMT_LABEL_NAMED:
     case STMT_CASE:
