@@ -1,7 +1,6 @@
 #ifndef TACC_TYPE_H
 #define TACC_TYPE_H
 
-#include "decl.h"
 #include "dynarray.h"
 #include "dynhash.h"
 #include "dynstring.h"
@@ -158,6 +157,13 @@ struct tacc_type {
     struct tacc_type_list *derived_func_types;
 };
 
+enum tacc_conversion_kind {
+    CONV_NONE,
+    CONV_LEFT,
+    CONV_RIGHT,
+    CONV_BOTH,
+};
+
 DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_entry,
                    struct tacc_type *,
@@ -202,6 +208,11 @@ size_t tacc_type_bit_width(struct tacc_target *target,
 size_t tacc_type_alignment_p2(struct tacc_target *target,
                               struct tacc_type *type);
 size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type);
+enum tacc_type_kind
+tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
+                                       struct tacc_type *left,
+                                       struct tacc_type *right,
+                                       struct tacc_target *target);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 void tacc_gen_basic_types(struct tacc_type_list *into);

@@ -514,3 +514,65 @@ void tacc_field_free(struct tacc_field *field) {
     }
     tacc_free(field);
 }
+
+enum tacc_type_kind
+tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
+                                       struct tacc_type *left,
+                                       struct tacc_type *right,
+                                       struct tacc_target *target) {
+    enum tacc_type_kind a_type;
+    enum tacc_type_kind b_type;
+    enum tacc_int_rank a_rank;
+    enum tacc_int_rank b_rank;
+    enum tacc_type_kind common_type;
+
+    a_type = left->kind;
+    b_type = right->kind;
+
+    tacc_assert(tacc_type_is_integral(left) && tacc_type_is_integral(right),
+                "TODO: arith conversions for non-integral types");
+
+    if (a_type == b_type) {
+        *kind_out = CONV_NONE;
+        return 0;
+    }
+
+    a_rank = tacc_type_rank(a_type);
+    b_rank = tacc_type_rank(b_type);
+
+    if (tacc_type_kind_is_signed(a_type) == tacc_type_kind_is_signed(b_type)) {
+        /* same signedness => convert to the higher-ranked of the types */
+        if (a_rank <= b_rank) {
+            *kind_out = CONV_LEFT;
+            return b_type;
+        }
+        *kind_out = CONV_RIGHT;
+        return a_type;
+    }
+    if (!tacc_type_kind_is_signed(a_type) && (b_rank <= a_rank)) {
+        *kind_out = CONV_RIGHT;
+        return a_type;
+    }
+    if (!tacc_type_kind_is_signed(b_type) && (a_rank <= b_rank)) {
+        *kind_out = CONV_LEFT;
+        return b_type;
+    }
+    if (tacc_type_kind_is_signed(a_type) &&
+        tacc_type_is_subset(b_type, a_type, target)) {
+        *kind_out = CONV_RIGHT;
+        return a_type;
+    }
+    if (tacc_type_kind_is_signed(b_type) &&
+        tacc_type_is_subset(a_type, b_type, target)) {
+        *kind_out = CONV_LEFT;
+        return b_type;
+    }
+    if (tacc_type_kind_is_signed(b_type)) {
+        common_type = b_type;
+    } else {
+        common_type = a_type;
+    }
+    common_type = tacc_type_to_unsigned(common_type);
+    *kind_out = CONV_BOTH;
+    return common_type;
+}

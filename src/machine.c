@@ -104,52 +104,18 @@ void tacc_val_convert(struct tacc_val *val,
 void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
                                            struct tacc_val *b,
                                            struct tacc_target *target) {
-    enum tacc_type_kind a_type;
-    enum tacc_type_kind b_type;
-    enum tacc_int_rank a_rank;
-    enum tacc_int_rank b_rank;
-    enum tacc_type_kind common_type;
+    enum tacc_conversion_kind conv_kind;
+    enum tacc_type_kind to_type;
 
-    a_type = a->type->kind;
-    b_type = b->type->kind;
-
-    tacc_assert(tacc_val_is_integral(a) && tacc_val_is_integral(b),
-                "TODO: arith conversions for non-integral types");
-
-    if (a_type == b_type) {
-        return;
-    }
-
-    a_rank = tacc_type_rank(a_type);
-    b_rank = tacc_type_rank(b_type);
-
-    if (tacc_val_is_signed(a) == tacc_val_is_signed(b)) {
-        /* same signedness => convert to the higher-ranked of the types */
-        if (a_rank <= b_rank) {
-            tacc_val_convert(a, b_type, target);
-        } else {
-            tacc_val_convert(b, a_type, target);
-        }
-        return;
-    }
-    if (!tacc_val_is_signed(a) && (b_rank <= a_rank)) {
-        tacc_val_convert(b, a_type, target);
-    } else if (!tacc_val_is_signed(b) && (a_rank <= b_rank)) {
-        tacc_val_convert(a, b_type, target);
-    } else if (tacc_val_is_signed(a) &&
-               tacc_type_is_subset(b_type, a_type, target)) {
-        tacc_val_convert(b, a_type, target);
-    } else if (tacc_val_is_signed(b) &&
-               tacc_type_is_subset(a_type, b_type, target)) {
-        tacc_val_convert(a, b_type, target);
-    } else {
-        if (tacc_val_is_signed(b)) {
-            common_type = b_type;
-        } else {
-            common_type = a_type;
-        }
-        common_type = tacc_type_to_unsigned(common_type);
-        tacc_val_convert(a, common_type, target);
+    to_type = tacc_type_usual_arithmetic_conversions(
+        &conv_kind, a->type, b->type, target);
+    if (conv_kind == CONV_LEFT) {
+        tacc_val_convert(a, to_type, target);
+    } else if (conv_kind == CONV_RIGHT) {
+        tacc_val_convert(b, to_type, target);
+    } else if (conv_kind == CONV_BOTH) {
+        tacc_val_convert(a, to_type, target);
+        tacc_val_convert(b, to_type, target);
     }
 }
 

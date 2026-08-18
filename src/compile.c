@@ -777,9 +777,8 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
                 "TODO: old-style function parameter types");
 
-    TACC_UNUSED(function_type);
-
-    state = tacc_cg_state_new(compiler->target, compiler->basic_types);
+    state = tacc_cg_state_new(
+        compiler->target, compiler->basic_types, function_type->extra.function);
     tacc_cg_compile_statements(state, function_def->extra.func_def->statements);
 
     tacc_compile_output_directive(compiler, "section .text, \"ax\", @progbits");

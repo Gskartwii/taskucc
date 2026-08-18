@@ -1,5 +1,6 @@
 #include "codegen.h"
 #include "compile.h"
+#include "machine.h"
 #include "target/riscv64-linux/registers.h"
 #include "util.h"
 
@@ -139,4 +140,36 @@ void tacc_target_cg_prelude(struct tacc_compiler *compiler) {
 
 void tacc_target_cg_state_free(struct tacc_target_cg_state *state) {
     tacc_free(state);
+}
+
+tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
+    TACC_UNUSED(ty);
+
+    return 0;
+}
+
+void tacc_target_cg_ext_top(struct tacc_cg_state *state,
+                            size_t from_width,
+                            size_t to_width,
+                            tacc_bool is_sext) {
+    struct tacc_slot *slot;
+    enum tacc_target_register top_reg;
+    char *reg_name;
+    int width;
+
+    TACC_UNUSED(to_width);
+
+    slot = tacc_cg_get_top(state);
+    tacc_target_cg_move(state, slot, REG_ANY);
+    top_reg = slot->place.reg->reg;
+    width = 64 - (int) from_width;
+    reg_name = tacc_target_register_as_64(top_reg);
+    tacc_cg_output(state, "\n\t slli %s, %s, %d", reg_name, reg_name, width);
+    if (is_sext) {
+        tacc_cg_output(
+            state, "\n\t srai %s, %s, %d", reg_name, reg_name, width);
+    } else {
+        tacc_cg_output(
+            state, "\n\t srli %s, %s, %d", reg_name, reg_name, width);
+    }
 }
