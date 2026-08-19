@@ -50,62 +50,24 @@ tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
     }
 }
 
-static struct tacc_int_type *tacc_target_int_type(struct tacc_target *target,
-                                                  enum tacc_type_kind kind) {
-    switch (kind) {
-    case TYK_UCHAR:
-        return target->uchar;
-    case TYK_SCHAR:
-        return target->schar;
-    case TYK_USHORT:
-        return target->ushort;
-    case TYK_SSHORT:
-        return target->sshort;
-    case TYK_UINT:
-        return target->uint;
-    case TYK_SINT:
-        return target->sint;
-    case TYK_ULONG:
-        return target->ulong;
-    case TYK_SLONG:
-        return target->slong;
-    case TYK_ULONGLONG:
-        return target->ullong;
-    case TYK_SLONGLONG:
-        return target->sllong;
-    default:
-        tacc_assert(0, "todo: non-integral type requested");
-        return 0;
-    }
+struct tacc_u64 *tacc_type_max_val(struct tacc_type *type) {
+    tacc_assert(tacc_type_kind_is_integral(type->kind),
+                "cannot take max val for non-integral type");
+    return type->extra.int_repr->max;
+}
+struct tacc_u64 *tacc_type_min_val(struct tacc_type *type) {
+    tacc_assert(tacc_type_kind_is_integral(type->kind),
+                "cannot take min val for non-integral type");
+    return type->extra.int_repr->min;
 }
 
-struct tacc_u64 *tacc_type_max_val(struct tacc_target *target,
-                                   enum tacc_type_kind kind) {
-    struct tacc_int_type *ty;
-
-    ty = tacc_target_int_type(target, kind);
-
-    return ty->max;
-}
-struct tacc_u64 *tacc_type_min_val(struct tacc_target *target,
-                                   enum tacc_type_kind kind) {
-    struct tacc_int_type *ty;
-
-    ty = tacc_target_int_type(target, kind);
-
-    return ty->min;
+size_t tacc_type_bit_width(struct tacc_type *type) {
+    tacc_assert(tacc_type_kind_is_integral(type->kind),
+                "cannot take bit width val for non-integral type");
+    return type->extra.int_repr->bit_width;
 }
 
-size_t tacc_type_bit_width(struct tacc_target *target,
-                           enum tacc_type_kind kind) {
-    struct tacc_int_type *ty;
-
-    ty = tacc_target_int_type(target, kind);
-
-    return ty->bit_width;
-}
-
-size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type) {
+size_t tacc_type_size(struct tacc_type *type) {
     struct tacc_int_type *ty;
 
     switch (type->kind) {
@@ -118,18 +80,18 @@ size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type) {
         tacc_assert(0, "cannot take size of void");
         return 0;
     case TYK_PTR:
-        return target->pointer_ty.bit_width >> 3;
+        return type->extra.pointer.repr->bit_width >> 3;
     case TYK_STRUCT:
         return type->extra.structure->size;
     case TYK_UNION:
         return type->extra.onion->size;
     case TYK_ENUM:
-        return tacc_type_size(target, type->extra.enumeration->underlying_type);
+        return tacc_type_size(type->extra.enumeration->underlying_type);
     case TYK_ARRAY:
         tacc_assert(type->extra.array->dimension->high == 0,
                     "TODO: array too large for sizeof");
         /* TODO: overflow in multiplication? */
-        return tacc_type_size(target, type->extra.array->element_type) *
+        return tacc_type_size(type->extra.array->element_type) *
                type->extra.array->dimension->low;
     case TYK_INCOMPLETE_ARRAY:
         tacc_assert(0, "cannot take size of incomplete array type");
@@ -144,15 +106,14 @@ size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type) {
         tacc_assert(0, "cannot take size of function");
         return 0;
     default:
-        ty = tacc_target_int_type(target, type->kind);
+        ty = type->extra.int_repr;
         break;
     }
 
     return ty->bit_width >> 3;
 }
 
-size_t tacc_type_alignment_p2(struct tacc_target *target,
-                              struct tacc_type *type) {
+size_t tacc_type_alignment_p2(struct tacc_type *type) {
     struct tacc_int_type *ty;
 
     switch (type->kind) {
@@ -165,51 +126,49 @@ size_t tacc_type_alignment_p2(struct tacc_target *target,
         tacc_assert(0, "cannot take alignment of void");
         return 0;
     case TYK_PTR:
-        return target->pointer_ty.alignment_p2;
+        return type->extra.pointer.repr->alignment_p2;
     case TYK_STRUCT:
         return type->extra.structure->alignment_p2;
     case TYK_UNION:
         return type->extra.onion->alignment_p2;
     case TYK_ENUM:
-        return tacc_type_alignment_p2(target,
-                                      type->extra.enumeration->underlying_type);
+        return tacc_type_alignment_p2(type->extra.enumeration->underlying_type);
     case TYK_ARRAY:
     case TYK_INCOMPLETE_ARRAY:
     case TYK_VLA:
     case TYK_DECAYING_VLA:
-        return tacc_type_alignment_p2(target, type->extra.array->element_type);
+        return tacc_type_alignment_p2(type->extra.array->element_type);
     case TYK_FN:
         tacc_assert(0, "cannot take alignment of function");
         return 0;
     default:
-        ty = tacc_target_int_type(target, type->kind);
+        ty = type->extra.int_repr;
         break;
     }
 
     return ty->alignment_p2;
 }
 
-tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
-                              enum tacc_type_kind superset,
-                              struct tacc_target *target) {
+tacc_bool tacc_type_is_subset(struct tacc_type *subset,
+                              struct tacc_type *superset) {
     struct tacc_u64 *max_val_superset;
     struct tacc_u64 *min_val_superset;
     struct tacc_u64 *max_val_subset;
     struct tacc_u64 *min_val_subset;
 
-    if (tacc_type_kind_is_signed(subset)) {
-        if (!tacc_type_kind_is_signed(superset)) {
+    if (tacc_type_kind_is_signed(subset->kind)) {
+        if (!tacc_type_kind_is_signed(superset->kind)) {
             return 0;
         }
-        min_val_subset = tacc_type_min_val(target, subset);
-        min_val_superset = tacc_type_min_val(target, superset);
+        min_val_subset = subset->extra.int_repr->min;
+        min_val_superset = superset->extra.int_repr->min;
         if (tacc_u64_slt(min_val_superset, min_val_subset)) {
             return 0;
         }
     }
 
-    max_val_subset = tacc_type_max_val(target, subset);
-    max_val_superset = tacc_type_max_val(target, superset);
+    max_val_subset = subset->extra.int_repr->max;
+    max_val_superset = superset->extra.int_repr->max;
     if (tacc_u64_ugt(max_val_superset, max_val_subset)) {
         return 0;
     }
@@ -415,16 +374,19 @@ void tacc_function_type_free(struct tacc_function_type *function_type) {
     tacc_free(function_type);
 }
 
-static struct tacc_type *tacc_mk_basic_type(enum tacc_type_kind kind) {
+static struct tacc_type *tacc_mk_basic_type(struct tacc_int_type *repr,
+                                            enum tacc_type_kind kind) {
     struct tacc_type *type;
 
     type = tacc_type_new();
     type->kind = kind;
+    type->extra.int_repr = repr;
 
     return type;
 }
 
-struct tacc_type *tacc_type_to_pointer(struct tacc_type *base_type,
+struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
+                                       struct tacc_type *base_type,
                                        size_t indirection_level) {
     struct tacc_type *ty;
     size_t i;
@@ -437,29 +399,33 @@ struct tacc_type *tacc_type_to_pointer(struct tacc_type *base_type,
         }
         ty->derived_ptr = tacc_type_new();
         ty->derived_ptr->kind = TYK_PTR;
-        ty->derived_ptr->extra.pointee = ty;
+        ty->derived_ptr->extra.pointer.pointee = ty;
+        ty->derived_ptr->extra.pointer.repr = repr;
         ty = ty->derived_ptr;
     }
 
     return ty;
 }
 
-void tacc_gen_basic_types(struct tacc_type_list *into) {
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SCHAR));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_UCHAR));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SSHORT));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_USHORT));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SINT));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_UINT));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SLONG));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_ULONG));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_SLONGLONG));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_ULONGLONG));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_FLOAT));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_DOUBLE));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_LONGDOUBLE));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_BOOL));
-    tacc_type_list_push(into, tacc_mk_basic_type(TYK_VOID));
+void tacc_gen_basic_types(struct tacc_target *target,
+                          struct tacc_type_list *into) {
+    tacc_type_list_push(into, tacc_mk_basic_type(target->schar, TYK_SCHAR));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->uchar, TYK_UCHAR));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->sshort, TYK_SSHORT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->ushort, TYK_USHORT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->sint, TYK_SINT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->uint, TYK_UINT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->slong, TYK_SLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->ulong, TYK_ULONG));
+    tacc_type_list_push(into,
+                        tacc_mk_basic_type(target->sllong, TYK_SLONGLONG));
+    tacc_type_list_push(into,
+                        tacc_mk_basic_type(target->ullong, TYK_ULONGLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_FLOAT));
+    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_DOUBLE));
+    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_LONGDOUBLE));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->bool_ty, TYK_BOOL));
+    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_VOID));
 }
 
 struct tacc_enumeration_type *tacc_enumeration_type_new(void) {
@@ -518,8 +484,7 @@ void tacc_field_free(struct tacc_field *field) {
 enum tacc_type_kind
 tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
                                        struct tacc_type *left,
-                                       struct tacc_type *right,
-                                       struct tacc_target *target) {
+                                       struct tacc_type *right) {
     enum tacc_type_kind a_type;
     enum tacc_type_kind b_type;
     enum tacc_int_rank a_rank;
@@ -557,13 +522,11 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
         *kind_out = CONV_LEFT;
         return b_type;
     }
-    if (tacc_type_kind_is_signed(a_type) &&
-        tacc_type_is_subset(b_type, a_type, target)) {
+    if (tacc_type_kind_is_signed(a_type) && tacc_type_is_subset(right, left)) {
         *kind_out = CONV_RIGHT;
         return a_type;
     }
-    if (tacc_type_kind_is_signed(b_type) &&
-        tacc_type_is_subset(a_type, b_type, target)) {
+    if (tacc_type_kind_is_signed(b_type) && tacc_type_is_subset(right, left)) {
         *kind_out = CONV_LEFT;
         return b_type;
     }

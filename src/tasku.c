@@ -230,7 +230,7 @@ static void tacc_compile_ast(struct tacc_target *target, struct tacc_ast *ast) {
     compiler.block_scopes = tacc_block_scope_list_new();
     base_scope = tacc_block_scope_new();
     tacc_block_scope_list_push(compiler.block_scopes, base_scope);
-    tacc_gen_basic_types(compiler.basic_types);
+    tacc_gen_basic_types(target, compiler.basic_types);
 
     tacc_compile_prelude(&compiler);
     for (i = 0; i < tacc_decl_list_len(ast->declarations); i = i + 1) {

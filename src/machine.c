@@ -83,39 +83,38 @@ tacc_bool tacc_val_is_truthy(struct tacc_val *val) {
     return 0;
 }
 
-void tacc_val_convert(struct tacc_val *val,
-                      enum tacc_type_kind into,
-                      struct tacc_target *target) {
-    if (tacc_type_is_subset(val->type->kind, into, target)) {
+void tacc_val_convert(struct tacc_val *val, struct tacc_type *into) {
+    if (tacc_type_is_subset(val->type, into)) {
         /* already fits into destination type */
         return;
     }
-    if (tacc_type_kind_is_signed(into)) {
+    if (tacc_type_kind_is_signed(into->kind)) {
         tacc_u64_sext(val->value.int_value,
                       val->value.int_value,
-                      (int) tacc_type_bit_width(target, into));
+                      (int) tacc_type_bit_width(into));
         return;
     }
     tacc_u64_zext(val->value.int_value,
                   val->value.int_value,
-                  (int) tacc_type_bit_width(target, into));
+                  (int) tacc_type_bit_width(into));
 }
 
 void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
                                            struct tacc_val *b,
-                                           struct tacc_target *target) {
+                                           struct tacc_type_list *basic_types) {
     enum tacc_conversion_kind conv_kind;
-    enum tacc_type_kind to_type;
+    struct tacc_type *to_type;
 
-    to_type = tacc_type_usual_arithmetic_conversions(
-        &conv_kind, a->type, b->type, target);
+    to_type = tacc_get_basic_type(
+        basic_types,
+        tacc_type_usual_arithmetic_conversions(&conv_kind, a->type, b->type));
     if (conv_kind == CONV_LEFT) {
-        tacc_val_convert(a, to_type, target);
+        tacc_val_convert(a, to_type);
     } else if (conv_kind == CONV_RIGHT) {
-        tacc_val_convert(b, to_type, target);
+        tacc_val_convert(b, to_type);
     } else if (conv_kind == CONV_BOTH) {
-        tacc_val_convert(a, to_type, target);
-        tacc_val_convert(b, to_type, target);
+        tacc_val_convert(a, to_type);
+        tacc_val_convert(b, to_type);
     }
 }
 
@@ -375,7 +374,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic eq consteval");
-        tacc_val_usual_arithmetic_conversions(l_result, r_result, target);
+        tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
         if (!tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
             tacc_val_free(r_result);
@@ -396,7 +395,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
                     "todo: non-arithmetic ne consteval");
-        tacc_val_usual_arithmetic_conversions(l_result, r_result, target);
+        tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
         if (tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
             tacc_val_free(r_result);

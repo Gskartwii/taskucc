@@ -141,7 +141,13 @@ struct tacc_type {
         struct tacc_union_type *onion;
 
         /* borrow */
-        struct tacc_type *pointee;
+        struct {
+            struct tacc_type *pointee;
+            struct tacc_ptr_type *repr;
+        } pointer;
+
+        /* borrow */
+        struct tacc_int_type *int_repr;
     } extra;
 
     /* owning */
@@ -193,29 +199,27 @@ struct tacc_union_type *tacc_union_type_new(void);
 struct tacc_field *tacc_field_new(void);
 struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
-struct tacc_type *tacc_type_to_pointer(struct tacc_type *base_type,
+struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
+                                       struct tacc_type *base_type,
                                        size_t indirection_level);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);
-tacc_bool tacc_type_is_subset(enum tacc_type_kind subset,
-                              enum tacc_type_kind superset,
-                              struct tacc_target *target);
+tacc_bool tacc_type_is_subset(struct tacc_type *subset,
+                              struct tacc_type *superset);
 tacc_bool tacc_type_is_integral(struct tacc_type *type);
 tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind);
-size_t tacc_type_bit_width(struct tacc_target *target,
-                           enum tacc_type_kind kind);
-size_t tacc_type_alignment_p2(struct tacc_target *target,
-                              struct tacc_type *type);
-size_t tacc_type_size(struct tacc_target *target, struct tacc_type *type);
+size_t tacc_type_bit_width(struct tacc_type *type);
+size_t tacc_type_alignment_p2(struct tacc_type *type);
+size_t tacc_type_size(struct tacc_type *type);
 enum tacc_type_kind
 tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
                                        struct tacc_type *left,
-                                       struct tacc_type *right,
-                                       struct tacc_target *target);
+                                       struct tacc_type *right);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
-void tacc_gen_basic_types(struct tacc_type_list *into);
+void tacc_gen_basic_types(struct tacc_target *target,
+                          struct tacc_type_list *into);
 void tacc_type_free(struct tacc_type *type);
 void tacc_array_type_free(struct tacc_array_type *type);
 void tacc_function_type_free(struct tacc_function_type *type);

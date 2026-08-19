@@ -1353,7 +1353,7 @@ static void tacc_pp_state_init(struct tacc_pp_state *state,
     state->macros = tacc_macro_def_list_new(8192);
     state->target = target;
     state->basic_types = tacc_type_list_new();
-    tacc_gen_basic_types(state->basic_types);
+    tacc_gen_basic_types(target, state->basic_types);
 
     tacc_pp_define(state, "__STDC__", "1");
 }

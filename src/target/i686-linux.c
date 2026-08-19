@@ -41,8 +41,9 @@ struct tacc_target *tacc_target_new(void) {
     target->sllong = tacc_mk_twos_complement(64, 3, 1);
     target->ullong = tacc_mk_twos_complement(64, 3, 0);
     target->bool_ty = tacc_mk_twos_complement(8, 0, 0);
-    target->pointer_ty.alignment_p2 = 2;
-    target->pointer_ty.bit_width = 32;
+    target->pointer_ty = tacc_malloc(sizeof(struct tacc_ptr_type));
+    target->pointer_ty->alignment_p2 = 2;
+    target->pointer_ty->bit_width = 32;
 
     return target;
 }
@@ -65,5 +66,6 @@ void tacc_target_free(struct tacc_target *target) {
     tacc_free_int_type(target->sllong);
     tacc_free_int_type(target->ullong);
     tacc_free_int_type(target->bool_ty);
+    tacc_free(target->pointer_ty);
     tacc_free(target);
 }

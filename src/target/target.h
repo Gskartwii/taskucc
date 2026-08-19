@@ -10,6 +10,11 @@ struct tacc_int_type {
     struct tacc_u64 *max;
 };
 
+struct tacc_ptr_type {
+    size_t bit_width;
+    size_t alignment_p2;
+};
+
 struct tacc_target {
     tacc_bool signed_char;
     struct tacc_int_type *schar;
@@ -23,10 +28,7 @@ struct tacc_target {
     struct tacc_int_type *sllong;
     struct tacc_int_type *ullong;
     struct tacc_int_type *bool_ty;
-    struct {
-        size_t bit_width;
-        size_t alignment_p2;
-    } pointer_ty;
+    struct tacc_ptr_type *pointer_ty;
 };
 
 struct tacc_target *tacc_target_new(void);

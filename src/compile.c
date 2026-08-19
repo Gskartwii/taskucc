@@ -7,6 +7,7 @@
 #include "string_list.h"
 #include "target/codegen.h"
 #include "type.h"
+#include "util.h"
 #include <stdarg.h>
 
 MK_DYNARRAY_OVER(tacc_block_scope_list,
@@ -79,8 +80,8 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
     size_t alignment;
 
     if (tacc_type_is_integral(val->type)) {
-        bits = tacc_type_bit_width(compiler->target, val->type->kind);
-        alignment = tacc_type_alignment_p2(compiler->target, val->type);
+        bits = tacc_type_bit_width(val->type);
+        alignment = tacc_type_alignment_p2(val->type);
 
         tacc_compile_output_directive(compiler, "p2align %d", (int) alignment);
         tacc_compile_output(compiler, "\n%s:", tacc_dynstring_as_str(name));
@@ -154,7 +155,7 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
             }
             val = tacc_expr_const_eval(
                 expr, compiler->target, compiler->basic_types);
-            tacc_val_convert(val, for_type->kind, compiler->target);
+            tacc_val_convert(val, for_type);
             val->type = for_type;
         }
         tacc_compile_val(compiler, val, name);
@@ -413,17 +414,21 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
     while (1) {
         if (curr_declarator->kind == DECLARATOR_PLAIN ||
             curr_declarator->kind == DECLARATOR_ABSTRACT) {
-            return tacc_type_to_pointer(curr_type,
+            return tacc_type_to_pointer(compiler->target->pointer_ty,
+                                        curr_type,
                                         curr_declarator->indirection_level);
         }
         if (curr_declarator->kind == DECLARATOR_SUB) {
-            curr_type = tacc_type_to_pointer(
-                curr_type, curr_declarator->indirection_level);
+            curr_type =
+                tacc_type_to_pointer(compiler->target->pointer_ty,
+                                     curr_type,
+                                     curr_declarator->indirection_level);
             curr_declarator = curr_declarator->extra.sub_declarator;
             continue;
         }
         if (curr_declarator->kind == DECLARATOR_ARRAY) {
-            sub_type = tacc_type_to_pointer(curr_type,
+            sub_type = tacc_type_to_pointer(compiler->target->pointer_ty,
+                                            curr_type,
                                             curr_declarator->indirection_level);
             curr_type = tacc_type_new();
             curr_type->extra.array = tacc_array_type_new();
@@ -445,7 +450,9 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                 "array dimension must be an integer");
                     tacc_assert(!tacc_val_is_negative(dimension),
                                 "array dimension must be nonnegative");
-                    tacc_val_convert(dimension, TYK_UINT, compiler->target);
+                    tacc_val_convert(
+                        dimension,
+                        tacc_get_basic_type(compiler->basic_types, TYK_UINT));
                     curr_type->extra.array->dimension =
                         dimension->value.int_value;
                 } else {
@@ -457,8 +464,9 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
             continue;
         }
         /* function declarator */
-        sub_type =
-            tacc_type_to_pointer(curr_type, curr_declarator->indirection_level);
+        sub_type = tacc_type_to_pointer(compiler->target->pointer_ty,
+                                        curr_type,
+                                        curr_declarator->indirection_level);
         curr_type = tacc_type_new();
         curr_type->kind = TYK_FN;
         tacc_type_list_push(sub_type->derived_func_types, curr_type);
@@ -477,7 +485,9 @@ static void tacc_struct_push_field(struct tacc_compiler *compiler,
                                    struct tacc_field *field) {
     size_t alignment;
 
-    alignment = tacc_type_alignment_p2(compiler->target, field->type);
+    TACC_UNUSED(compiler);
+
+    alignment = tacc_type_alignment_p2(field->type);
     if (alignment < ty->alignment_p2) {
         ty->alignment_p2 = alignment;
     }
@@ -489,7 +499,9 @@ static void tacc_union_push_field(struct tacc_compiler *compiler,
                                   struct tacc_field *field) {
     size_t alignment;
 
-    alignment = tacc_type_alignment_p2(compiler->target, field->type);
+    TACC_UNUSED(compiler);
+
+    alignment = tacc_type_alignment_p2(field->type);
     if (alignment < ty->alignment_p2) {
         ty->alignment_p2 = alignment;
     }
@@ -532,13 +544,10 @@ tacc_eval_struct(struct tacc_compiler *compiler,
                 tacc_declarator_name(declarator_entry->content->underlying);
             if (declarator_entry->content->bitfield_size == NULL) {
                 bit_offset = tacc_align(
-                    bit_offset,
-                    3 + tacc_type_alignment_p2(compiler->target, adjusted_ty));
+                    bit_offset, 3 + tacc_type_alignment_p2(adjusted_ty));
                 field->offset = bit_offset >> 3;
                 tacc_struct_push_field(compiler, ty, field);
-                bit_offset =
-                    bit_offset +
-                    (tacc_type_size(compiler->target, adjusted_ty) << 3);
+                bit_offset = bit_offset + (tacc_type_size(adjusted_ty) << 3);
                 continue;
             } else {
                 tacc_assert(0, "TODO: evaluate bitfields in structures");
