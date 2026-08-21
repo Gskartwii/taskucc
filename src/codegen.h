@@ -42,6 +42,8 @@ struct tacc_cg_state {
     struct tacc_type_list *basic_types;
     struct tacc_slot_list *stack;
     struct tacc_string *code_buffer;
+    struct tacc_string *prelude_buffer;
+    size_t num_local_bytes;
 };
 
 struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
@@ -64,10 +66,16 @@ __attribute__((format(printf, 2, 3)))
 #endif
 void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...);
 
+#ifndef __M2__
+__attribute__((format(printf, 2, 3)))
+#endif
+void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...);
+
 struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state);
 void tacc_cg_pop(struct tacc_cg_state *state);
 void tacc_cg_state_free(struct tacc_cg_state *state);
 void tacc_slot_free(struct tacc_slot *slot);
+void tacc_cg_finalize(struct tacc_cg_state *state);
 
 struct tacc_target_place_register *tacc_target_place_register_new(void);
 void tacc_target_place_register_free(struct tacc_target_place_register *reg);

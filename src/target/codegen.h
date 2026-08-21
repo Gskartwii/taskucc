@@ -26,5 +26,6 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
 void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
                                  uint32_t reg_a,
                                  uint32_t reg_b);
+void tacc_target_cg_finalize(struct tacc_cg_state *state);
 
 #endif

@@ -5,13 +5,14 @@
 #include "util.h"
 
 struct tacc_target_cg_state {
-    int x;
+    uint32_t clobbered_registers;
 };
 
 struct tacc_target_cg_state *tacc_target_cg_state_new(void) {
     struct tacc_target_cg_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_target_cg_state));
+    state->clobbered_registers = 0;
 
     return state;
 }
@@ -265,4 +266,19 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
         state, "\n\t eor %s, %s, %s", reg_name_2, reg_name, reg_name);
     tacc_cg_output(
         state, "\n\t eor %s, %s, %s", reg_name, reg_name, reg_name_2);
+}
+
+void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    tacc_cg_output_prelude(state, "\n\t stp fp, lr, [sp, #-16]");
+    tacc_cg_output_prelude(state,
+                           "\n\t sub sp, sp, %d",
+                           ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
+    tacc_cg_output_prelude(state, "\n\t mov fp, sp");
+
+    tacc_cg_output(state, "\n\t mov sp, fp");
+    tacc_cg_output(state,
+                   "\n\t add sp, sp, %d",
+                   ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
+    tacc_cg_output(state, "\n\t ldp fp, lr, [sp, #-16]");
+    tacc_cg_output(state, "\n\t ret");
 }

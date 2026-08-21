@@ -201,3 +201,17 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
     tacc_cg_output(
         state, "\n\t xor %s, %s, %s", reg_name, reg_name, reg_name_2);
 }
+
+void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    tacc_cg_output_prelude(state, "\n\t sd ra, -8(sp)");
+    tacc_cg_output_prelude(state, "\n\t sd s0, -16(sp)");
+    tacc_cg_output_prelude(state, "\n\t mv s0, sp");
+    tacc_cg_output_prelude(state,
+                           "\n\t addi sp, sp, -%d",
+                           (int) (state->num_local_bytes + 16 + 0xF) & ~0xF);
+
+    tacc_cg_output(state, "\n\t mv sp, s0");
+    tacc_cg_output(state, "\n\t ld s0, -16(sp)");
+    tacc_cg_output(state, "\n\t ld ra, -8(sp)");
+    tacc_cg_output(state, "\n\t ret");
+}

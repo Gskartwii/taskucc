@@ -247,5 +247,22 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
     char *b_name;
     a_name = tacc_target_register_as_32(reg_a);
     b_name = tacc_target_register_as_32(reg_b);
-    tacc_cg_output(state, "\n\t xchg %s, %s", a_name, b_name);
+    tacc_cg_output(state, "\n\t xchgq %s, %s", a_name, b_name);
+}
+
+void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    /* sp at 16k - 4 */
+    tacc_cg_output_prelude(state, "\n\t pushl %%ebp");
+    /* sp at 16k - 8 */
+    tacc_cg_output_prelude(state, "\n\t subl $8, %%esp");
+    /* sp at 16k */
+    tacc_cg_output_prelude(state, "\n\t movl %%esp, %%ebp");
+    tacc_cg_output_prelude(state,
+                           "\n\t subl $%d, %%esp",
+                           (int) (state->num_local_bytes + 0xF) & ~0xF);
+
+    tacc_cg_output(state, "\n\t movl %%ebp, %%esp");
+    tacc_cg_output(state, "\n\t addl $8, %%esp");
+    tacc_cg_output(state, "\n\t popl %%ebp");
+    tacc_cg_output(state, "\n\t ret");
 }

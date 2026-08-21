@@ -800,10 +800,11 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
                         "\n%s:",
                         tacc_dynstring_as_str(tacc_declarator_name(
                             function_def->extra.func_def->func_declaration)));
+    tacc_cg_finalize(state);
+    tacc_compile_output(
+        compiler, "%s", tacc_dynstring_as_str(state->prelude_buffer));
     tacc_compile_output(
         compiler, "%s", tacc_dynstring_as_str(state->code_buffer));
-    tacc_compile_output(compiler, "\n.Lepilog:");
-    tacc_compile_output(compiler, "\n\t ret\n");
 
     tacc_cg_state_free(state);
     state = NULL;

@@ -294,3 +294,17 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
 
     tacc_cg_output(state, "\n\t xchgq %s, %s", reg_name, reg_name_2);
 }
+
+void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    /* function entry with stack at 16k - 8 */
+    tacc_cg_output_prelude(state, "\n\t pushq %%rbp");
+    /* stack now aligned to 16 bytes */
+    tacc_cg_output_prelude(state, "\n\t movq %%rsp, %%rbp");
+    tacc_cg_output_prelude(state,
+                           "\n\t subq $%d, %%rsp",
+                           (int) (state->num_local_bytes + 0xF) & ~0xF);
+
+    tacc_cg_output(state, "\n\t movq %%rbp, %%rsp");
+    tacc_cg_output(state, "\n\t popq %%rbp");
+    tacc_cg_output(state, "\n\t ret");
+}

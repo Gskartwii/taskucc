@@ -27,6 +27,14 @@ void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...) {
     va_end(va);
 }
 
+void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...) {
+    va_list va;
+
+    va_start(va, fmt);
+    tacc_dynstring_vprintf(state->prelude_buffer, fmt, va);
+    va_end(va);
+}
+
 struct tacc_cg_state *
 tacc_cg_state_new(struct tacc_target *target,
                   struct tacc_type_list *basic_types,
@@ -38,8 +46,10 @@ tacc_cg_state_new(struct tacc_target *target,
     state->target = target;
     state->basic_types = basic_types;
     state->code_buffer = tacc_dynstring_new();
+    state->prelude_buffer = tacc_dynstring_new();
     state->stack = tacc_slot_list_new();
     state->func_type = for_function;
+    state->num_local_bytes = 0;
 
     return state;
 }
@@ -298,6 +308,7 @@ void tacc_target_place_register_free(struct tacc_target_place_register *reg) {
 void tacc_cg_state_free(struct tacc_cg_state *state) {
     tacc_target_cg_state_free(state->target_state);
     tacc_dynstring_free(state->code_buffer);
+    tacc_dynstring_free(state->prelude_buffer);
     tacc_slot_list_free(state->stack);
     tacc_free(state->stack);
     tacc_free(state);
@@ -412,4 +423,9 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state) {
     tacc_assert(slot->place_kind == PLACE_REGISTER,
                 "expected register at stack top");
     return slot->place.reg->reg;
+}
+
+void tacc_cg_finalize(struct tacc_cg_state *state) {
+    tacc_cg_output(state, "\n.Lepilog:");
+    tacc_target_cg_finalize(state);
 }
