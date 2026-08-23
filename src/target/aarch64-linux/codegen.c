@@ -272,7 +272,7 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
 
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output_prelude(state, "\n\t stp fp, lr, [sp, #-16]");
-    /* volatile registers not allocated */
+    /* non-volatile registers not allocated */
     tacc_cg_output_prelude(state,
                            "\n\t sub sp, sp, %d",
                            ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
