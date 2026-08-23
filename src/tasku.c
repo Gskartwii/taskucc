@@ -7,7 +7,6 @@
 #include "target/target.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
-#include "test.h"
 #include "type.h"
 #include "util.h"
 #include <string.h>

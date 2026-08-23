@@ -76,7 +76,6 @@
     "format.h"
     "tasku_pp.h"
     "compile.h"
-    "test.h"
   ];
   m2-all = includes ++ local_hdrs ++ srcFiles;
 in
