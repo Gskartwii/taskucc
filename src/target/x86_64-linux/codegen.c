@@ -189,13 +189,14 @@ static char *tacc_target_op_suffix(size_t width) {
     }
 }
 
-void tacc_target_cg_int(struct tacc_cg_state *state,
-                        struct tacc_val *val,
-                        size_t width) {
+void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
     struct tacc_target_place_register *reg_place;
+    size_t width;
     char *reg;
     char *op_suff;
+
+    width = tacc_type_bit_width(val->type);
 
     register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
     reg = tacc_target_register_name(register_place, width);
@@ -242,10 +243,12 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
-                            size_t from_width,
-                            size_t to_width,
+                            struct tacc_type *ty,
                             tacc_bool is_sext) {
     enum tacc_target_register top_reg;
+    struct tacc_slot *slot;
+    size_t from_width;
+    size_t to_width;
     char *reg_name;
     char *reg_name_2;
     char *op_base;
@@ -257,6 +260,9 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     } else {
         op_base = "movz";
     }
+    slot = tacc_cg_get_top(state);
+    from_width = tacc_type_bit_width(slot->ty);
+    to_width = tacc_type_bit_width(ty);
     op_suff_from = tacc_target_op_suffix(from_width);
     op_suff_to = tacc_target_op_suffix(to_width);
     top_reg = tacc_cg_ensure_top_is_single(state);

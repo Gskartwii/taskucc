@@ -150,14 +150,14 @@ static char *tacc_target_register_name(enum tacc_target_register reg,
     }
 }
 
-void tacc_target_cg_int(struct tacc_cg_state *state,
-                        struct tacc_val *val,
-                        size_t width) {
+void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
     struct tacc_target_place_register *reg_place;
     char *reg;
+    size_t width;
 
     register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
+    width = tacc_type_bit_width(val->type);
     if (width <= 32) {
         reg = tacc_target_register_as_32(register_place);
     } else {
@@ -214,17 +214,20 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
-                            size_t from_width,
-                            size_t to_width,
+                            struct tacc_type *type,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
     enum tacc_target_register top_reg;
     char *reg_name;
     int width;
+    size_t from_width;
+    size_t to_width;
 
     slot = tacc_cg_get_top(state);
     tacc_cg_move(state, slot, REG_ANY);
     top_reg = slot->place.reg->reg;
+    from_width = tacc_type_bit_width(slot->ty);
+    to_width = tacc_type_bit_width(type);
     width = (int) from_width;
     if (to_width <= 32) {
         reg_name = tacc_target_register_as_32(top_reg);

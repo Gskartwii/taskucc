@@ -149,17 +149,18 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
-                            size_t from_width,
-                            size_t to_width,
+                            struct tacc_type *ty,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
     enum tacc_target_register top_reg;
     char *reg_name;
+    size_t from_width;
     int width;
 
-    TACC_UNUSED(to_width);
+    TACC_UNUSED(ty);
 
     slot = tacc_cg_get_top(state);
+    from_width = tacc_type_bit_width(slot->ty);
     tacc_target_cg_move(state, slot, REG_ANY);
     top_reg = slot->place.reg->reg;
     width = 64 - (int) from_width;

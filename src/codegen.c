@@ -56,11 +56,14 @@ tacc_cg_state_new(struct tacc_target *target,
 
 void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
+    struct tacc_slot *slot;
 
     switch (expr->kind) {
     case EX_INT_LIT:
         val = tacc_expr_const_eval(expr, state->target, state->basic_types);
-        tacc_target_cg_int(state, val, tacc_type_bit_width(val->type));
+        tacc_target_cg_int(state, val);
+        slot = tacc_cg_get_top(state);
+        slot->ty = val->type;
         tacc_val_free(val);
         break;
     case EX_UNINIT:
@@ -139,10 +142,10 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
     if (tacc_type_is_subset(to_type, from_type)) {
         return;
     }
-    tacc_target_cg_ext_top(state,
-                           tacc_type_bit_width(from_type),
-                           tacc_type_bit_width(to_type),
-                           tacc_type_kind_is_signed(to_type->kind));
+    tacc_target_cg_ext_top(
+        state, to_type, tacc_type_kind_is_signed(to_type->kind));
+    slot = tacc_cg_get_top(state);
+    slot->ty = to_type;
 }
 
 void tacc_cg_compile_body_member(struct tacc_cg_state *state,
@@ -157,8 +160,7 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
         tacc_cg_convert_top(state, state->func_type->return_type);
         tacc_assert(tacc_cg_top_is_int(state),
                     "TODO: return of non-integral type");
-        tacc_target_cg_return_top_int(
-            state, tacc_type_bit_width(state->func_type->return_type));
+        tacc_target_cg_return_top_int(state);
         break;
     case STMT_LABEL_NAMED:
     case STMT_CASE:

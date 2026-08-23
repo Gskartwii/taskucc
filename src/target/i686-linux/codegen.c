@@ -3,6 +3,7 @@
 #include "machine.h"
 #include "target/i686-linux/registers.h"
 #include "target/target.h"
+#include "type.h"
 #include "util.h"
 
 struct tacc_target_cg_state {
@@ -138,12 +139,13 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
                    tacc_target_register_as_32(to_reg));
 }
 
-void tacc_target_cg_int(struct tacc_cg_state *state,
-                        struct tacc_val *val,
-                        size_t width) {
+void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
     struct tacc_target_place_register *reg_place;
     char *reg;
+    size_t width;
+
+    width = tacc_type_bit_width(val->type);
 
     if (width > 32) {
         tacc_target_cg_int_pair(state, val);
@@ -164,7 +166,12 @@ void tacc_target_cg_int(struct tacc_cg_state *state,
     tacc_cg_push_reg(state, reg_place, val->type);
 }
 
-void tacc_target_cg_return_top_int(struct tacc_cg_state *state, size_t width) {
+void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
+    size_t width;
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+    width = tacc_type_bit_width(slot->ty);
     if (width > 32) {
         tacc_cg_move_pair(state, tacc_cg_get_top(state), REG_EAX, REG_EDX);
     } else {
@@ -185,21 +192,27 @@ void tacc_target_cg_state_free(struct tacc_target_cg_state *state) {
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
-                            size_t from_width,
-                            size_t to_width,
+                            struct tacc_type *type,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
     struct tacc_target_place_register *top_place;
     enum tacc_target_register top_reg;
     enum tacc_target_register top_reg_2;
+    size_t from_width;
+    size_t to_width;
     char *reg_name;
     char *reg_name_2;
     char *op_base;
     char *op_suff_from;
     char *op_suff_to;
 
+    slot = tacc_cg_get_top(state);
+    from_width = tacc_type_bit_width(slot->ty);
+    to_width = tacc_type_bit_width(type);
+
     if (from_width <= 32 && to_width > 32) {
-        tacc_target_cg_ext_top(state, from_width, 32, is_sext);
+        tacc_target_cg_ext_top(
+            state, tacc_get_basic_type(state->basic_types, TYK_UINT), is_sext);
         slot = tacc_cg_get_top(state);
         tacc_assert(slot->place_kind == PLACE_REGISTER,
                     "top must be single when extending with from_width <= 32");
