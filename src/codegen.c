@@ -50,6 +50,7 @@ tacc_cg_state_new(struct tacc_target *target,
     state->stack = tacc_slot_list_new();
     state->func_type = for_function;
     state->num_local_bytes = 0;
+    state->clobbered_registers = 0;
 
     return state;
 }
@@ -288,10 +289,12 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
         reg_chosen = slot_entry->content->place.reg->reg;
         tacc_cg_slot_spill(state, slot_entry->content);
-        return reg_chosen;
+    } else {
+        available = desired_registers & ~(occupied_registers);
+        reg_chosen = available & (-available);
     }
-    available = desired_registers & ~(occupied_registers);
-    return available & (-available);
+    state->clobbered_registers = state->clobbered_registers | reg_chosen;
+    return reg_chosen;
 }
 
 struct tacc_target_place_register *tacc_target_place_register_new(void) {

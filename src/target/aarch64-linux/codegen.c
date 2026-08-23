@@ -5,14 +5,13 @@
 #include "util.h"
 
 struct tacc_target_cg_state {
-    uint32_t clobbered_registers;
+    uint32_t x;
 };
 
 struct tacc_target_cg_state *tacc_target_cg_state_new(void) {
     struct tacc_target_cg_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_target_cg_state));
-    state->clobbered_registers = 0;
 
     return state;
 }
@@ -156,7 +155,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     char *reg;
     size_t width;
 
-    register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
+    register_place = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     width = tacc_type_bit_width(val->type);
     if (width <= 32) {
         reg = tacc_target_register_as_32(register_place);
@@ -224,7 +223,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     size_t to_width;
 
     slot = tacc_cg_get_top(state);
-    tacc_cg_move(state, slot, REG_ANY);
+    tacc_cg_move(state, slot, REG_VOLATILE);
     top_reg = slot->place.reg->reg;
     from_width = tacc_type_bit_width(slot->ty);
     to_width = tacc_type_bit_width(type);
@@ -273,6 +272,7 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
 
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output_prelude(state, "\n\t stp fp, lr, [sp, #-16]");
+    /* volatile registers not allocated */
     tacc_cg_output_prelude(state,
                            "\n\t sub sp, sp, %d",
                            ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);

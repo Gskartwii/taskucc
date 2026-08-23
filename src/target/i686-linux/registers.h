@@ -11,5 +11,7 @@ enum tacc_target_register {
 };
 
 #define REG_ANY 0x3F
+#define REG_NONVOLATILE 0x32
+#define REG_VOLATILE 0x0D
 
 #endif

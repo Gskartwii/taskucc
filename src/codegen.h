@@ -44,6 +44,7 @@ struct tacc_cg_state {
     struct tacc_string *code_buffer;
     struct tacc_string *prelude_buffer;
     size_t num_local_bytes;
+    uint32_t clobbered_registers;
 };
 
 struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,

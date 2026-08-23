@@ -198,7 +198,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
 
     width = tacc_type_bit_width(val->type);
 
-    register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
+    register_place = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     reg = tacc_target_register_name(register_place, width);
     op_suff = tacc_target_op_suffix(width);
     if (val->value.int_value->high == 0 || width <= 32) {
@@ -306,6 +306,9 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output_prelude(state, "\n\t pushq %%rbp");
     /* stack now aligned to 16 bytes */
     tacc_cg_output_prelude(state, "\n\t movq %%rsp, %%rbp");
+
+    /* non-volatile registers not allocated */
+
     tacc_cg_output_prelude(state,
                            "\n\t subq $%d, %%rsp",
                            (int) (state->num_local_bytes + 0xF) & ~0xF);

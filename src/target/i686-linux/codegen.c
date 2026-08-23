@@ -266,16 +266,23 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     /* sp at 16k - 4 */
     tacc_cg_output_prelude(state, "\n\t pushl %%ebp");
-    /* sp at 16k - 8 */
-    tacc_cg_output_prelude(state, "\n\t subl $8, %%esp");
-    /* sp at 16k */
     tacc_cg_output_prelude(state, "\n\t movl %%esp, %%ebp");
+
+    /* sp at 16k - 8 */
+    tacc_cg_output_prelude(state, "\n\t pushl %%ebx");
+    /* sp at 16k - 12 */
+    tacc_cg_output_prelude(state, "\n\t pushl %%esi");
+    /* sp at 16k - 16 */
+    tacc_cg_output_prelude(state, "\n\t pushl %%edi");
+
     tacc_cg_output_prelude(state,
                            "\n\t subl $%d, %%esp",
                            (int) (state->num_local_bytes + 0xF) & ~0xF);
 
-    tacc_cg_output(state, "\n\t movl %%ebp, %%esp");
-    tacc_cg_output(state, "\n\t addl $8, %%esp");
+    tacc_cg_output(state, "\n\t leal -12(%%ebp), %%esp");
+    tacc_cg_output(state, "\n\t popl %%edi");
+    tacc_cg_output(state, "\n\t popl %%esi");
+    tacc_cg_output(state, "\n\t popl %%ebx");
     tacc_cg_output(state, "\n\t popl %%ebp");
     tacc_cg_output(state, "\n\t ret");
 }

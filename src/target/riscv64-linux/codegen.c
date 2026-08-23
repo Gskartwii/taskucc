@@ -78,7 +78,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     struct tacc_target_place_register *reg_place;
     char *reg;
 
-    register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
+    register_place = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     reg = tacc_target_register_as_64(register_place);
     tacc_cg_output(state, "\n\t li %s, 0x%x", reg, val->value.int_value->high);
     tacc_cg_output(state, "\n\t slli %s, %s, 12", reg, reg);
@@ -161,7 +161,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
     from_width = tacc_type_bit_width(slot->ty);
-    tacc_target_cg_move(state, slot, REG_ANY);
+    tacc_target_cg_move(state, slot, REG_VOLATILE);
     top_reg = slot->place.reg->reg;
     width = 64 - (int) from_width;
     reg_name = tacc_target_register_as_64(top_reg);
