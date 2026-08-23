@@ -260,7 +260,7 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
     char *b_name;
     a_name = tacc_target_register_as_32(reg_a);
     b_name = tacc_target_register_as_32(reg_b);
-    tacc_cg_output(state, "\n\t xchgq %s, %s", a_name, b_name);
+    tacc_cg_output(state, "\n\t xchgl %s, %s", a_name, b_name);
 }
 
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
