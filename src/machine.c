@@ -497,6 +497,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
     case EX_COMPOUND_LIT:
         tacc_assert(0, "todo: (_){_} consteval");
         break;
+    case EX_NAME_OF_FUNC:
+        tacc_assert(0, "todo: __FUCNTION__ consteval");
+        break;
     }
     return NULL;
 }

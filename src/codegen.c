@@ -120,6 +120,7 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     case EX_SIZEOF_TY:
     case EX_SELECT:
     case EX_COMPOUND_LIT:
+    case EX_NAME_OF_FUNC:
         tacc_assert(0, "TODO: unsupported expression in codegen");
         break;
     }

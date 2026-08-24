@@ -473,21 +473,26 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
     } else {
         tok = tacc_tok_iter_peek(iter);
         if (tacc_tok_non_kw_ident(tok)) {
-            expr->kind = EX_IDENT;
-            tacc_parse_assert(
-                iter, tok->str != NULL, "need str to parse ident");
-            ident_entry = tacc_parse_registry_lookup_untagged(
-                registry, tacc_dynstring_as_str(tok->str));
-            tacc_assert(ident_entry != NULL,
-                        "referenced ident not found: %s",
-                        tacc_dynstring_as_str(tok->str));
-            tacc_assert(
-                ident_entry->kind == UNTAGGED_IDENT_OBJECT ||
-                    ident_entry->kind == UNTAGGED_IDENT_ENUMERATOR,
-                "primary expression doesn't refer to recognized object: %s",
-                tacc_dynstring_as_str(tok->str));
-            expr->extra.name_ref = ident_entry->name_ref;
-            tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            if (!strcmp("__FUNCTION__", tacc_dynstring_as_str(tok->str))) {
+                expr->kind = EX_NAME_OF_FUNC;
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            } else {
+                expr->kind = EX_IDENT;
+                tacc_parse_assert(
+                    iter, tok->str != NULL, "need str to parse ident");
+                ident_entry = tacc_parse_registry_lookup_untagged(
+                    registry, tacc_dynstring_as_str(tok->str));
+                tacc_assert(ident_entry != NULL,
+                            "referenced ident not found: %s",
+                            tacc_dynstring_as_str(tok->str));
+                tacc_assert(
+                    ident_entry->kind == UNTAGGED_IDENT_OBJECT ||
+                        ident_entry->kind == UNTAGGED_IDENT_ENUMERATOR,
+                    "primary expression doesn't refer to recognized object: %s",
+                    tacc_dynstring_as_str(tok->str));
+                expr->extra.name_ref = ident_entry->name_ref;
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
+            }
         } else if (tok->kind == TOK_PPNUM) {
             expr->kind = EX_INT_LIT;
             expr->extra.int_literal = tacc_parse_numlit(tok);

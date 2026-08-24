@@ -68,7 +68,9 @@ enum tacc_expr_kind {
     EX_SIZEOF,
     EX_SIZEOF_TY,
     EX_SELECT,
-    EX_COMPOUND_LIT
+    EX_COMPOUND_LIT,
+
+    EX_NAME_OF_FUNC
 };
 
 struct tacc_expr;
