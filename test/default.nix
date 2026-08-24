@@ -77,39 +77,41 @@ in
           ok=true
 
           file=${tinycc-src}/tcc.c
-          flags="\
-            -E \
-            $file \
-            -I ${../tasku-libc/include} \
-            -DONE_SOURCE \
-            -DTCC_TARGET_X86_64=1 \
-            -DBOOTSTRAP=1 \
-            -DCONFIG_TCCDIR=\"\" \
-            -DCONFIG_SYSROOT=\"\" \
-            -DCONFIG_TCC_CRTPREFIX=\"{B}\" \
-            -DCONFIG_TCC_ELFINTERP=\"\" \
-            -DCONFIG_TCC_LIBPATHS=\"{B}\" \
-            -DCONFIG_TCC_SYSINCLUDEPATHS=\"\" \
-            -DTCC_LIBGCC=\"libc.a\" \
-            -DTCC_LIBTCC1=\"libtcc1.a\" \
-            -DCONFIG_TCCBOOT=1 \
-            -DCONFIG_TCC_STATIC=1 \
-            -DCONFIG_USE_LIBGCC=1 \
-            -DTCC_VERSION=\"0.9.28\" \
-            -DCONFIG_TCC_SEMLOCK=0"
+          for mode in -E -dA; do
+            flags="\
+              $mode \
+              $file \
+              -I ${../tasku-libc/include} \
+              -DONE_SOURCE \
+              -DTCC_TARGET_X86_64=1 \
+              -DBOOTSTRAP=1 \
+              -DCONFIG_TCCDIR=\"\" \
+              -DCONFIG_SYSROOT=\"\" \
+              -DCONFIG_TCC_CRTPREFIX=\"{B}\" \
+              -DCONFIG_TCC_ELFINTERP=\"\" \
+              -DCONFIG_TCC_LIBPATHS=\"{B}\" \
+              -DCONFIG_TCC_SYSINCLUDEPATHS=\"\" \
+              -DTCC_LIBGCC=\"libc.a\" \
+              -DTCC_LIBTCC1=\"libtcc1.a\" \
+              -DCONFIG_TCCBOOT=1 \
+              -DCONFIG_TCC_STATIC=1 \
+              -DCONFIG_USE_LIBGCC=1 \
+              -DTCC_VERSION=\"0.9.28\" \
+              -DCONFIG_TCC_SEMLOCK=0"
 
-          if ! timeout 5 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
-            ok=false
-            echo "tasku-gcc failed on $file"
-          fi
-          if ! timeout 90 tasku-m2 $flags | pv -r > tasku-m2-test; then
-            ok=false
-            echo "tasku-m2 failed on $file; timeout"
-          fi
-          if ! diff -q tasku-gcc-test tasku-m2-test; then
-            ok=false
-            echo "mismatch found"
-          fi
+            if ! timeout 5 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
+              ok=false
+              echo "tasku-gcc $mode failed on $file"
+            fi
+            if ! timeout 90 tasku-m2 $flags | pv -r > tasku-m2-test; then
+              ok=false
+              echo "tasku-m2 $mode failed on $file; timeout"
+            fi
+            if ! diff -q tasku-gcc-test tasku-m2-test; then
+              ok=false
+              echo "mismatch found"
+            fi
+          done
           echo "$bn: ok"
           if $ok; then
             touch "$out"

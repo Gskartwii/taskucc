@@ -111,6 +111,7 @@ static struct tacc_ident_scope *tacc_ident_scope_new(void) {
 
     scope = tacc_malloc(sizeof(struct tacc_ident_scope));
     scope->untagged_idents = tacc_untagged_ident_list_new(0x1000);
+    scope->tagged_idents = tacc_tagged_ident_list_new(0x1000);
 
     return scope;
 }
@@ -1188,15 +1189,19 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
     if (tok->kind == TOK_LBRACKET) {
         /* spawn a new type that is incomplete */
         tacc_pp_tok_free(tacc_tok_iter_next(iter));
-        name_ref = tacc_parse_registry_intern(registry, tag_name);
-        if (kind == ID_ENUM) {
-            tag_kind = TAGGED_IDENT_ENUM;
-        } else if (kind == ID_UNION) {
-            tag_kind = TAGGED_IDENT_UNION;
+        if (tag_name == NULL) {
+            name_ref = 0;
         } else {
-            tag_kind = TAGGED_IDENT_STRUCT;
+            name_ref = tacc_parse_registry_intern(registry, tag_name);
+            if (kind == ID_ENUM) {
+                tag_kind = TAGGED_IDENT_ENUM;
+            } else if (kind == ID_UNION) {
+                tag_kind = TAGGED_IDENT_UNION;
+            } else {
+                tag_kind = TAGGED_IDENT_STRUCT;
+            }
+            tacc_parse_registry_add_tagged(registry, name_ref, tag_kind);
         }
-        tacc_parse_registry_add_tagged(registry, name_ref, tag_kind);
         out_type->name_ref = name_ref;
 
         if (kind == ID_ENUM) {
@@ -2158,6 +2163,8 @@ void tacc_tagged_ident_free(struct tacc_tagged_ident *ident) {
 void tacc_ident_scope_free(struct tacc_ident_scope *scope) {
     tacc_untagged_ident_list_free(scope->untagged_idents);
     tacc_free(scope->untagged_idents);
+    tacc_tagged_ident_list_free(scope->tagged_idents);
+    tacc_free(scope->tagged_idents);
     tacc_free(scope);
 }
 
