@@ -482,7 +482,8 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                         "referenced ident not found: %s",
                         tacc_dynstring_as_str(tok->str));
             tacc_assert(
-                ident_entry->kind == UNTAGGED_IDENT_OBJECT,
+                ident_entry->kind == UNTAGGED_IDENT_OBJECT ||
+                    ident_entry->kind == UNTAGGED_IDENT_ENUMERATOR,
                 "primary expression doesn't refer to recognized object: %s",
                 tacc_dynstring_as_str(tok->str));
             expr->extra.name_ref = ident_entry->name_ref;
@@ -1523,7 +1524,8 @@ static void tacc_parse_name_list(struct tacc_tok_iter *iter,
 
 void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
                                 struct tacc_tok_iter *iter,
-                                struct tacc_parse_registry *registry) {
+                                struct tacc_parse_registry *registry,
+                                tacc_bool maybe_def_function) {
     struct tacc_function_param *param;
     enum tacc_storage_class storage_class;
     uint32_t param_name;
@@ -1562,7 +1564,7 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
         tacc_function_param_list_push(decl->param_list.modern_params, param);
     } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
 
-    if (registry->pending_func_proto_scope != NULL) {
+    if (registry->pending_func_proto_scope != NULL || !maybe_def_function) {
         tacc_parse_registry_end_scope(registry);
     } else {
         registry->pending_func_proto_scope =
@@ -1634,14 +1636,18 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
             declarator->extra.func_decl = tacc_function_declarator_new();
             declarator->extra.func_decl->sub_declarator = sub;
             if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
-                tacc_parse_registry_save_empty_scope(registry);
+                if (context == DECL_CONTEXT_TOP_LEVEL) {
+                    tacc_parse_registry_save_empty_scope(registry);
+                }
                 declarator->extra.func_decl->param_list_kind =
                     FUNCPARAM_EMPTY_LIST;
                 continue;
             }
             if (tacc_tok_iter_accept_kw(iter, ID_VOID)) {
                 if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
-                    tacc_parse_registry_save_empty_scope(registry);
+                    if (context == DECL_CONTEXT_TOP_LEVEL) {
+                        tacc_parse_registry_save_empty_scope(registry);
+                    }
                     declarator->extra.func_decl->param_list_kind =
                         FUNCPARAM_VOID;
                     continue;
@@ -1654,7 +1660,9 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                  * only permissible in function definition, but don't check
                  * this yet
                  */
-                tacc_parse_registry_save_empty_scope(registry);
+                if (context == DECL_CONTEXT_TOP_LEVEL) {
+                    tacc_parse_registry_save_empty_scope(registry);
+                }
                 declarator->extra.func_decl->param_list_kind =
                     FUNCPARAM_OLD_STYLE_LIST;
                 declarator->extra.func_decl->param_list.old_style_params =
@@ -1667,8 +1675,10 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                                   "expected ) in function declarator");
                 continue;
             }
-            tacc_parse_func_param_list(
-                declarator->extra.func_decl, iter, registry);
+            tacc_parse_func_param_list(declarator->extra.func_decl,
+                                       iter,
+                                       registry,
+                                       context == DECL_CONTEXT_TOP_LEVEL);
             tacc_parse_assert(iter,
                               tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                               "expected ) in function declarator");
