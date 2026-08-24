@@ -78,17 +78,19 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
     }                                                                       \
     struct elem_wrapper_type *get_func(struct hash_type *map, char *key) {  \
         size_t i;                                                           \
+        uint32_t h;                                                         \
         struct elem_wrapper_type *probe;                                    \
         elem_type content;                                                  \
                                                                             \
-        i = tacc_str_hash(key);                                             \
+        h = tacc_str_hash(key);                                             \
+        i = 0;                                                              \
         while (1) {                                                         \
-            probe = tacc_dynhash_probe(map->map, i);                        \
+            probe = tacc_dynhash_probe(map->map, h + i + i * i);            \
             if (probe->content == NULL) {                                   \
                 break;                                                      \
             }                                                               \
             content = probe->content;                                       \
-            if (!strcmp(content->hash_key, key)) {                          \
+            if (tacc_str_is_eq(content->hash_key, key)) {                   \
                 return probe;                                               \
             }                                                               \
             i = i + 1;                                                      \
@@ -99,21 +101,23 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         struct elem_wrapper_type *probe;                                    \
         struct elem_wrapper_type wrapper;                                   \
         size_t i;                                                           \
+        uint32_t h;                                                         \
                                                                             \
         tacc_assert(map->map->fill < map->map->cap,                         \
                     "TODO: grow hashmap: %d == %d",                         \
                     map->map->fill,                                         \
                     map->map->cap);                                         \
-        i = tacc_str_hash(content->hash_key);                               \
+        h = tacc_str_hash(content->hash_key);                               \
+        i = 0;                                                              \
         while (1) {                                                         \
-            probe = tacc_dynhash_probe(map->map, i);                        \
+            probe = tacc_dynhash_probe(map->map, h + i + i * i);            \
             if (probe->content == NULL) {                                   \
                 break;                                                      \
             }                                                               \
             i = i + 1;                                                      \
         }                                                                   \
         wrapper.content = content;                                          \
-        tacc_dynhash_insert_new(map->map, i, &wrapper);                     \
+        tacc_dynhash_insert_new(map->map, h + i + i * i, &wrapper);         \
     }                                                                       \
     size_t fill_count_func(struct hash_type *map) {                         \
         return tacc_dynhash_fill_count(map->map);                           \

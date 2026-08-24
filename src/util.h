@@ -23,5 +23,6 @@ void *tacc_malloc(size_t sz);
 void tacc_free(void *allocation);
 uint8_t tacc_hex_to_dec(char hex);
 size_t tacc_sizeadj(size_t count, size_t size);
+tacc_bool tacc_str_is_eq(char *a, char *b);
 
 #endif

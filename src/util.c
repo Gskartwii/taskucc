@@ -51,3 +51,14 @@ size_t tacc_sizeadj(size_t count, size_t size) {
     return count;
 #endif
 }
+
+tacc_bool tacc_str_is_eq(char *a, char *b) {
+    while (*a == *b) {
+        if (*a == 0) {
+            return 1;
+        }
+        a = a + 1;
+        b = b + 1;
+    }
+    return 0;
+}
