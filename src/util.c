@@ -25,8 +25,11 @@ void *tacc_malloc(size_t sz) {
 }
 
 void tacc_free(void *allocation) {
+    /* on M2, free() is extremely slow; disable it by default */
+#ifndef __M2__
     tacc_assert(allocation != NULL, "free of NULL");
     free(allocation);
+#endif
 }
 
 uint8_t tacc_hex_to_dec(char hex) {
