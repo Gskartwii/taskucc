@@ -8,8 +8,11 @@
   taskuPkgSet = import ../.;
   testOn = config: let
     taskuPkgSet' = taskuPkgSet config;
-  in
-    taskuPkgSet'.tasku-test.target-unit-test;
+  in {
+    unit-test = taskuPkgSet'.tasku-test.target-unit-test;
+    compare-m2-gcc = taskuPkgSet'.tasku-test.compare-m2-gcc;
+    recurseForDerivations = true;
+  };
 in
   builtins.listToAttrs (builtins.concatMap (localSystem:
     map (crossSystem: {
