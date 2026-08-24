@@ -4,5 +4,8 @@
 typedef char va_list[1];
 
 #define va_arg(x, y) x
+#define va_start(x, p)
+#define va_copy(x, y)
+#define va_end(x)
 
 #endif
