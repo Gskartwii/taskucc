@@ -2106,49 +2106,58 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
             if (ctx == DECL_CONTEXT_TOP_LEVEL) {
                 innermost_declarator =
                     tacc_declarator_base_function(declarator);
-                if (innermost_declarator != NULL &&
-                    innermost_declarator->extra.func_decl->param_list_kind ==
-                        FUNCPARAM_OLD_STYLE_LIST) {
-                    tacc_parse_registry_start_scope(registry);
-                    /*
-                     * don't import prototype! identifier-list contains no
-                     * types. c99 requires all parameters to be declared along
-                     * with their respective types in the list that follows.
-                     */
-                    tacc_ident_scope_free(registry->pending_func_proto_scope);
-                    registry->pending_func_proto_scope = NULL;
+                if (innermost_declarator != NULL) {
+                    if (innermost_declarator->extra.func_decl
+                            ->param_list_kind == FUNCPARAM_OLD_STYLE_LIST) {
+                        tacc_parse_registry_start_scope(registry);
+                        /*
+                         * don't import prototype! identifier-list contains no
+                         * types. c99 requires all parameters to be declared
+                         * along with their respective types in the list that
+                         * follows.
+                         */
+                        tacc_ident_scope_free(
+                            registry->pending_func_proto_scope);
+                        registry->pending_func_proto_scope = NULL;
 
-                    old_style_param_list =
-                        tacc_parse_old_style_param_types(registry, iter);
-                    tacc_init_declarator_list_free(to_parse->extra.declarators);
-                    tacc_free(to_parse->extra.declarators);
-                    to_parse->kind = DECL_FUNCTION_DEF;
-                    to_parse->extra.func_def =
-                        tacc_parse_func_def(declarator,
-                                            innermost_declarator,
-                                            registry,
-                                            iter,
-                                            old_style_param_list);
-                    tacc_parse_registry_end_scope(registry);
-                    break;
-                }
-                if (innermost_declarator != NULL &&
-                    tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
-                    tacc_init_declarator_list_free(to_parse->extra.declarators);
-                    tacc_free(to_parse->extra.declarators);
-                    to_parse->kind = DECL_FUNCTION_DEF;
+                        old_style_param_list =
+                            tacc_parse_old_style_param_types(registry, iter);
+                        tacc_init_declarator_list_free(
+                            to_parse->extra.declarators);
+                        tacc_free(to_parse->extra.declarators);
+                        to_parse->kind = DECL_FUNCTION_DEF;
+                        to_parse->extra.func_def =
+                            tacc_parse_func_def(declarator,
+                                                innermost_declarator,
+                                                registry,
+                                                iter,
+                                                old_style_param_list);
+                        tacc_parse_registry_end_scope(registry);
+                        break;
+                    }
+                    if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+                        tacc_init_declarator_list_free(
+                            to_parse->extra.declarators);
+                        tacc_free(to_parse->extra.declarators);
+                        to_parse->kind = DECL_FUNCTION_DEF;
 
-                    tacc_assert(
-                        registry->pending_func_proto_scope != NULL,
-                        "ICE: expected to find function prototype scope when entering function definition");
-                    tacc_ident_scope_list_push(
-                        registry->scopes, registry->pending_func_proto_scope);
-                    registry->pending_func_proto_scope = NULL;
+                        tacc_assert(
+                            registry->pending_func_proto_scope != NULL,
+                            "ICE: expected to find function prototype scope when entering function definition");
+                        tacc_ident_scope_list_push(
+                            registry->scopes,
+                            registry->pending_func_proto_scope);
+                        registry->pending_func_proto_scope = NULL;
 
-                    to_parse->extra.func_def = tacc_parse_func_def(
-                        declarator, innermost_declarator, registry, iter, NULL);
-                    tacc_parse_registry_end_scope(registry);
-                    break;
+                        to_parse->extra.func_def =
+                            tacc_parse_func_def(declarator,
+                                                innermost_declarator,
+                                                registry,
+                                                iter,
+                                                NULL);
+                        tacc_parse_registry_end_scope(registry);
+                        break;
+                    }
                 }
             }
             if (registry->pending_func_proto_scope != NULL) {
