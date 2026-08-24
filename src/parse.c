@@ -129,6 +129,13 @@ tacc_parse_registry_end_scope(struct tacc_parse_registry *registry) {
     tacc_ident_scope_free(tacc_ident_scope_list_pop(registry->scopes));
 }
 
+static void
+tacc_parse_registry_save_empty_scope(struct tacc_parse_registry *registry) {
+    if (registry->pending_func_proto_scope == NULL) {
+        registry->pending_func_proto_scope = tacc_ident_scope_new();
+    }
+}
+
 static void tacc_parse_expr_bump_to_op1(struct tacc_expr *expr) {
     struct tacc_expr *new_expr;
 
@@ -1627,12 +1634,14 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
             declarator->extra.func_decl = tacc_function_declarator_new();
             declarator->extra.func_decl->sub_declarator = sub;
             if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                tacc_parse_registry_save_empty_scope(registry);
                 declarator->extra.func_decl->param_list_kind =
                     FUNCPARAM_EMPTY_LIST;
                 continue;
             }
             if (tacc_tok_iter_accept_kw(iter, ID_VOID)) {
                 if (tacc_tok_iter_accept_tok(iter, TOK_RPAREN)) {
+                    tacc_parse_registry_save_empty_scope(registry);
                     declarator->extra.func_decl->param_list_kind =
                         FUNCPARAM_VOID;
                     continue;
@@ -1645,6 +1654,7 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
                  * only permissible in function definition, but don't check
                  * this yet
                  */
+                tacc_parse_registry_save_empty_scope(registry);
                 declarator->extra.func_decl->param_list_kind =
                     FUNCPARAM_OLD_STYLE_LIST;
                 declarator->extra.func_decl->param_list.old_style_params =
