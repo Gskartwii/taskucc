@@ -5,8 +5,16 @@ typedef signed long int ssize_t;
 
 typedef unsigned long int size_t;
 
+typedef signed long int off_t;
+
+int close(int fd);
+int execvp(const char *file, char *const argv[]);
+char *getcwd(char *buf, size_t size);
+char *getenv(const char *name);
+off_t lseek(int fd, off_t offset, int whence);
 int open(const char *path, int flags, ...
          /* mode_t mode */);
 ssize_t read(int fd, void *buf, size_t count);
+int unlink(const char *path);
 
 #endif

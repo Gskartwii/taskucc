@@ -4,4 +4,7 @@
 /* not final */
 typedef long jmp_buf[4];
 
+void longjmp(jmp_buf env, int val);
+int setjmp(jmp_buf env);
+
 #endif

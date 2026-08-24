@@ -5,4 +5,6 @@ typedef struct {
     int temporary;
 } time_t;
 
+int gettimeofday(struct timeval *restrict tv, struct timezone *restrict tz);
+
 #endif
