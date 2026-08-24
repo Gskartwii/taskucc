@@ -19,6 +19,18 @@ MK_DYNARRAY_OVER(tacc_slot_list,
                  tacc_slot_free,
                  tacc_slot_list_free)
 
+MK_DYNHASH_OVER_U32(tacc_local_var_map,
+                    name_ref,
+                    tacc_local_var_map_entry,
+                    struct tacc_local_var *,
+                    tacc_local_var_map_new,
+                    tacc_local_var_map_init,
+                    tacc_local_var_map_get,
+                    tacc_local_var_map_insert,
+                    tacc_local_var_map_fill_count,
+                    tacc_local_var_free,
+                    tacc_local_var_map_free)
+
 void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...) {
     va_list va;
 
@@ -35,10 +47,8 @@ void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...) {
     va_end(va);
 }
 
-struct tacc_cg_state *
-tacc_cg_state_new(struct tacc_target *target,
-                  struct tacc_type_list *basic_types,
-                  struct tacc_function_type *for_function) {
+struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
+                                        struct tacc_type_list *basic_types) {
     struct tacc_cg_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_cg_state));
@@ -48,9 +58,10 @@ tacc_cg_state_new(struct tacc_target *target,
     state->code_buffer = tacc_dynstring_new();
     state->prelude_buffer = tacc_dynstring_new();
     state->stack = tacc_slot_list_new();
-    state->func_type = for_function;
+    state->locals = tacc_local_var_map_new(0x100);
     state->num_local_bytes = 0;
     state->clobbered_registers = 0;
+    state->func_type = NULL;
 
     return state;
 }
@@ -182,13 +193,36 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
     }
 }
 
-void tacc_cg_compile_statements(struct tacc_cg_state *state,
-                                struct tacc_compound_member_list *statements) {
+void tacc_cg_compile_function(struct tacc_cg_state *state,
+                              struct tacc_funcdef *func_def,
+                              struct tacc_function_type *func_type) {
     size_t i;
     struct tacc_compound_member_list_entry *entry;
+    struct tacc_declarator *declarator;
+    struct tacc_function_param_list *param_list;
+    struct tacc_function_param_list_entry *param_entry;
+    struct tacc_type_list_entry *param_type_entry;
 
-    for (i = 0; i < tacc_compound_member_list_len(statements); i = i + 1) {
-        entry = tacc_compound_member_list_get(statements, i);
+    state->func_type = func_type;
+
+    tacc_assert(!state->func_type->is_vararg,
+                "TODO: support vararg in compile_statements");
+    declarator = func_def->innermost_declarator;
+    if (declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST) {
+        param_list = declarator->extra.func_decl->param_list.modern_params;
+        for (i = 0; i < tacc_function_param_list_len(param_list); i = i + 1) {
+            param_entry = tacc_function_param_list_get(param_list, i);
+            param_type_entry = tacc_type_list_get(func_type->param_types, i);
+            tacc_cg_alloc_variable(
+                state,
+                param_type_entry->content,
+                tacc_declarator_name(param_entry->content->decl));
+        }
+    }
+
+    for (i = 0; i < tacc_compound_member_list_len(func_def->statements);
+         i = i + 1) {
+        entry = tacc_compound_member_list_get(func_def->statements, i);
         tacc_cg_compile_body_member(state, entry->content);
     }
 }
@@ -315,6 +349,8 @@ void tacc_cg_state_free(struct tacc_cg_state *state) {
     tacc_target_cg_state_free(state->target_state);
     tacc_dynstring_free(state->code_buffer);
     tacc_dynstring_free(state->prelude_buffer);
+    tacc_local_var_map_free(state->locals);
+    tacc_free(state->locals);
     tacc_slot_list_free(state->stack);
     tacc_free(state->stack);
     tacc_free(state);
@@ -435,3 +471,38 @@ void tacc_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n.Lepilog:");
     tacc_target_cg_finalize(state);
 }
+
+struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
+                                              struct tacc_type *ty,
+                                              uint32_t name_ref) {
+    struct tacc_local_var *var;
+    size_t size;
+    size_t align;
+
+    size = tacc_type_size(ty);
+    align = tacc_type_alignment_p2(ty);
+    tacc_assert(
+        align <= 4, "type alignment %d exceeds stack alignment of 16", align);
+    state->num_local_bytes = tacc_align_up(state->num_local_bytes, align);
+    state->num_local_bytes = state->num_local_bytes + size;
+    var = tacc_local_var_new();
+    var->name_ref = name_ref;
+    var->offset = state->num_local_bytes;
+    var->ty = ty;
+    tacc_local_var_map_insert(state->locals, var);
+
+    return var;
+}
+
+struct tacc_local_var *tacc_local_var_new(void) {
+    struct tacc_local_var *var;
+
+    var = tacc_malloc(sizeof(struct tacc_local_var));
+    var->name_ref = 0;
+    var->ty = NULL;
+    var->offset = 0;
+
+    return var;
+}
+
+void tacc_local_var_free(struct tacc_local_var *var) { tacc_free(var); }

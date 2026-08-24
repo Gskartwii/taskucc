@@ -1,9 +1,9 @@
 #ifndef TACC_CODEGEN_H
 #define TACC_CODEGEN_H
 
+#include "decl.h"
 #include "dynarray.h"
 #include "machine.h"
-#include "statement.h"
 #include "target/target.h"
 #include "type.h"
 
@@ -24,6 +24,12 @@ struct tacc_slot {
     } place;
 };
 
+struct tacc_local_var {
+    uint32_t name_ref;
+    struct tacc_type *ty;
+    size_t offset;
+};
+
 DECL_DYNARRAY_OVER(tacc_slot_list,
                    tacc_slot_list_entry,
                    struct tacc_slot *,
@@ -35,6 +41,16 @@ DECL_DYNARRAY_OVER(tacc_slot_list,
                    tacc_slot_list_len,
                    tacc_slot_list_free)
 
+DECL_DYNHASH_OVER_U32(tacc_local_var_map,
+                      tacc_local_var_map_entry,
+                      struct tacc_local_var *,
+                      tacc_local_var_map_new,
+                      tacc_local_var_map_init,
+                      tacc_local_var_map_get,
+                      tacc_local_var_map_insert,
+                      tacc_local_var_map_fill_count,
+                      tacc_local_var_map_free)
+
 struct tacc_cg_state {
     struct tacc_function_type *func_type;
     struct tacc_target_cg_state *target_state;
@@ -43,16 +59,18 @@ struct tacc_cg_state {
     struct tacc_slot_list *stack;
     struct tacc_string *code_buffer;
     struct tacc_string *prelude_buffer;
+    struct tacc_local_var_map *locals;
     size_t num_local_bytes;
     uint32_t clobbered_registers;
 };
 
 struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
-                                        struct tacc_type_list *basic_types,
-                                        struct tacc_function_type *for_type);
+                                        struct tacc_type_list *basic_types);
+struct tacc_local_var *tacc_local_var_new(void);
 
-void tacc_cg_compile_statements(struct tacc_cg_state *state,
-                                struct tacc_compound_member_list *statements);
+void tacc_cg_compile_function(struct tacc_cg_state *state,
+                              struct tacc_funcdef *func_def,
+                              struct tacc_function_type *func_type);
 void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot);
 void tacc_cg_push_reg(struct tacc_cg_state *state,
                       struct tacc_target_place_register *reg,
@@ -96,5 +114,9 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,
                                 uint32_t *hi_reg);
 uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state);
+struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
+                                              struct tacc_type *ty,
+                                              uint32_t name_ref);
+void tacc_local_var_free(struct tacc_local_var *var);
 
 #endif

@@ -340,10 +340,6 @@ static void tacc_union_push_field(struct tacc_compiler *compiler,
     tacc_field_list_push(ty->fields, field);
 }
 
-static size_t tacc_align(size_t x, size_t alignment_p2) {
-    return x & ~((size_t) ((1 << alignment_p2) - 1));
-}
-
 static struct tacc_struct_type *
 tacc_eval_struct(struct tacc_compiler *compiler,
                  struct tacc_struct_decl_list *struct_fields) {
@@ -375,7 +371,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
                 compiler,
                 tacc_declarator_name(declarator_entry->content->underlying));
             if (declarator_entry->content->bitfield_size == NULL) {
-                bit_offset = tacc_align(
+                bit_offset = tacc_align_up(
                     bit_offset, 3 + tacc_type_alignment_p2(adjusted_ty));
                 field->offset = bit_offset >> 3;
                 tacc_struct_push_field(compiler, ty, field);
@@ -386,7 +382,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
             }
         }
     }
-    ty->size = tacc_align(bit_offset >> 3, ty->alignment_p2);
+    ty->size = tacc_align_up(bit_offset >> 3, ty->alignment_p2);
 
     return ty;
 }
@@ -627,12 +623,10 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
 
 static void tacc_compile_function_def(struct tacc_compiler *compiler,
                                       struct tacc_decl *function_def) {
-    struct tacc_string_list *param_list;
     struct tacc_string *func_name;
     struct tacc_type *function_type;
     struct tacc_cg_state *state;
 
-    param_list = tacc_string_list_new();
     function_type = tacc_type_adjust_from_declarator(
         compiler,
         tacc_type_from_decl_type(compiler, function_def->base_type),
@@ -640,9 +634,9 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
                 "TODO: old-style function parameter types");
 
-    state = tacc_cg_state_new(
-        compiler->target, compiler->basic_types, function_type->extra.function);
-    tacc_cg_compile_statements(state, function_def->extra.func_def->statements);
+    state = tacc_cg_state_new(compiler->target, compiler->basic_types);
+    tacc_cg_compile_function(
+        state, function_def->extra.func_def, function_type->extra.function);
 
     tacc_compile_output_directive(compiler, "section .text, \"ax\", @progbits");
     func_name = tacc_compile_get_name(
@@ -659,10 +653,6 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
 
     tacc_cg_state_free(state);
     state = NULL;
-
-    /* free collected param_list */
-    tacc_string_list_free(param_list);
-    tacc_free(param_list);
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {

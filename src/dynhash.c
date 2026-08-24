@@ -64,3 +64,9 @@ uint32_t tacc_str_hash(char *name) {
     h1 = h1 ^ ((h2 ^ (h2 >> 13)) * ((uint32_t) 0xC2B2AE35));
     return h1;
 }
+
+/*
+ * roughly sequential ints are well-behaved for hashing under quadratic probing,
+ * so let's not try to do anything fancy
+ */
+uint32_t tacc_u32_hash(uint32_t n) { return n; }

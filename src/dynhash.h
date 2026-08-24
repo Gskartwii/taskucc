@@ -13,6 +13,7 @@ struct tacc_dynhash {
 };
 
 uint32_t tacc_str_hash(char *name);
+uint32_t tacc_u32_hash(uint32_t n);
 struct tacc_dynhash *tacc_dynhash_new(size_t cap, size_t element_size);
 void tacc_dynhash_init(struct tacc_dynhash *hash,
                        size_t cap,
@@ -44,6 +45,28 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
     struct elem_wrapper_type *get_func(struct hash_type *array, char *key); \
     void insert_func(struct hash_type *array, elem_type content);           \
     size_t fill_count_func(struct hash_type *array);                        \
+    void free_func(struct hash_type *array);
+
+#define DECL_DYNHASH_OVER_U32(hash_type,                                       \
+                              elem_wrapper_type,                               \
+                              elem_type,                                       \
+                              new_func,                                        \
+                              init_func,                                       \
+                              get_func,                                        \
+                              insert_func,                                     \
+                              fill_count_func,                                 \
+                              free_func)                                       \
+    struct elem_wrapper_type {                                                 \
+        elem_type content;                                                     \
+    };                                                                         \
+    struct hash_type {                                                         \
+        struct tacc_dynhash *map;                                              \
+    };                                                                         \
+    struct hash_type *new_func(size_t cap);                                    \
+    void init_func(struct hash_type *array, size_t cap);                       \
+    struct elem_wrapper_type *get_func(struct hash_type *array, uint32_t key); \
+    void insert_func(struct hash_type *array, elem_type content);              \
+    size_t fill_count_func(struct hash_type *array);                           \
     void free_func(struct hash_type *array);
 
 #define MK_DYNHASH_OVER(hash_type,                                          \
@@ -134,6 +157,96 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
             }                                                               \
         }                                                                   \
         tacc_dynhash_free(map->map);                                        \
+    }
+
+#define MK_DYNHASH_OVER_U32(hash_type,                                        \
+                            hash_key,                                         \
+                            elem_wrapper_type,                                \
+                            elem_type,                                        \
+                            new_func,                                         \
+                            init_func,                                        \
+                            get_func,                                         \
+                            insert_func,                                      \
+                            fill_count_func,                                  \
+                            deinit_func,                                      \
+                            free_func)                                        \
+    struct hash_type *new_func(size_t cap) {                                  \
+        struct hash_type *map;                                                \
+                                                                              \
+        map = tacc_malloc(sizeof(struct hash_type));                          \
+        init_func(map, cap);                                                  \
+                                                                              \
+        return map;                                                           \
+    }                                                                         \
+    void init_func(struct hash_type *map, size_t cap) {                       \
+        size_t i;                                                             \
+        struct elem_wrapper_type wrapper;                                     \
+                                                                              \
+        wrapper.content = NULL;                                               \
+        map->map = tacc_dynhash_new(cap, sizeof(struct elem_wrapper_type));   \
+        for (i = 0; i < cap; i = i + 1) {                                     \
+            tacc_dynhash_insert_new(map->map, i, &wrapper);                   \
+        }                                                                     \
+        map->map->fill = 0;                                                   \
+    }                                                                         \
+    struct elem_wrapper_type *get_func(struct hash_type *map, uint32_t key) { \
+        size_t i;                                                             \
+        uint32_t h;                                                           \
+        struct elem_wrapper_type *probe;                                      \
+        elem_type content;                                                    \
+                                                                              \
+        h = tacc_u32_hash(key);                                               \
+        i = 0;                                                                \
+        while (1) {                                                           \
+            probe = tacc_dynhash_probe(map->map, h + i + i * i);              \
+            if (probe->content == NULL) {                                     \
+                break;                                                        \
+            }                                                                 \
+            content = probe->content;                                         \
+            if (content->hash_key == key) {                                   \
+                return probe;                                                 \
+            }                                                                 \
+            i = i + 1;                                                        \
+        }                                                                     \
+        return NULL;                                                          \
+    }                                                                         \
+    void insert_func(struct hash_type *map, elem_type content) {              \
+        struct elem_wrapper_type *probe;                                      \
+        struct elem_wrapper_type wrapper;                                     \
+        size_t i;                                                             \
+        uint32_t h;                                                           \
+                                                                              \
+        tacc_assert(map->map->fill < map->map->cap,                           \
+                    "TODO: grow hashmap: %d == %d",                           \
+                    map->map->fill,                                           \
+                    map->map->cap);                                           \
+        h = tacc_u32_hash(content->hash_key);                                 \
+        i = 0;                                                                \
+        while (1) {                                                           \
+            probe = tacc_dynhash_probe(map->map, h + i + i * i);              \
+            if (probe->content == NULL) {                                     \
+                break;                                                        \
+            }                                                                 \
+            i = i + 1;                                                        \
+        }                                                                     \
+        wrapper.content = content;                                            \
+        tacc_dynhash_insert_new(map->map, h + i + i * i, &wrapper);           \
+    }                                                                         \
+    size_t fill_count_func(struct hash_type *map) {                           \
+        return tacc_dynhash_fill_count(map->map);                             \
+    }                                                                         \
+    void free_func(struct hash_type *map) {                                   \
+        size_t i;                                                             \
+        struct elem_wrapper_type *to_free;                                    \
+        if (deinit_func != NULL) {                                            \
+            for (i = 0; i < map->map->cap; i = i + 1) {                       \
+                to_free = tacc_dynhash_probe(map->map, i);                    \
+                if (to_free != NULL && to_free->content != NULL) {            \
+                    deinit_func(to_free->content);                            \
+                }                                                             \
+            }                                                                 \
+        }                                                                     \
+        tacc_dynhash_free(map->map);                                          \
     }
 
 #endif
