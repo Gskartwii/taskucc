@@ -49,6 +49,9 @@ struct tacc_compiler {
     struct tacc_type_list *basic_types;
     struct tacc_type_list *anonymous_types;
 
+    /* borrow */
+    struct tacc_string_list *names;
+
     struct tacc_block_scope_list *block_scopes;
 };
 
@@ -63,6 +66,8 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
                                    ...);
+struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
+                                          uint32_t name_ref);
 void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...);
 
 #endif

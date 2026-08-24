@@ -25,8 +25,7 @@ enum tacc_storage_class {
 };
 
 union tacc_declarator_extra {
-    /* owning */
-    struct tacc_string *name;
+    uint32_t name_ref;
     /* owning */
     struct tacc_declarator *sub_declarator;
     /* owning */
@@ -302,7 +301,7 @@ DECL_DYNARRAY_OVER(tacc_struct_decl_list,
                    tacc_struct_decl_list_len,
                    tacc_struct_decl_list_free)
 
-struct tacc_string *tacc_declarator_name(struct tacc_declarator *decl);
+uint32_t tacc_declarator_name(struct tacc_declarator *decl);
 void tacc_function_param_free(struct tacc_function_param *param);
 void tacc_funcdef_free(struct tacc_funcdef *func_def);
 void tacc_enumerator_free(struct tacc_enumerator *enumerator);

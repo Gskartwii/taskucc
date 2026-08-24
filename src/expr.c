@@ -4,7 +4,6 @@
 #include "soft_u64.h"
 #include "util.h"
 #include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 
 void tacc_expr_init(struct tacc_expr *expr) {
@@ -53,9 +52,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
     }
     if (expr->kind == EX_INT_LIT) {
         tacc_int_literal_free(expr->extra.int_literal);
-    } else if (expr->kind == EX_IDENT || expr->kind == EX_MEMBER ||
-               expr->kind == EX_PTR_MEMBER) {
-        tacc_dynstring_free(expr->extra.name);
+    } else if (expr->kind == EX_MEMBER || expr->kind == EX_PTR_MEMBER) {
+        tacc_dynstring_free(expr->extra.field_name);
     } else if (expr->kind == EX_SIZEOF_TY || expr->kind == EX_CAST) {
         tacc_type_name_free(expr->extra.type);
     } else if (expr->kind == EX_CALL && expr->extra.op_list != NULL) {

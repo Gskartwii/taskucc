@@ -9,6 +9,7 @@ enum tacc_untagged_ident_kind { UNTAGGED_IDENT_OBJECT, UNTAGGED_IDENT_TYPEDEF };
 struct tacc_untagged_ident {
     struct tacc_string *name;
     enum tacc_untagged_ident_kind kind;
+    uint32_t name_ref;
 };
 
 DECL_DYNARRAY_OVER(tacc_untagged_ident_list,
@@ -41,11 +42,13 @@ void tacc_ident_scope_free(struct tacc_ident_scope *scope);
 
 struct tacc_parse_registry {
     struct tacc_ident_scope_list *scopes;
+    struct tacc_string_list *interned_strings;
 };
 
 struct tacc_parse_registry *tacc_parse_registry_new(void);
 void tacc_parse_registry_free(struct tacc_parse_registry *registry);
-struct tacc_expr *tacc_parse_new_expr(struct tacc_tok_iter *iter);
+struct tacc_expr *tacc_parse_new_expr(struct tacc_parse_registry *registry,
+                                      struct tacc_tok_iter *iter);
 struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
                                  struct tacc_tok_iter *iter);
 void tacc_untagged_ident_free(struct tacc_untagged_ident *ident);

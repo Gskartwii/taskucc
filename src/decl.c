@@ -142,8 +142,6 @@ void tacc_declarator_free(struct tacc_declarator *declarator) {
         tacc_array_declarator_free(declarator->extra.arr_decl);
     } else if (declarator->kind == DECLARATOR_FUNC) {
         tacc_function_declarator_free(declarator->extra.func_decl);
-    } else if (declarator->kind == DECLARATOR_PLAIN) {
-        tacc_dynstring_free(declarator->extra.name);
     } else if (declarator->kind == DECLARATOR_SUB) {
         tacc_declarator_free(declarator->extra.sub_declarator);
     }
@@ -288,8 +286,7 @@ void tacc_decl_free(struct tacc_decl *decl) {
     tacc_free(decl);
 }
 
-struct tacc_string *
-tacc_declarator_name(struct tacc_declarator *declarator_in) {
+uint32_t tacc_declarator_name(struct tacc_declarator *declarator_in) {
     struct tacc_declarator *declarator;
 
     declarator = declarator_in;
@@ -297,9 +294,9 @@ tacc_declarator_name(struct tacc_declarator *declarator_in) {
     while (1) {
         switch (declarator->kind) {
         case DECLARATOR_PLAIN:
-            return declarator->extra.name;
+            return declarator->extra.name_ref;
         case DECLARATOR_ABSTRACT:
-            return NULL;
+            return 0;
         case DECLARATOR_SUB:
             declarator = declarator->extra.sub_declarator;
             break;

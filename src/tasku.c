@@ -218,7 +218,9 @@ static void tacc_dump_ast(struct tacc_ast *ast) {
     tacc_format_ast(&fmt, ast);
 }
 
-static void tacc_compile_ast(struct tacc_target *target, struct tacc_ast *ast) {
+static void tacc_compile_ast(struct tacc_string_list *names,
+                             struct tacc_target *target,
+                             struct tacc_ast *ast) {
     struct tacc_decl_list_entry *entry;
     struct tacc_compiler compiler;
     struct tacc_block_scope *base_scope;
@@ -228,6 +230,7 @@ static void tacc_compile_ast(struct tacc_target *target, struct tacc_ast *ast) {
     compiler.basic_types = tacc_type_list_new();
     compiler.anonymous_types = tacc_type_list_new();
     compiler.block_scopes = tacc_block_scope_list_new();
+    compiler.names = names;
     base_scope = tacc_block_scope_new();
     tacc_block_scope_list_push(compiler.block_scopes, base_scope);
     tacc_gen_basic_types(target, compiler.basic_types);
@@ -291,7 +294,7 @@ int main(int argc, char **argv) {
         if (options.dump_ast) {
             tacc_dump_ast(ast);
         } else {
-            tacc_compile_ast(target, ast);
+            tacc_compile_ast(registry->interned_strings, target, ast);
         }
         tacc_ast_free(ast);
     }

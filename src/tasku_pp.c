@@ -1934,6 +1934,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     struct tacc_expr *expr;
     struct tacc_val *val;
     struct pp_tok *tok;
+    struct tacc_parse_registry *registry;
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -1947,7 +1948,11 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
 
-    expr = tacc_parse_new_expr(tok_iter);
+    /* throwaway registry, should not be filled */
+    registry = tacc_parse_registry_new();
+    expr = tacc_parse_new_expr(registry, tok_iter);
+    tacc_parse_registry_free(registry);
+
     val = tacc_expr_const_eval(
         expr, first->state->target, first->state->basic_types);
 
@@ -1978,6 +1983,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     struct tacc_expr *expr;
     struct tacc_val *val;
     struct pp_tok *tok;
+    struct tacc_parse_registry *registry;
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -2009,7 +2015,10 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     tok_iter = tacc_tok_iter_new(iter, first->state);
     tok_iter->in_if = 1;
 
-    expr = tacc_parse_new_expr(tok_iter);
+    registry = tacc_parse_registry_new();
+    expr = tacc_parse_new_expr(registry, tok_iter);
+    tacc_parse_registry_free(registry);
+
     val = tacc_expr_const_eval(
         expr, first->state->target, first->state->basic_types);
 

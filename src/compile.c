@@ -357,7 +357,8 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
                  i = i + 1) {
                 entry = tacc_function_param_list_get(
                     declarator->param_list.modern_params, i);
-                param_name = tacc_declarator_name(entry->content->decl);
+                param_name = tacc_compile_get_name(
+                    compiler, tacc_declarator_name(entry->content->decl));
                 tacc_assert(
                     param_name != NULL,
                     "abstract declarator in parameter list of function definition");
@@ -540,8 +541,9 @@ tacc_eval_struct(struct tacc_compiler *compiler,
                 compiler, base_ty, declarator_entry->content->underlying, NULL);
             field = tacc_field_new();
             field->type = adjusted_ty;
-            field->name =
-                tacc_declarator_name(declarator_entry->content->underlying);
+            field->name = tacc_compile_get_name(
+                compiler,
+                tacc_declarator_name(declarator_entry->content->underlying));
             if (declarator_entry->content->bitfield_size == NULL) {
                 bit_offset = tacc_align(
                     bit_offset, 3 + tacc_type_alignment_p2(adjusted_ty));
@@ -584,8 +586,9 @@ tacc_eval_union(struct tacc_compiler *compiler,
                 compiler, base_ty, declarator_entry->content->underlying, NULL);
             field = tacc_field_new();
             field->type = adjusted_ty;
-            field->name =
-                tacc_declarator_name(declarator_entry->content->underlying);
+            field->name = tacc_compile_get_name(
+                compiler,
+                tacc_declarator_name(declarator_entry->content->underlying));
             field->offset = 0;
             if (declarator_entry->content->bitfield_size == NULL) {
                 tacc_union_push_field(compiler, ty, field);
@@ -774,6 +777,7 @@ void tacc_compile_ident_free(struct tacc_compile_ident *ident) {
 static void tacc_compile_function_def(struct tacc_compiler *compiler,
                                       struct tacc_decl *function_def) {
     struct tacc_string_list *param_list;
+    struct tacc_string *func_name;
     struct tacc_type *function_type;
     struct tacc_cg_state *state;
 
@@ -791,15 +795,12 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_cg_compile_statements(state, function_def->extra.func_def->statements);
 
     tacc_compile_output_directive(compiler, "section .text, \"ax\", @progbits");
-    tacc_compile_output_directive(
+    func_name = tacc_compile_get_name(
         compiler,
-        "globl %s",
-        tacc_dynstring_as_str(tacc_declarator_name(
-            function_def->extra.func_def->func_declaration)));
-    tacc_compile_output(compiler,
-                        "\n%s:",
-                        tacc_dynstring_as_str(tacc_declarator_name(
-                            function_def->extra.func_def->func_declaration)));
+        tacc_declarator_name(function_def->extra.func_def->func_declaration));
+    tacc_compile_output_directive(
+        compiler, "globl %s", tacc_dynstring_as_str(func_name));
+    tacc_compile_output(compiler, "\n%s:", tacc_dynstring_as_str(func_name));
     tacc_cg_finalize(state);
     tacc_compile_output(
         compiler, "%s", tacc_dynstring_as_str(state->prelude_buffer));
@@ -818,13 +819,22 @@ void tacc_compile_prelude(struct tacc_compiler *compiler) {
     tacc_target_cg_prelude(compiler);
 }
 
+struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
+                                          uint32_t name_ref) {
+    struct tacc_string_list_entry *entry;
+
+    entry = tacc_string_list_get(compiler->names, name_ref);
+
+    return entry->content;
+}
+
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
                            struct tacc_decl *decl) {
     struct tacc_type *type;
     size_t i;
     struct tacc_init_declarator_list_entry *entry;
     struct tacc_init_declarator *declarator;
-    struct tacc_string *data_name;
+    uint32_t data_name;
 
     if (decl->kind == DECL_FUNCTION_DEF) {
         tacc_compile_function_def(compiler, decl);
@@ -841,7 +851,10 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         declarator = entry->content;
         tacc_assert(declarator->declarator->kind == DECLARATOR_PLAIN,
                     "TODO: non-plain declarator");
-        tacc_compile_data(compiler, type, data_name, declarator->initializer);
+        tacc_compile_data(compiler,
+                          type,
+                          tacc_compile_get_name(compiler, data_name),
+                          declarator->initializer);
     }
     tacc_compile_output(compiler, "\n");
 }

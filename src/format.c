@@ -2,7 +2,7 @@
 #include "decl.h"
 #include "dynstring.h"
 #include "expr.h"
-#include "type.h"
+#include "soft_u64.h"
 #include <stdarg.h>
 
 static void tacc_format_newline(struct tacc_formatter *fmt) {
@@ -307,7 +307,7 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
     case EX_IDENT:
         tacc_format_begin_scope(fmt, "ident-expr");
         tacc_format_field_name(fmt, "name");
-        tacc_format_print(fmt, "%s", tacc_dynstring_as_str(expr->extra.name));
+        tacc_format_print(fmt, "%d", expr->extra.name_ref);
         n = 0;
         break;
     case EX_ADD:
@@ -473,13 +473,15 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
     case EX_MEMBER:
         tacc_format_begin_scope(fmt, ".");
         tacc_format_field_name(fmt, "field");
-        tacc_format_print(fmt, "%s", expr->extra.name);
+        tacc_format_print(
+            fmt, "%s", tacc_dynstring_as_str(expr->extra.field_name));
         n = 1;
         break;
     case EX_PTR_MEMBER:
         tacc_format_begin_scope(fmt, "->");
         tacc_format_field_name(fmt, "field");
-        tacc_format_print(fmt, "%s", expr->extra.name);
+        tacc_format_print(
+            fmt, "%s", tacc_dynstring_as_str(expr->extra.field_name));
         n = 1;
         break;
     case EX_CALL:
@@ -568,8 +570,7 @@ static void tacc_format_declarator(struct tacc_formatter *fmt,
         break;
     case DECLARATOR_PLAIN:
         tacc_format_field_name(fmt, "plain-name");
-        tacc_format_print(
-            fmt, "%s", tacc_dynstring_as_str(declarator->extra.name));
+        tacc_format_print(fmt, "%d", declarator->extra.name_ref);
         break;
     case DECLARATOR_ARRAY:
         tacc_format_field_name(fmt, "array-sub-declarator");

@@ -115,7 +115,8 @@ struct tacc_expr {
     union {
         struct tacc_expr_list *op_list;
         struct tacc_type_name *type;
-        struct tacc_string *name;
+        struct tacc_string *field_name;
+        uint32_t name_ref;
         struct tacc_int_literal *int_literal;
         struct tacc_char_literal *char_literal;
     } extra;
