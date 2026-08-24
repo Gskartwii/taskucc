@@ -52,14 +52,15 @@ uint32_t tacc_str_hash(char *name) {
 
     /* https://gist.github.com/jlevy/c246006675becc446360a798e2b2d781 */
     len = strlen(name);
-    h1 = 0xdeadbeef;
+    h1 = (uint32_t) 0xdead << 16 | 0xbeef;
     h2 = 0x41c6ce57;
     for (i = 0; i < len; i = i + 1) {
         ch = (uint32_t) (unsigned char) *name;
-        h1 = (h1 ^ ch) * 2654435761U;
-        h2 = (h2 ^ ch) * 1597334677U;
+        h1 = (h1 ^ ch) * 2654435761;
+        h2 = (h2 ^ ch) * 1597334677;
+        name = name + 1;
     }
-    h1 = (h1 ^ (h1 >> 16)) * 2246822507U;
-    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * 3266489909U);
+    h1 = (h1 ^ (h1 >> 16)) * 2246822507;
+    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * 3266489909);
     return h1;
 }
