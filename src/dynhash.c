@@ -56,11 +56,11 @@ uint32_t tacc_str_hash(char *name) {
     h2 = 0x41c6ce57;
     for (i = 0; i < len; i = i + 1) {
         ch = (uint32_t) (unsigned char) *name;
-        h1 = (h1 ^ ch) * 2654435761;
-        h2 = (h2 ^ ch) * 1597334677;
+        h1 = (h1 ^ ch) * ((uint32_t) 0x9E3779B1);
+        h2 = (h2 ^ ch) * ((uint32_t) 0x5F356495);
         name = name + 1;
     }
-    h1 = (h1 ^ (h1 >> 16)) * 2246822507;
-    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * 3266489909);
+    h1 = (h1 ^ (h1 >> 16)) * ((uint32_t) 0x85EBCA6B);
+    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * ((uint32_t) 0xC2B2AE35));
     return h1;
 }
