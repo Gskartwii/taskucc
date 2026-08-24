@@ -7,6 +7,7 @@ in
       llvmPackages_23.clang-tools
       llvmPackages_23.llvm
       gdb
+      perf
     ];
     env.KAK_EXTRA_CONFIG = pkgs.writeText "tasku-extra.kak" ''
       hook global WinSetOption filetype=(c|cpp) %{
