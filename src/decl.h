@@ -151,6 +151,10 @@ struct tacc_declarator {
 struct tacc_funcdef {
     /* owning */
     struct tacc_declarator *func_declaration;
+
+    /* borrow */
+    struct tacc_declarator *innermost_declarator;
+
     /* owning */
     struct tacc_decl_list *old_style_param_list;
     /* owning */
@@ -326,5 +330,8 @@ struct tacc_struct_decl *tacc_struct_decl_new(void);
 struct tacc_funcdef *tacc_funcdef_new(void);
 struct tacc_decl *tacc_decl_new(void);
 void tacc_decl_free(struct tacc_decl *decl);
+
+struct tacc_declarator *
+tacc_declarator_base_function(struct tacc_declarator *full_decl);
 
 #endif

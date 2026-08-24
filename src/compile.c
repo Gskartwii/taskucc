@@ -180,45 +180,17 @@ static struct tacc_type *tacc_eval_enumerators(
     return tacc_get_basic_type(compiler->basic_types, TYK_UINT);
 }
 
-static tacc_bool
-tacc_declarator_is_modified(struct tacc_declarator *declarator) {
-    struct tacc_declarator *curr;
-
-    curr = declarator;
-    while (1) {
-        switch (curr->kind) {
-        case DECLARATOR_PLAIN:
-        case DECLARATOR_ABSTRACT:
-            return 0;
-        case DECLARATOR_SUB:
-            curr = curr->extra.sub_declarator;
-            break;
-        case DECLARATOR_ARRAY:
-            return 1;
-        case DECLARATOR_FUNC:
-            return 1;
-        }
-    }
-}
-
 static struct tacc_type *
 tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                  struct tacc_type *base_type,
-                                 struct tacc_declarator *declarator,
-                                 struct tacc_string_list *def_param_names);
+                                 struct tacc_declarator *declarator);
 
 static void
 tacc_type_adjust_function(struct tacc_compiler *compiler,
                           struct tacc_function_type *ty,
-                          struct tacc_function_declarator *declarator,
-                          struct tacc_string_list *def_param_names) {
+                          struct tacc_function_declarator *declarator) {
     size_t i;
-    tacc_bool this_is_def_function_prototype =
-        (def_param_names != NULL) &&
-        !tacc_declarator_is_modified(declarator->sub_declarator);
     struct tacc_function_param_list_entry *entry;
-    struct tacc_string *param_name;
-    struct tacc_string_list_entry *param_entry;
 
     ty->is_vararg = 0;
 
@@ -242,24 +214,7 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
                                     compiler,
                                     tacc_type_from_decl_type(
                                         compiler, entry->content->base_type),
-                                    entry->content->decl,
-                                    0));
-        }
-        if (this_is_def_function_prototype) {
-            tacc_assert(tacc_string_list_len(def_param_names) == 0,
-                        "ICE: found two param lists for function definition?");
-            for (i = 0; i < tacc_function_param_list_len(
-                                declarator->param_list.modern_params);
-                 i = i + 1) {
-                entry = tacc_function_param_list_get(
-                    declarator->param_list.modern_params, i);
-                param_name = tacc_compile_get_name(
-                    compiler, tacc_declarator_name(entry->content->decl));
-                tacc_assert(
-                    param_name != NULL,
-                    "abstract declarator in parameter list of function definition");
-                tacc_string_list_push(def_param_names, param_name);
-            }
+                                    entry->content->decl));
         }
         break;
     case FUNCPARAM_VOID:
@@ -267,30 +222,11 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
         ty->param_types = tacc_type_list_new();
         break;
     case FUNCPARAM_EMPTY_LIST:
-        if (this_is_def_function_prototype) {
-            /*
-             * when specifying the argument list of a function being defined,
-             * this is equivalent to void
-             */
-            ty->param_types = tacc_type_list_new();
-        } else {
-            /* function type declarator with unspecified parameter types */
-            ty->param_types = NULL;
-        }
+        /* function type declarator with unspecified parameter types */
+        ty->param_types = NULL;
         break;
     case FUNCPARAM_OLD_STYLE_LIST:
-        tacc_assert(this_is_def_function_prototype,
-                    "old-style parameter list outside function definition");
-        tacc_assert(tacc_string_list_len(def_param_names) == 0,
-                    "ICE: found two param lists for function definition?");
         ty->param_types = NULL;
-        for (i = 0;
-             i < tacc_string_list_len(declarator->param_list.old_style_params);
-             i = i + 1) {
-            param_entry = tacc_string_list_get(
-                declarator->param_list.old_style_params, i);
-            tacc_string_list_push(def_param_names, param_entry->content);
-        }
         break;
     }
 }
@@ -298,8 +234,7 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
 static struct tacc_type *
 tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                  struct tacc_type *base_type,
-                                 struct tacc_declarator *declarator,
-                                 struct tacc_string_list *def_param_names) {
+                                 struct tacc_declarator *declarator) {
     struct tacc_declarator *curr_declarator;
     struct tacc_type *curr_type;
     struct tacc_type *sub_type;
@@ -371,8 +306,7 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
         curr_type->extra.function->return_type = sub_type;
         tacc_type_adjust_function(compiler,
                                   curr_type->extra.function,
-                                  curr_declarator->extra.func_decl,
-                                  def_param_names);
+                                  curr_declarator->extra.func_decl);
         curr_declarator = curr_declarator->extra.func_decl->sub_declarator;
     }
 }
@@ -434,7 +368,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
             declarator_entry =
                 tacc_struct_declarator_list_get(entry->content->declarators, i);
             adjusted_ty = tacc_type_adjust_from_declarator(
-                compiler, base_ty, declarator_entry->content->underlying, NULL);
+                compiler, base_ty, declarator_entry->content->underlying);
             field = tacc_field_new();
             field->type = adjusted_ty;
             field->name = tacc_compile_get_name(
@@ -479,7 +413,7 @@ tacc_eval_union(struct tacc_compiler *compiler,
             declarator_entry =
                 tacc_struct_declarator_list_get(entry->content->declarators, i);
             adjusted_ty = tacc_type_adjust_from_declarator(
-                compiler, base_ty, declarator_entry->content->underlying, NULL);
+                compiler, base_ty, declarator_entry->content->underlying);
             field = tacc_field_new();
             field->type = adjusted_ty;
             field->name = tacc_compile_get_name(
@@ -702,8 +636,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     function_type = tacc_type_adjust_from_declarator(
         compiler,
         tacc_type_from_decl_type(compiler, function_def->base_type),
-        function_def->extra.func_def->func_declaration,
-        param_list);
+        function_def->extra.func_def->func_declaration);
     tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
                 "TODO: old-style function parameter types");
 

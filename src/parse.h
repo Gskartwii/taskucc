@@ -67,6 +67,7 @@ void tacc_ident_scope_free(struct tacc_ident_scope *scope);
 struct tacc_parse_registry {
     struct tacc_ident_scope_list *scopes;
     struct tacc_string_list *interned_strings;
+    struct tacc_ident_scope *pending_func_proto_scope;
 };
 
 struct tacc_parse_registry *tacc_parse_registry_new(void);

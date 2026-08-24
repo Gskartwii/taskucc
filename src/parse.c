@@ -1555,7 +1555,12 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
         tacc_function_param_list_push(decl->param_list.modern_params, param);
     } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
 
-    tacc_parse_registry_end_scope(registry);
+    if (registry->pending_func_proto_scope != NULL) {
+        tacc_parse_registry_end_scope(registry);
+    } else {
+        registry->pending_func_proto_scope =
+            tacc_ident_scope_list_pop(registry->scopes);
+    }
 }
 
 struct tacc_declarator *
@@ -1950,6 +1955,7 @@ static struct tacc_compound_member *tacc_parse_compound_member(
 
 static struct tacc_funcdef *
 tacc_parse_func_def(struct tacc_declarator *declarator,
+                    struct tacc_declarator *innermost_declarator,
                     struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
                     struct tacc_decl_list *old_style_param_list) {
@@ -1958,6 +1964,7 @@ tacc_parse_func_def(struct tacc_declarator *declarator,
     tacc_assert(declarator->kind == DECLARATOR_FUNC,
                 "expected function declarator for function definition");
     def->func_declaration = declarator;
+    def->innermost_declarator = innermost_declarator;
     def->old_style_param_list = old_style_param_list;
 
     while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
@@ -2046,6 +2053,7 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                     enum tacc_declaration_context ctx) {
     struct tacc_decl *to_parse;
     struct tacc_declarator *declarator;
+    struct tacc_declarator *innermost_declarator;
     struct tacc_init_declarator *init_declarator;
     struct tacc_decl_list *old_style_param_list;
     enum tacc_storage_class storage_class;
@@ -2071,33 +2079,57 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
             }
 
             if (ctx == DECL_CONTEXT_TOP_LEVEL) {
-                /*
-                 * TODO: may fail to recognize nested old-style function
-                 * declarations. For example:
-                 *
-                 * int (*(x(z)))(void) int z; { return main; }
-                 *
-                 */
-                if (declarator->kind == DECLARATOR_FUNC &&
-                    declarator->extra.func_decl->param_list_kind ==
+                innermost_declarator =
+                    tacc_declarator_base_function(declarator);
+                if (innermost_declarator != NULL &&
+                    innermost_declarator->extra.func_decl->param_list_kind ==
                         FUNCPARAM_OLD_STYLE_LIST) {
+                    tacc_parse_registry_start_scope(registry);
+                    /*
+                     * don't import prototype! identifier-list contains no
+                     * types. c99 requires all parameters to be declared along
+                     * with their respective types in the list that follows.
+                     */
+                    tacc_ident_scope_free(registry->pending_func_proto_scope);
+                    registry->pending_func_proto_scope = NULL;
+
                     old_style_param_list =
                         tacc_parse_old_style_param_types(registry, iter);
                     tacc_init_declarator_list_free(to_parse->extra.declarators);
                     tacc_free(to_parse->extra.declarators);
                     to_parse->kind = DECL_FUNCTION_DEF;
-                    to_parse->extra.func_def = tacc_parse_func_def(
-                        declarator, registry, iter, old_style_param_list);
+                    to_parse->extra.func_def =
+                        tacc_parse_func_def(declarator,
+                                            innermost_declarator,
+                                            registry,
+                                            iter,
+                                            old_style_param_list);
+                    tacc_parse_registry_end_scope(registry);
                     break;
                 }
-                if (tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
+                if (innermost_declarator != NULL &&
+                    tacc_tok_iter_accept_tok(iter, TOK_LBRACKET)) {
                     tacc_init_declarator_list_free(to_parse->extra.declarators);
                     tacc_free(to_parse->extra.declarators);
                     to_parse->kind = DECL_FUNCTION_DEF;
-                    to_parse->extra.func_def =
-                        tacc_parse_func_def(declarator, registry, iter, NULL);
+
+                    tacc_assert(
+                        registry->pending_func_proto_scope != NULL,
+                        "ICE: expected to find function prototype scope when entering function definition");
+                    tacc_ident_scope_list_push(
+                        registry->scopes, registry->pending_func_proto_scope);
+                    registry->pending_func_proto_scope = NULL;
+
+                    to_parse->extra.func_def = tacc_parse_func_def(
+                        declarator, innermost_declarator, registry, iter, NULL);
+                    tacc_parse_registry_end_scope(registry);
                     break;
                 }
+            }
+            if (registry->pending_func_proto_scope != NULL) {
+                /* not consumed by a function definition -> drop it */
+                tacc_ident_scope_free(registry->pending_func_proto_scope);
+                registry->pending_func_proto_scope = NULL;
             }
 
             init_declarator = tacc_init_declarator_new();
@@ -2175,6 +2207,7 @@ struct tacc_parse_registry *tacc_parse_registry_new(void) {
 
     registry = tacc_malloc(sizeof(struct tacc_parse_registry));
     registry->scopes = tacc_ident_scope_list_new();
+    registry->pending_func_proto_scope = NULL;
 
     scope = tacc_ident_scope_new();
     tacc_ident_scope_list_push(registry->scopes, scope);

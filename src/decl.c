@@ -384,3 +384,45 @@ struct tacc_init_declarator *tacc_init_declarator_new(void) {
 
     return init_declarator;
 }
+
+static tacc_bool
+tacc_declarator_is_modified(struct tacc_declarator *declarator) {
+    struct tacc_declarator *curr;
+
+    curr = declarator;
+    while (1) {
+        switch (curr->kind) {
+        case DECLARATOR_PLAIN:
+        case DECLARATOR_ABSTRACT:
+            return 0;
+        case DECLARATOR_SUB:
+            curr = curr->extra.sub_declarator;
+            break;
+        case DECLARATOR_ARRAY:
+            return 1;
+        case DECLARATOR_FUNC:
+            return 1;
+        }
+    }
+}
+
+struct tacc_declarator *
+tacc_declarator_base_function(struct tacc_declarator *full_decl) {
+    switch (full_decl->kind) {
+    case DECLARATOR_PLAIN:
+    case DECLARATOR_ABSTRACT:
+        return NULL;
+    case DECLARATOR_SUB:
+        return tacc_declarator_base_function(full_decl->extra.sub_declarator);
+    case DECLARATOR_ARRAY:
+        return tacc_declarator_base_function(
+            full_decl->extra.arr_decl->sub_declarator);
+    case DECLARATOR_FUNC:
+        if (!tacc_declarator_is_modified(
+                full_decl->extra.func_decl->sub_declarator)) {
+            return full_decl;
+        }
+        return tacc_declarator_base_function(full_decl);
+    }
+    return NULL;
+}
