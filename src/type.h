@@ -150,8 +150,7 @@ struct tacc_type {
         struct tacc_int_type *int_repr;
     } extra;
 
-    /* owning */
-    struct tacc_string *name;
+    uint32_t name_ref;
 
     /* owning */
     struct tacc_type *derived_ptr;
@@ -180,15 +179,6 @@ DECL_DYNARRAY_OVER(tacc_type_list,
                    tacc_type_list_pop,
                    tacc_type_list_len,
                    tacc_type_list_free)
-DECL_DYNHASH_OVER(tacc_type_map,
-                  tacc_type_map_entry,
-                  struct tacc_type *,
-                  tacc_type_map_new,
-                  tacc_type_map_init,
-                  tacc_type_map_get,
-                  tacc_type_map_insert,
-                  tacc_type_map_count,
-                  tacc_type_map_free)
 
 struct tacc_type *tacc_type_new(void);
 struct tacc_array_type *tacc_array_type_new(void);

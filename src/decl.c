@@ -108,7 +108,6 @@ void tacc_function_param_free(struct tacc_function_param *param) {
 }
 
 void tacc_enumerator_free(struct tacc_enumerator *enumerator) {
-    tacc_dynstring_free(enumerator->name);
     if (enumerator->value != NULL) {
         tacc_expr_free(enumerator->value);
     }
@@ -167,7 +166,7 @@ struct tacc_enumerator *tacc_enumerator_new(void) {
     struct tacc_enumerator *enumerator;
 
     enumerator = tacc_malloc(sizeof(struct tacc_enumerator));
-    enumerator->name = NULL;
+    enumerator->name_ref = 0;
     enumerator->value = NULL;
 
     return enumerator;
@@ -322,9 +321,6 @@ void tacc_decl_type_free(struct tacc_decl_type *ty) {
             tacc_enumerator_list_free(ty->extra.enumerators);
             tacc_free(ty->extra.enumerators);
         }
-    }
-    if (ty->referenced_name != NULL) {
-        tacc_dynstring_free(ty->referenced_name);
     }
     tacc_attribute_list_free(ty->attributes);
     tacc_free(ty->attributes);

@@ -223,16 +223,13 @@ static void tacc_compile_ast(struct tacc_string_list *names,
                              struct tacc_ast *ast) {
     struct tacc_decl_list_entry *entry;
     struct tacc_compiler compiler;
-    struct tacc_block_scope *base_scope;
     size_t i;
 
     compiler.target = target;
     compiler.basic_types = tacc_type_list_new();
+    compiler.named_types = tacc_type_list_new();
     compiler.anonymous_types = tacc_type_list_new();
-    compiler.block_scopes = tacc_block_scope_list_new();
     compiler.names = names;
-    base_scope = tacc_block_scope_new();
-    tacc_block_scope_list_push(compiler.block_scopes, base_scope);
     tacc_gen_basic_types(target, compiler.basic_types);
 
     tacc_compile_prelude(&compiler);
@@ -242,11 +239,11 @@ static void tacc_compile_ast(struct tacc_string_list *names,
     }
 
     tacc_type_list_free(compiler.basic_types);
+    tacc_type_list_free(compiler.named_types);
     tacc_type_list_free(compiler.anonymous_types);
-    tacc_block_scope_list_free(compiler.block_scopes);
-    tacc_free(compiler.block_scopes);
     tacc_free(compiler.anonymous_types);
     tacc_free(compiler.basic_types);
+    tacc_free(compiler.named_types);
 }
 
 int main(int argc, char **argv) {

@@ -62,8 +62,7 @@ enum {
 };
 
 struct tacc_enumerator {
-    /* owning */
-    struct tacc_string *name;
+    uint32_t name_ref;
 
     /* owning */
     struct tacc_expr *value;
@@ -87,9 +86,7 @@ struct tacc_struct_decl {
 
 struct tacc_decl_type {
     uint32_t spec_qual_flags;
-
-    /* owning */
-    struct tacc_string *referenced_name;
+    uint32_t name_ref;
 
     /* owning */
     struct tacc_attribute_list *attributes;

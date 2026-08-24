@@ -116,14 +116,14 @@ static void tacc_format_enumerators(struct tacc_formatter *fmt,
     for (i = 0; i < tacc_enumerator_list_len(enumerators); i = i + 1) {
         entry = tacc_enumerator_list_get(enumerators, i);
         tacc_format_newline(fmt);
+        tacc_format_begin_scope(fmt, "enumerator");
+        tacc_format_field_name(fmt, "name-ref");
+        tacc_format_print(fmt, " %d", entry->content->name_ref);
         if (entry->content->value != NULL) {
-            tacc_format_begin_scope(
-                fmt, tacc_dynstring_as_str(entry->content->name));
+            tacc_format_field_name(fmt, "initializer");
             tacc_format_expr(fmt, entry->content->value);
-            tacc_format_end_scope(fmt);
-        } else {
-            tacc_format_print(fmt, tacc_dynstring_as_str(entry->content->name));
         }
+        tacc_format_end_scope(fmt);
     }
 }
 
@@ -257,10 +257,9 @@ static void tacc_format_decl_type(struct tacc_formatter *fmt,
     if ((flags & TYPESPEC_TYPEDEF) != 0) {
         tacc_format_print(fmt, " typedef");
     }
-    if (ty->referenced_name != NULL) {
-        tacc_format_field_name(fmt, "ref-name");
-        tacc_format_print(
-            fmt, "%s", tacc_dynstring_as_str(ty->referenced_name));
+    if (ty->name_ref != 0) {
+        tacc_format_field_name(fmt, "name-ref");
+        tacc_format_print(fmt, " %d", ty->name_ref);
     }
 
     tacc_format_end_scope(fmt);

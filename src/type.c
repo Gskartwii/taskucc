@@ -13,18 +13,6 @@ MK_DYNARRAY_OVER(tacc_type_list,
                  tacc_type_free,
                  tacc_type_list_free)
 
-MK_DYNHASH_OVER(tacc_type_map,
-                name->string,
-                tacc_type_map_entry,
-                struct tacc_type *,
-                tacc_type_map_new,
-                tacc_type_map_init,
-                tacc_type_map_get,
-                tacc_type_map_insert,
-                tacc_type_map_count,
-                tacc_type_free,
-                tacc_type_map_free)
-
 MK_DYNARRAY_OVER(tacc_field_list,
                  tacc_field_list_entry,
                  struct tacc_field *,

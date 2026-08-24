@@ -1,7 +1,6 @@
 #include "compile.h"
 #include "codegen.h"
 #include "decl.h"
-#include "dynarray.h"
 #include "expr.h"
 #include "machine.h"
 #include "string_list.h"
@@ -9,29 +8,6 @@
 #include "type.h"
 #include "util.h"
 #include <stdarg.h>
-
-MK_DYNARRAY_OVER(tacc_block_scope_list,
-                 tacc_block_scope_list_entry,
-                 struct tacc_block_scope *,
-                 tacc_block_scope_list_new,
-                 tacc_block_scope_list_init,
-                 tacc_block_scope_list_get,
-                 tacc_block_scope_list_push,
-                 tacc_block_scope_list_pop,
-                 tacc_block_scope_list_len,
-                 tacc_block_scope_free,
-                 tacc_block_scope_list_free)
-MK_DYNHASH_OVER(tacc_compile_ident_map,
-                ident->string,
-                tacc_compile_ident_map_entry,
-                struct tacc_compile_ident *,
-                tacc_compile_ident_map_new,
-                tacc_compile_ident_map_init,
-                tacc_compile_ident_map_get,
-                tacc_compile_ident_map_push,
-                tacc_compile_ident_map_count,
-                tacc_compile_ident_free,
-                tacc_compile_ident_map_free)
 
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
@@ -163,86 +139,6 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
         return;
     }
     tacc_assert(0, "TODO: non-scalar data");
-}
-
-static struct tacc_type *
-tacc_compiler_find_tagged_type_or_forwdecl(struct tacc_compiler *compiler,
-                                           struct tacc_string *name,
-                                           enum tacc_type_kind kind) {
-    struct tacc_type_map_entry *entry;
-    struct tacc_block_scope_list_entry *scope;
-    struct tacc_type *ty;
-    size_t i;
-
-    /*
-     * If forward declaration is encountered and a tagged definition is in
-     * scope, the definition must match the declaration in kind. If a
-     * definition is given instead, the definition need not match an
-     * existing definition or declaration in an outer scope. A definition in an
-     * inner scope ignores definitions AND incomplete declarations from outer
-     * scopes.
-     */
-    for (i = tacc_block_scope_list_len(compiler->block_scopes); i > 0;
-         i = i - 1) {
-        /*
-         * Look for nearest declaration/definition. New declarations are not
-         * created in surrounding scopes if they match yet outer scopes, so the
-         * nearest decl/def is either a definition, or the outermost
-         * declaration visible.
-         */
-        scope = tacc_block_scope_list_get(compiler->block_scopes, i - 1);
-        entry = tacc_type_map_get(scope->content->tagged_types,
-                                  tacc_dynstring_as_str(name));
-        if (entry->content != NULL) {
-            tacc_assert(entry->content->kind == kind,
-                        "mismatched redeclaration using tag `%s`",
-                        tacc_dynstring_as_str(name));
-
-            return entry->content;
-        }
-    }
-
-    ty = tacc_type_new();
-    ty->kind = kind;
-    ty->name = tacc_dynstring_clone(name);
-    tacc_assert(kind == TYK_ENUM, "TODO: forward-declare struct/union");
-    ty->extra.enumeration = NULL;
-
-    scope = tacc_block_scope_list_get(
-        compiler->block_scopes,
-        tacc_block_scope_list_len(compiler->block_scopes) - 1);
-    tacc_type_map_insert(scope->content->tagged_types, ty);
-
-    return ty;
-}
-
-static struct tacc_type *tacc_compiler_add_new_tagged_type(
-    struct tacc_compiler *compiler, struct tacc_type *ty) {
-    struct tacc_block_scope_list_entry *entry;
-    struct tacc_type_map_entry *existing_entry;
-
-    entry = tacc_block_scope_list_get(
-        compiler->block_scopes,
-        tacc_block_scope_list_len(compiler->block_scopes) - 1);
-    existing_entry = tacc_type_map_get(entry->content->tagged_types,
-                                       tacc_dynstring_as_str(ty->name));
-    if (existing_entry != NULL) {
-        /* TODO: merge attributes? */
-        if (existing_entry->content->kind == TYK_ENUM) {
-            tacc_assert(existing_entry->content->extra.enumeration,
-                        "redefinition of enum %s",
-                        ty);
-            existing_entry->content->extra.enumeration = ty->extra.enumeration;
-            ty->extra.enumeration = NULL;
-        } else {
-            tacc_assert(0, "TODO: detect redefinition of struct/union %s", ty);
-        }
-        tacc_type_free(ty);
-        return existing_entry->content;
-    }
-    tacc_type_map_insert(entry->content->tagged_types, ty);
-
-    return ty;
 }
 
 static struct tacc_type *tacc_eval_enumerators(
@@ -602,6 +498,51 @@ tacc_eval_union(struct tacc_compiler *compiler,
     return ty;
 }
 
+static struct tacc_type *tacc_compiler_get_named_type(
+    struct tacc_compiler *compiler, uint32_t name_ref) {
+    struct tacc_type_list_entry *entry;
+    size_t i;
+
+    /* TODO: just use a hashmap with an uint32_t key */
+    for (i = 0; i < tacc_type_list_len(compiler->named_types); i = i + 1) {
+        entry = tacc_type_list_get(compiler->named_types, i);
+        if (entry->content->name_ref == name_ref) {
+            return entry->content;
+        }
+    }
+    return NULL;
+}
+
+static struct tacc_type *
+tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
+                                         uint32_t name_ref,
+                                         enum tacc_type_kind kind) {
+    struct tacc_type *ty;
+
+    ty = tacc_compiler_get_named_type(compiler, name_ref);
+    if (ty != NULL) {
+        tacc_assert(
+            ty->kind == kind,
+            "incompatible redeclaration of tag %s",
+            tacc_dynstring_as_str(tacc_compile_get_name(compiler, name_ref)));
+        return ty;
+    }
+
+    ty = tacc_type_new();
+    ty->name_ref = name_ref;
+    ty->kind = kind;
+    tacc_type_list_push(compiler->named_types, ty);
+    return ty;
+}
+
+static void tacc_compiler_add_new_named_type(struct tacc_compiler *compiler,
+                                             struct tacc_type *ty) {
+    tacc_assert(tacc_compiler_get_named_type(compiler, ty->name_ref) == NULL,
+                "type %s redeclared",
+                tacc_compile_get_name(compiler, ty->name_ref));
+    tacc_type_list_push(compiler->named_types, ty);
+}
+
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                                            struct tacc_decl_type *type) {
     enum tacc_type_kind base_type;
@@ -681,23 +622,22 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
     case TYPESPEC_ENUM:
         base_type = TYK_ENUM;
         if (type->extra.enumerators == NULL) {
-            tacc_assert(type->referenced_name != NULL,
+            tacc_assert(type->name_ref != 0,
                         "anonymous unspecified enumeration");
-            ty = tacc_compiler_find_tagged_type_or_forwdecl(
-                compiler, type->referenced_name, TYK_ENUM);
+            ty = tacc_compiler_get_named_type(compiler, type->name_ref);
+            tacc_assert(ty != NULL,
+                        "forward declaration of enum %s",
+                        tacc_dynstring_as_str(
+                            tacc_compile_get_name(compiler, type->name_ref)));
         } else {
             ty = tacc_type_new();
             ty->kind = TYK_ENUM;
             ty->extra.enumeration = tacc_enumeration_type_new();
             ty->extra.enumeration->underlying_type =
                 tacc_eval_enumerators(compiler, type->extra.enumerators);
-            if (type->referenced_name != NULL) {
-                ty->name = tacc_dynstring_clone(type->referenced_name);
-                /*
-                 * May result in merge of past forward-declaration,
-                 * returning the tacc_type from that forward-declaration.
-                 */
-                ty = tacc_compiler_add_new_tagged_type(compiler, ty);
+            if (type->name_ref != 0) {
+                ty->name_ref = type->name_ref;
+                tacc_compiler_add_new_named_type(compiler, ty);
             } else {
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
@@ -711,10 +651,10 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
             base_type = TYK_UNION;
         }
         if (type->extra.struct_fields == NULL) {
-            tacc_assert(type->referenced_name != NULL,
+            tacc_assert(type->name_ref != 0,
                         "anonymous unspecified struct/union");
-            ty = tacc_compiler_find_tagged_type_or_forwdecl(
-                compiler, type->referenced_name, base_type);
+            ty = tacc_compiler_get_named_type_or_forwdecl(
+                compiler, type->name_ref, base_type);
         } else {
             ty = tacc_type_new();
             ty->kind = base_type;
@@ -725,13 +665,13 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                 ty->extra.onion =
                     tacc_eval_union(compiler, type->extra.struct_fields);
             }
-            if (type->referenced_name != NULL) {
-                ty->name = tacc_dynstring_clone(type->referenced_name);
+            if (type->name_ref != 0) {
+                ty->name_ref = type->name_ref;
                 /*
                  * May result in merge of past forward-declaration,
                  * returning the tacc_type from that forward-declaration.
                  */
-                ty = tacc_compiler_add_new_tagged_type(compiler, ty);
+                tacc_compiler_add_new_named_type(compiler, ty);
             } else {
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
@@ -749,29 +689,6 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
     ty = entry->content;
 
     return ty;
-}
-
-struct tacc_block_scope *tacc_block_scope_new(void) {
-    struct tacc_block_scope *scope;
-
-    scope = tacc_malloc(sizeof(struct tacc_block_scope));
-    scope->tagged_types = tacc_type_map_new(0x1000);
-    scope->untagged_idents = tacc_compile_ident_map_new(0x1000);
-
-    return scope;
-}
-
-void tacc_block_scope_free(struct tacc_block_scope *scope) {
-    tacc_type_map_free(scope->tagged_types);
-    tacc_free(scope->tagged_types);
-    tacc_compile_ident_map_free(scope->untagged_idents);
-    tacc_free(scope->untagged_idents);
-    tacc_free(scope);
-}
-
-void tacc_compile_ident_free(struct tacc_compile_ident *ident) {
-    tacc_dynstring_free(ident->ident);
-    tacc_free(ident);
 }
 
 static void tacc_compile_function_def(struct tacc_compiler *compiler,

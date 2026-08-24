@@ -4,7 +4,16 @@
 #include "expr.h"
 #include "tasku_pp.h"
 
-enum tacc_untagged_ident_kind { UNTAGGED_IDENT_OBJECT, UNTAGGED_IDENT_TYPEDEF };
+enum tacc_untagged_ident_kind {
+    UNTAGGED_IDENT_OBJECT,
+    UNTAGGED_IDENT_ENUMERATOR,
+    UNTAGGED_IDENT_TYPEDEF
+};
+enum tacc_tagged_ident_kind {
+    TAGGED_IDENT_ENUM,
+    TAGGED_IDENT_UNION,
+    TAGGED_IDENT_STRUCT
+};
 
 struct tacc_untagged_ident {
     struct tacc_string *name;
@@ -12,16 +21,30 @@ struct tacc_untagged_ident {
     uint32_t name_ref;
 };
 
-DECL_DYNARRAY_OVER(tacc_untagged_ident_list,
-                   tacc_untagged_ident_list_entry,
-                   struct tacc_untagged_ident *,
-                   tacc_untagged_ident_list_new,
-                   tacc_untagged_ident_list_init,
-                   tacc_untagged_ident_list_get,
-                   tacc_untagged_ident_list_push,
-                   tacc_untagged_ident_list_pop,
-                   tacc_untagged_ident_list_len,
-                   tacc_untagged_ident_list_free)
+struct tacc_tagged_ident {
+    struct tacc_string *name;
+    enum tacc_tagged_ident_kind kind;
+    uint32_t name_ref;
+};
+
+DECL_DYNHASH_OVER(tacc_untagged_ident_list,
+                  tacc_untagged_ident_list_entry,
+                  struct tacc_untagged_ident *,
+                  tacc_untagged_ident_list_new,
+                  tacc_untagged_ident_list_init,
+                  tacc_untagged_ident_list_get,
+                  tacc_untagged_ident_list_insert,
+                  tacc_untagged_ident_list_fill_count,
+                  tacc_untagged_ident_list_free)
+DECL_DYNHASH_OVER(tacc_tagged_ident_list,
+                  tacc_tagged_ident_list_entry,
+                  struct tacc_tagged_ident *,
+                  tacc_tagged_ident_list_new,
+                  tacc_tagged_ident_list_init,
+                  tacc_tagged_ident_list_get,
+                  tacc_tagged_ident_list_insert,
+                  tacc_tagged_ident_list_fill_count,
+                  tacc_tagged_ident_list_free)
 
 DECL_DYNARRAY_OVER(tacc_ident_scope_list,
                    tacc_ident_scope_list_entry,
@@ -36,6 +59,7 @@ DECL_DYNARRAY_OVER(tacc_ident_scope_list,
 
 struct tacc_ident_scope {
     struct tacc_untagged_ident_list *untagged_idents;
+    struct tacc_tagged_ident_list *tagged_idents;
 };
 
 void tacc_ident_scope_free(struct tacc_ident_scope *scope);
@@ -52,6 +76,7 @@ struct tacc_expr *tacc_parse_new_expr(struct tacc_parse_registry *registry,
 struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
                                  struct tacc_tok_iter *iter);
 void tacc_untagged_ident_free(struct tacc_untagged_ident *ident);
+void tacc_tagged_ident_free(struct tacc_tagged_ident *ident);
 void tacc_ast_free(struct tacc_ast *ast);
 
 struct tacc_ast {

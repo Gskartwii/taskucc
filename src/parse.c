@@ -17,17 +17,29 @@ enum tacc_declaration_context {
     DECL_CONTEXT_STRUCT_FIELD
 };
 
-MK_DYNARRAY_OVER(tacc_untagged_ident_list,
-                 tacc_untagged_ident_list_entry,
-                 struct tacc_untagged_ident *,
-                 tacc_untagged_ident_list_new,
-                 tacc_untagged_ident_list_init,
-                 tacc_untagged_ident_list_get,
-                 tacc_untagged_ident_list_push,
-                 tacc_untagged_ident_list_pop,
-                 tacc_untagged_ident_list_len,
-                 tacc_untagged_ident_free,
-                 tacc_untagged_ident_list_free)
+MK_DYNHASH_OVER(tacc_untagged_ident_list,
+                name->string,
+                tacc_untagged_ident_list_entry,
+                struct tacc_untagged_ident *,
+                tacc_untagged_ident_list_new,
+                tacc_untagged_ident_list_init,
+                tacc_untagged_ident_list_get,
+                tacc_untagged_ident_list_insert,
+                tacc_untagged_ident_list_fill_count,
+                tacc_untagged_ident_free,
+                tacc_untagged_ident_list_free)
+
+MK_DYNHASH_OVER(tacc_tagged_ident_list,
+                name->string,
+                tacc_tagged_ident_list_entry,
+                struct tacc_tagged_ident *,
+                tacc_tagged_ident_list_new,
+                tacc_tagged_ident_list_init,
+                tacc_tagged_ident_list_get,
+                tacc_tagged_ident_list_insert,
+                tacc_tagged_ident_list_fill_count,
+                tacc_tagged_ident_free,
+                tacc_tagged_ident_list_free)
 
 MK_DYNARRAY_OVER(tacc_ident_scope_list,
                  tacc_ident_scope_list_entry,
@@ -84,11 +96,21 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     tacc_assert(0, "parse error");
 }
 
+uint32_t tacc_parse_registry_intern(struct tacc_parse_registry *registry,
+                                    struct tacc_string *string) {
+    uint32_t pos;
+
+    pos = (uint32_t) tacc_string_list_len(registry->interned_strings);
+    tacc_string_list_push(registry->interned_strings, string);
+
+    return pos;
+}
+
 static struct tacc_ident_scope *tacc_ident_scope_new(void) {
     struct tacc_ident_scope *scope;
 
     scope = tacc_malloc(sizeof(struct tacc_ident_scope));
-    scope->untagged_idents = tacc_untagged_ident_list_new();
+    scope->untagged_idents = tacc_untagged_ident_list_new(0x1000);
 
     return scope;
 }
@@ -131,7 +153,6 @@ static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
     struct tacc_untagged_ident_list_entry *ident_entry;
     struct tacc_ident_scope *scope;
     size_t i;
-    size_t j;
     size_t scope_len;
 
     scope_len = tacc_ident_scope_list_len(registry->scopes);
@@ -139,14 +160,31 @@ static struct tacc_untagged_ident *tacc_parse_registry_lookup_untagged(
         scope_entry =
             tacc_ident_scope_list_get(registry->scopes, scope_len - i);
         scope = scope_entry->content;
-        for (j = 0; j < tacc_untagged_ident_list_len(scope->untagged_idents);
-             j = j + 1) {
-            ident_entry =
-                tacc_untagged_ident_list_get(scope->untagged_idents, j);
-            if (!strcmp(name,
-                        tacc_dynstring_as_str(ident_entry->content->name))) {
-                return ident_entry->content;
-            }
+        ident_entry =
+            tacc_untagged_ident_list_get(scope->untagged_idents, name);
+        if (ident_entry != NULL) {
+            return ident_entry->content;
+        }
+    }
+    return NULL;
+}
+
+static struct tacc_tagged_ident *tacc_parse_registry_lookup_tagged(
+    struct tacc_parse_registry *registry, char *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_tagged_ident_list_entry *ident_entry;
+    struct tacc_ident_scope *scope;
+    size_t i;
+    size_t scope_len;
+
+    scope_len = tacc_ident_scope_list_len(registry->scopes);
+    for (i = 1; i <= scope_len; i = i + 1) {
+        scope_entry =
+            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
+        scope = scope_entry->content;
+        ident_entry = tacc_tagged_ident_list_get(scope->tagged_idents, name);
+        if (ident_entry != NULL) {
+            return ident_entry->content;
         }
     }
     return NULL;
@@ -950,32 +988,6 @@ struct tacc_ast *tacc_ast_new(void) {
     return ast;
 }
 
-/*static struct tacc_compound_type *tacc_parse_registry_lookup_tagged(
-    struct tacc_parse_registry *registry, char *name) {
-    struct tacc_ident_scope_list_entry *scope_entry;
-    struct tacc_compound_type_list_entry *type_entry;
-    struct tacc_ident_scope *scope;
-    size_t i;
-    size_t j;
-    size_t scope_len;
-
-    scope_len = tacc_ident_scope_list_len(registry->scopes);
-    for (i = 1; i <= scope_len; i = i + 1) {
-        scope_entry =
-            tacc_ident_scope_list_get(registry->scopes, scope_len - i);
-        scope = scope_entry->content;
-        for (j = 0; j < tacc_compound_type_list_len(scope->tagged_types);
-             j = j + 1) {
-            type_entry = tacc_compound_type_list_get(scope->tagged_types, j);
-            if (!strcmp(name,
-                        tacc_dynstring_as_str(type_entry->content->name))) {
-                return type_entry->content;
-            }
-        }
-    }
-    return NULL;
-}*/
-
 static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     while (1) {
         if (!tacc_tok_iter_accept_kw(iter, ID_CONST) &&
@@ -986,9 +998,73 @@ static void tacc_parse_skip_qualifiers(struct tacc_tok_iter *iter) {
     }
 }
 
+static void tacc_parse_registry_add_tagged(struct tacc_parse_registry *registry,
+                                           uint32_t name_ref,
+                                           enum tacc_tagged_ident_kind kind) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_tagged_ident_list_entry *existing_entry;
+    struct tacc_tagged_ident *ident_descriptor;
+    struct tacc_ident_scope *scope;
+    struct tacc_string_list_entry *str_entry;
+
+    scope_entry = tacc_ident_scope_list_get(
+        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
+    scope = scope_entry->content;
+
+    str_entry = tacc_string_list_get(registry->interned_strings, name_ref);
+    existing_entry = tacc_tagged_ident_list_get(
+        scope->tagged_idents, tacc_dynstring_as_str(str_entry->content));
+    if (existing_entry != NULL) {
+        tacc_assert(kind == existing_entry->content->kind,
+                    "name %s redeclared as different kind of tag",
+                    tacc_dynstring_as_str(str_entry->content));
+        /* later pass will detect redefinitions */
+    }
+
+    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
+    ident_descriptor->kind = kind;
+    ident_descriptor->name = str_entry->content;
+    ident_descriptor->name_ref = name_ref;
+    tacc_tagged_ident_list_insert(scope->tagged_idents, ident_descriptor);
+}
+
+static void
+tacc_parse_registry_add_variable(struct tacc_parse_registry *registry,
+                                 uint32_t name_ref,
+                                 enum tacc_untagged_ident_kind kind) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_untagged_ident_list_entry *existing_entry;
+    struct tacc_untagged_ident *ident_descriptor;
+    struct tacc_ident_scope *scope;
+    struct tacc_string_list_entry *str_entry;
+
+    scope_entry = tacc_ident_scope_list_get(
+        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
+    scope = scope_entry->content;
+
+    str_entry = tacc_string_list_get(registry->interned_strings, name_ref);
+    existing_entry = tacc_untagged_ident_list_get(
+        scope->untagged_idents, tacc_dynstring_as_str(str_entry->content));
+    if (existing_entry != NULL) {
+        tacc_assert(kind == existing_entry->content->kind,
+                    "name %s redeclared as different kind of identifier",
+                    tacc_dynstring_as_str(str_entry->content));
+        tacc_assert(kind != UNTAGGED_IDENT_ENUMERATOR,
+                    "enumerator %s redeclared",
+                    tacc_dynstring_as_str(str_entry->content));
+    }
+
+    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
+    ident_descriptor->kind = kind;
+    ident_descriptor->name = str_entry->content;
+    ident_descriptor->name_ref = name_ref;
+    tacc_untagged_ident_list_insert(scope->untagged_idents, ident_descriptor);
+}
+
 static void tacc_parse_enumerator_list(struct tacc_parse_registry *registry,
                                        struct tacc_enumerator_list *out_list,
                                        struct tacc_tok_iter *iter) {
+    struct tacc_string *enumerator_name;
     struct pp_tok *tok;
     struct tacc_enumerator *enumerator;
 
@@ -998,7 +1074,7 @@ static void tacc_parse_enumerator_list(struct tacc_parse_registry *registry,
                           tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER,
                           "expected enumerator name");
         enumerator = tacc_enumerator_new();
-        enumerator->name = tacc_dynstring_clone(tok->str);
+        enumerator_name = tacc_dynstring_clone(tok->str);
         tacc_pp_tok_free(tok);
         tok = NULL;
 
@@ -1006,6 +1082,10 @@ static void tacc_parse_enumerator_list(struct tacc_parse_registry *registry,
             enumerator->value =
                 tacc_parse_new_constant_expression(registry, iter);
         }
+        enumerator->name_ref =
+            tacc_parse_registry_intern(registry, enumerator_name);
+        tacc_parse_registry_add_variable(
+            registry, enumerator->name_ref, UNTAGGED_IDENT_ENUMERATOR);
         tacc_enumerator_list_push(out_list, enumerator);
 
         if (!tacc_tok_iter_accept_tok(iter, TOK_COMMA)) {
@@ -1017,44 +1097,10 @@ static void tacc_parse_enumerator_list(struct tacc_parse_registry *registry,
     }
 }
 
-static void tacc_parse_registry_add_variable(
-    struct tacc_parse_registry *registry, uint32_t name_ref) {
-    struct tacc_ident_scope_list_entry *scope_entry;
-    struct tacc_untagged_ident *ident_descriptor;
-    struct tacc_ident_scope *scope;
-    struct tacc_string_list_entry *str_entry;
-
-    scope_entry = tacc_ident_scope_list_get(
-        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
-    scope = scope_entry->content;
-
-    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
-    ident_descriptor->kind = UNTAGGED_IDENT_OBJECT;
-    str_entry = tacc_string_list_get(registry->interned_strings, name_ref);
-    ident_descriptor->name = str_entry->content;
-    ident_descriptor->name_ref = name_ref;
-    tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
-}
-
 static void tacc_parse_registry_add_typedef(
     struct tacc_parse_registry *registry, struct tacc_declarator *declarator) {
-    struct tacc_ident_scope_list_entry *scope_entry;
-    struct tacc_untagged_ident *ident_descriptor;
-    struct tacc_ident_scope *scope;
-    struct tacc_string_list_entry *str_entry;
-    uint32_t name_ref;
-
-    scope_entry = tacc_ident_scope_list_get(
-        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
-    scope = scope_entry->content;
-    name_ref = tacc_declarator_name(declarator);
-
-    ident_descriptor = tacc_malloc(sizeof(struct tacc_untagged_ident));
-    ident_descriptor->kind = UNTAGGED_IDENT_TYPEDEF;
-    str_entry = tacc_string_list_get(registry->interned_strings, name_ref);
-    ident_descriptor->name = str_entry->content;
-    ident_descriptor->name_ref = name_ref;
-    tacc_untagged_ident_list_push(scope->untagged_idents, ident_descriptor);
+    tacc_parse_registry_add_variable(
+        registry, tacc_declarator_name(declarator), UNTAGGED_IDENT_TYPEDEF);
 }
 
 static struct tacc_struct_declarator *tacc_parse_struct_declarator(
@@ -1117,6 +1163,10 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
                               struct tacc_tok_iter *iter,
                               struct tacc_parse_registry *registry) {
     struct pp_tok *tok;
+    struct tacc_string *tag_name;
+    uint32_t name_ref;
+    enum tacc_tagged_ident_kind tag_kind;
+    struct tacc_tagged_ident *existing;
 
     tok = tacc_tok_iter_peek(iter);
 
@@ -1127,15 +1177,27 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
         } else {
             out_type->extra.struct_fields = NULL;
         }
-        out_type->referenced_name = tacc_dynstring_clone(tok->str);
+        tag_name = tacc_dynstring_clone(tok->str);
         tacc_pp_tok_free(tok);
         tok = tacc_tok_iter_peek(iter);
     } else {
-        out_type->referenced_name = NULL;
+        tag_name = NULL;
+        out_type->name_ref = 0;
     }
 
     if (tok->kind == TOK_LBRACKET) {
+        /* spawn a new type that is incomplete */
         tacc_pp_tok_free(tacc_tok_iter_next(iter));
+        name_ref = tacc_parse_registry_intern(registry, tag_name);
+        if (kind == ID_ENUM) {
+            tag_kind = TAGGED_IDENT_ENUM;
+        } else if (kind == ID_UNION) {
+            tag_kind = TAGGED_IDENT_UNION;
+        } else {
+            tag_kind = TAGGED_IDENT_STRUCT;
+        }
+        tacc_parse_registry_add_tagged(registry, name_ref, tag_kind);
+        out_type->name_ref = name_ref;
 
         if (kind == ID_ENUM) {
             out_type->extra.enumerators = tacc_enumerator_list_new();
@@ -1147,9 +1209,30 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
                 out_type->extra.struct_fields, iter, registry);
         }
     } else {
-        tacc_parse_assert(iter,
-                          out_type->referenced_name != NULL,
-                          "anonymous struct without definition");
+        /*
+         * bind to existing type if possible, else spawn a new type
+         */
+        tacc_parse_assert(
+            iter, tag_name != NULL, "anonymous struct without definition");
+        existing = tacc_parse_registry_lookup_tagged(
+            registry, tacc_dynstring_as_str(tag_name));
+        if (existing != NULL) {
+            out_type->name_ref = existing->name_ref;
+            tacc_dynstring_free(tag_name);
+            tag_name = NULL;
+        } else {
+            tacc_assert(kind != ID_ENUM,
+                        "forward declaration of enum %s",
+                        tacc_dynstring_as_str(tag_name));
+            name_ref = tacc_parse_registry_intern(registry, tag_name);
+            if (kind == ID_UNION) {
+                tag_kind = TAGGED_IDENT_UNION;
+            } else {
+                tag_kind = TAGGED_IDENT_STRUCT;
+            }
+            tacc_parse_registry_add_tagged(registry, name_ref, tag_kind);
+            out_type->name_ref = name_ref;
+        }
     }
 }
 
@@ -1249,13 +1332,14 @@ static struct tacc_decl_type *tacc_parse_declaration_specifiers(
     uint32_t type_flags;
     struct pp_tok *tok;
     struct tacc_decl_type *out_type;
+    struct tacc_untagged_ident *ident_descriptor;
     tacc_bool tok_handled;
 
     type_flags = 0;
     storage_class = STORAGE_UNSPECIFIED;
 
     out_type = tacc_malloc(sizeof(struct tacc_decl_type));
-    out_type->referenced_name = NULL;
+    out_type->name_ref = 0;
     if (inherit_attributes != NULL) {
         out_type->attributes = inherit_attributes;
     } else {
@@ -1389,7 +1473,9 @@ static struct tacc_decl_type *tacc_parse_declaration_specifiers(
             break;
         case ID_OTHER:
             ENSURE_ONE(TYPESPEC_TYPEDEF);
-            out_type->referenced_name = tacc_dynstring_clone(tok->str);
+            ident_descriptor = tacc_parse_registry_lookup_untagged(
+                registry, tacc_dynstring_as_str(tok->str));
+            out_type->name_ref = ident_descriptor->name_ref;
             break;
         default:
             tacc_parse_assert(iter,
@@ -1457,7 +1543,8 @@ void tacc_parse_func_param_list(struct tacc_function_declarator *decl,
 
         param_name = tacc_declarator_name(param->decl);
         if (param_name != 0) {
-            tacc_parse_registry_add_variable(registry, param_name);
+            tacc_parse_registry_add_variable(
+                registry, param_name, UNTAGGED_IDENT_OBJECT);
         }
 
         tacc_function_param_list_push(decl->param_list.modern_params, param);
@@ -1488,17 +1575,16 @@ tacc_parse_declarator(struct tacc_tok_iter *iter,
     tok = tacc_tok_iter_peek(iter);
     if (tok->kind == TOK_IDENT) {
         tok = tacc_tok_iter_next(iter);
-        i = tacc_string_list_len(registry->interned_strings);
-        declarator->extra.name_ref = (uint32_t) i;
+        i = tacc_parse_registry_intern(registry,
+                                       tacc_dynstring_clone(tok->str));
 
         /*
          * Being a declarator, creates a new ident in this scope. The consumer
          * of this declaration should determine whether this is legal or if it
          * clashes.
          */
-        tacc_string_list_push(registry->interned_strings,
-                              tacc_dynstring_clone(tok->str));
         declarator->kind = DECLARATOR_PLAIN;
+        declarator->extra.name_ref = (uint32_t) i;
 
         tacc_pp_tok_free(tok);
         tok = NULL;
@@ -1972,7 +2058,9 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
 
             if (storage_class != STORAGE_TYPEDEF) {
                 tacc_parse_registry_add_variable(
-                    registry, tacc_declarator_name(declarator));
+                    registry,
+                    tacc_declarator_name(declarator),
+                    UNTAGGED_IDENT_OBJECT);
             } else {
                 tacc_parse_registry_add_typedef(registry, declarator);
             }
@@ -2060,6 +2148,10 @@ void tacc_ast_free(struct tacc_ast *ast) {
 }
 
 void tacc_untagged_ident_free(struct tacc_untagged_ident *ident) {
+    tacc_free(ident);
+}
+
+void tacc_tagged_ident_free(struct tacc_tagged_ident *ident) {
     tacc_free(ident);
 }
 
