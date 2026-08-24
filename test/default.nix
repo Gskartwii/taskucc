@@ -73,6 +73,11 @@ in
         dontUnpack = true;
         nativeBuildInputs = [pv tasku-m2 tasku-gcc.debug];
 
+        # LSAN breaks under qemu-user
+        env = lib.optionalAttrs stdenv.buildPlatform.isRiscV {
+          ASAN_OPTIONS = "detect_leaks=0";
+        };
+
         buildPhase = ''
           ok=true
 
@@ -99,22 +104,27 @@ in
               -DTCC_VERSION=\"0.9.28\" \
               -DCONFIG_TCC_SEMLOCK=0"
 
-            if ! timeout 5 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
+            if ! timeout 30 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
               ok=false
               echo "tasku-gcc $mode failed on $file"
+              continue
             fi
             if ! timeout 90 tasku-m2 $flags | pv -r > tasku-m2-test; then
               ok=false
               echo "tasku-m2 $mode failed on $file; timeout"
+              continue
             fi
             if ! diff -q tasku-gcc-test tasku-m2-test; then
               ok=false
               echo "mismatch found"
+              continue
             fi
           done
           echo "$bn: ok"
           if $ok; then
             touch "$out"
+          else
+            exit 1
           fi
         '';
       };
