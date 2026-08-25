@@ -698,3 +698,12 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
     }
     tacc_compile_output(compiler, "\n");
 }
+
+struct tacc_enumerator *tacc_compile_resolve_enumerator(
+    struct tacc_compiler *compiler, uint32_t name_ref) {
+    TACC_UNUSED(compiler);
+    TACC_UNUSED(name_ref);
+    tacc_assert(0, "TODO: resolve enumerators");
+
+    return NULL;
+}

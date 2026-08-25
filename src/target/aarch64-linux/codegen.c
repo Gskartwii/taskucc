@@ -2,6 +2,7 @@
 #include "compile.h"
 #include "machine.h"
 #include "target/aarch64-linux/registers.h"
+#include "type.h"
 #include "util.h"
 
 struct tacc_target_cg_state {
@@ -284,4 +285,41 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
                    ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
     tacc_cg_output(state, "\n\t ldp fp, lr, [sp, #-16]");
     tacc_cg_output(state, "\n\t ret");
+}
+
+void tacc_target_cg_load_int(struct tacc_cg_state *state,
+                             struct tacc_local_var *var) {
+    size_t load_width;
+    uint32_t reg;
+    char *reg_name;
+    char *sext;
+
+    load_width = tacc_type_bit_width(var->ty);
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    if (load_width > 32) {
+        reg_name = tacc_target_register_as_64(reg);
+    } else {
+        reg_name = tacc_target_register_as_32(reg);
+    }
+    sext = "";
+    if (tacc_type_kind_is_signed(var->ty->kind)) {
+        sext = "s";
+    }
+
+    switch (load_width) {
+    case 8:
+        tacc_cg_output(
+            state, "\n\t ldr%sb %s, [fp, #%d]", sext, reg_name, var->offset);
+        break;
+    case 16:
+        tacc_cg_output(
+            state, "\n\t ldr%sh %s, [fp, #%d]", sext, reg_name, var->offset);
+        break;
+    case 32:
+    case 64:
+        tacc_cg_output(state, "\n\t ldr %s, [fp, #%d]", reg_name, var->offset);
+        break;
+    default:
+        tacc_assert(0, "invalid load width %d", load_width);
+    }
 }

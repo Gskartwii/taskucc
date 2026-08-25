@@ -216,3 +216,40 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t ld ra, -8(sp)");
     tacc_cg_output(state, "\n\t ret");
 }
+
+void tacc_target_cg_load_int(struct tacc_cg_state *state,
+                             struct tacc_local_var *var) {
+    size_t load_width;
+    uint32_t reg;
+    char *reg_name;
+    char *zext;
+
+    load_width = tacc_type_bit_width(var->ty);
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg_name = tacc_target_register_as_64(reg);
+    zext = "";
+    if (!tacc_type_kind_is_signed(var->ty->kind)) {
+        zext = "u";
+    }
+
+    switch (load_width) {
+    case 8:
+        tacc_cg_output(
+            state, "\n\t lb%s %s, %d(s0)", zext, reg_name, var->offset);
+        break;
+    case 16:
+        tacc_cg_output(
+            state, "\n\t lh%s %s, %d(s0)", zext, reg_name, var->offset);
+        break;
+    case 32:
+        tacc_cg_output(
+            state, "\n\t lw%s %s, %d(s0)", zext, reg_name, var->offset);
+        break;
+    case 64:
+        tacc_cg_output(
+            state, "\n\t ld%s %s, %d(s0)", zext, reg_name, var->offset);
+        break;
+    default:
+        tacc_assert(0, "invalid load width %d", load_width);
+    }
+}

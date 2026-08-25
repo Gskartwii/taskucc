@@ -317,3 +317,27 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t popq %%rbp");
     tacc_cg_output(state, "\n\t ret");
 }
+
+void tacc_target_cg_load_int(struct tacc_cg_state *state,
+                             struct tacc_local_var *var) {
+    size_t load_width;
+    uint32_t reg;
+
+    load_width = tacc_type_bit_width(var->ty);
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+
+    switch (load_width) {
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+        tacc_cg_output(state,
+                       "\n\t mov%s %d(%%rbp), %s",
+                       tacc_target_op_suffix(load_width),
+                       var->offset,
+                       tacc_target_register_name(reg, load_width));
+        break;
+    default:
+        tacc_assert(0, "invalid load width %d", load_width);
+    }
+}

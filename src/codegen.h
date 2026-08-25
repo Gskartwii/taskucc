@@ -28,7 +28,7 @@ struct tacc_slot {
 struct tacc_local_var {
     uint32_t name_ref;
     struct tacc_type *ty;
-    size_t offset;
+    int offset;
 };
 
 DECL_DYNARRAY_OVER(tacc_slot_list,

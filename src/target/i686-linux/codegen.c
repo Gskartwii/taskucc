@@ -288,3 +288,42 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t popl %%ebp");
     tacc_cg_output(state, "\n\t ret");
 }
+
+void tacc_target_cg_load_int(struct tacc_cg_state *state,
+                             struct tacc_local_var *var) {
+    size_t load_width;
+    uint32_t reg;
+    uint32_t reg_2;
+
+    load_width = tacc_type_bit_width(var->ty);
+    if (load_width > 32) {
+        reg = tacc_target_cg_alloc_reg(state, REG_ANY);
+        reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
+    } else {
+        reg = tacc_target_cg_alloc_reg(state, REG_ANY);
+    }
+
+    switch (load_width) {
+    case 8:
+    case 16:
+    case 32:
+        tacc_cg_output(state,
+                       "\n\t mov%s %d(%%ebp), %s",
+                       tacc_target_op_suffix(load_width),
+                       var->offset,
+                       tacc_target_register_name(reg, load_width));
+        break;
+    case 64:
+        tacc_cg_output(state,
+                       "\n\t movl %d(%%ebp), %s",
+                       var->offset,
+                       tacc_target_register_as_32(reg));
+        tacc_cg_output(state,
+                       "\n\t movl %d(%%ebp), %s",
+                       var->offset + 4,
+                       tacc_target_register_as_32(reg_2));
+        break;
+    default:
+        tacc_assert(0, "invalid load width %d", load_width);
+    }
+}

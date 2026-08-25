@@ -1,3 +1,3 @@
-int simple(void) {
+int simple(int x) {
     return 42;
 }

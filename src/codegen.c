@@ -64,9 +64,21 @@ struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     return state;
 }
 
+struct tacc_local_var *tacc_cg_resolve_local(struct tacc_cg_state *state,
+                                             uint32_t name_ref) {
+    struct tacc_local_var_map_entry *entry;
+
+    entry = tacc_local_var_map_get(state->locals, name_ref);
+    if (entry == NULL) {
+        return NULL;
+    }
+    return entry->content;
+}
+
 void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
     struct tacc_slot *slot;
+    struct tacc_local_var *var;
 
     switch (expr->kind) {
     case EX_INT_LIT:
@@ -77,10 +89,20 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         slot->ty = val->type;
         tacc_val_free(val);
         break;
+
+    case EX_IDENT:
+        var = tacc_cg_resolve_local(state, expr->extra.name_ref);
+        if (var != NULL) {
+            tacc_assert(tacc_type_is_integral(var->ty),
+                        "TODO: load non-integral value");
+            tacc_target_cg_load_int(state, var);
+        }
+        tacc_assert(0, "TODO: resolve non-local names");
+        break;
+
     case EX_UNINIT:
     case EX_CHAR_LIT:
     case EX_STRING_LIT:
-    case EX_IDENT:
     case EX_ADD:
     case EX_SUB:
     case EX_MUL:
@@ -486,7 +508,7 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
     state->num_local_bytes = state->num_local_bytes + size;
     var = tacc_local_var_new();
     var->name_ref = name_ref;
-    var->offset = state->num_local_bytes;
+    var->offset = -(int) (state->num_local_bytes);
     var->ty = ty;
     tacc_local_var_map_insert(state->locals, var);
 
