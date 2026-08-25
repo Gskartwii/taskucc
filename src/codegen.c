@@ -47,14 +47,12 @@ void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...) {
     va_end(va);
 }
 
-struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
-                                        struct tacc_type_list *basic_types) {
+struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     struct tacc_cg_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_cg_state));
     state->target_state = tacc_target_cg_state_new();
-    state->target = target;
-    state->basic_types = basic_types;
+    state->compiler = compiler;
     state->code_buffer = tacc_dynstring_new();
     state->prelude_buffer = tacc_dynstring_new();
     state->stack = tacc_slot_list_new();
@@ -72,7 +70,8 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
 
     switch (expr->kind) {
     case EX_INT_LIT:
-        val = tacc_expr_const_eval(expr, state->target, state->basic_types);
+        val = tacc_expr_const_eval(
+            expr, state->compiler->target, state->compiler->basic_types);
         tacc_target_cg_int(state, val);
         slot = tacc_cg_get_top(state);
         slot->ty = val->type;

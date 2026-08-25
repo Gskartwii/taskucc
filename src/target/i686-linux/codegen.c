@@ -212,7 +212,9 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
 
     if (from_width <= 32 && to_width > 32) {
         tacc_target_cg_ext_top(
-            state, tacc_get_basic_type(state->basic_types, TYK_UINT), is_sext);
+            state,
+            tacc_get_basic_type(state->compiler->basic_types, TYK_UINT),
+            is_sext);
         slot = tacc_cg_get_top(state);
         tacc_assert(slot->place_kind == PLACE_REGISTER,
                     "top must be single when extending with from_width <= 32");

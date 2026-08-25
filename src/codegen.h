@@ -1,6 +1,7 @@
 #ifndef TACC_CODEGEN_H
 #define TACC_CODEGEN_H
 
+#include "compile.h"
 #include "decl.h"
 #include "dynarray.h"
 #include "machine.h"
@@ -54,8 +55,7 @@ DECL_DYNHASH_OVER_U32(tacc_local_var_map,
 struct tacc_cg_state {
     struct tacc_function_type *func_type;
     struct tacc_target_cg_state *target_state;
-    struct tacc_target *target;
-    struct tacc_type_list *basic_types;
+    struct tacc_compiler *compiler;
     struct tacc_slot_list *stack;
     struct tacc_string *code_buffer;
     struct tacc_string *prelude_buffer;
@@ -64,8 +64,7 @@ struct tacc_cg_state {
     uint32_t clobbered_registers;
 };
 
-struct tacc_cg_state *tacc_cg_state_new(struct tacc_target *target,
-                                        struct tacc_type_list *basic_types);
+struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler);
 struct tacc_local_var *tacc_local_var_new(void);
 
 void tacc_cg_compile_function(struct tacc_cg_state *state,

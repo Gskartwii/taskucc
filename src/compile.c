@@ -634,7 +634,7 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
                 "TODO: old-style function parameter types");
 
-    state = tacc_cg_state_new(compiler->target, compiler->basic_types);
+    state = tacc_cg_state_new(compiler);
     tacc_cg_compile_function(
         state, function_def->extra.func_def, function_type->extra.function);
 
