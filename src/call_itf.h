@@ -8,9 +8,7 @@
 enum tacc_callitf_place_kind {
     CALLITF_PLACE_REGISTER,
     CALLITF_PLACE_REGISTER_PAIR,
-    CALLITF_PLACE_REGISTER_BYREF,
     CALLITF_PLACE_STACK,
-    CALLITF_PLACE_STACK_BYREF,
 };
 
 enum tacc_callitf_retval_kind {
@@ -67,5 +65,6 @@ struct tacc_callitf {
 
 struct tacc_callitf *tacc_callitf_new(void);
 struct tacc_callitf_part *tacc_callitf_part_new(void);
+void tacc_callitf_free(struct tacc_callitf *itf);
 
-#endif // call_itf_h_INCLUDED
+#endif

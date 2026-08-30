@@ -4,6 +4,7 @@ in {
   src = [
     "util.c"
     "3rdparty/intscan.c"
+    "call_itf.c"
     "codegen.c"
     "compile.c"
     "dynarray.c"
@@ -26,5 +27,6 @@ in {
 
     "target/${system}.c"
     "target/${system}/codegen.c"
+    "target/${system}/call_itf.c"
   ];
 }

@@ -1,6 +1,7 @@
 #ifndef TACC_CODEGEN_H
 #define TACC_CODEGEN_H
 
+#include "call_itf.h"
 #include "compile.h"
 #include "decl.h"
 #include "dynarray.h"
@@ -59,7 +60,10 @@ struct tacc_cg_state {
     struct tacc_slot_list *stack;
     struct tacc_string *code_buffer;
     struct tacc_string *prelude_buffer;
+    struct tacc_ident_list *param_names;
     struct tacc_local_var_map *locals;
+    struct tacc_callitf *interface;
+
     size_t num_local_bytes;
     uint32_t clobbered_registers;
 };

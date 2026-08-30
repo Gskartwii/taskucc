@@ -40,3 +40,9 @@ MK_DYNARRAY_OVER(tacc_callitf_part_list,
                  tacc_callitf_part_list_len,
                  tacc_callitf_part_free,
                  tacc_callitf_part_list_free)
+
+void tacc_callitf_free(struct tacc_callitf *itf) {
+    tacc_callitf_part_list_free(itf->param_parts);
+    tacc_free(itf->param_parts);
+    tacc_free(itf);
+}

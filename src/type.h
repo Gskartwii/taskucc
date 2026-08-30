@@ -192,6 +192,8 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
 struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
                                        struct tacc_type *base_type,
                                        size_t indirection_level);
+struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
+                                                     struct tacc_type *ty);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);

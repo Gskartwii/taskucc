@@ -132,16 +132,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_VLA:
     case TYK_DECAYING_VLA:
     case TYK_FN:
-        if (state->int_regs_used < 8) {
-            part->place.kind = CALLITF_PLACE_REGISTER_BYREF;
-            part->place.extra.reg.reg_class = REGC_INT_X;
-            part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
-            state->int_regs_used = state->int_regs_used + 1;
-        } else {
-            part->place.kind = CALLITF_PLACE_STACK_BYREF;
-            part->place.extra.stack_offset = (int) state->used_stack;
-            part->place.extra.stack_offset = part->place.extra.stack_offset + 8;
-        }
+        tacc_assert(0, "ICE: unnormalized function param type");
         break;
     case TYK_STRUCT:
     case TYK_UNION:

@@ -3,6 +3,7 @@
 #include "expr.h"
 #include "machine.h"
 #include "statement.h"
+#include "target/call_itf.h"
 #include "target/codegen.h"
 #include "target/target.h"
 #include "type.h"
@@ -56,6 +57,7 @@ struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     state->code_buffer = tacc_dynstring_new();
     state->prelude_buffer = tacc_dynstring_new();
     state->stack = tacc_slot_list_new();
+    state->param_names = tacc_ident_list_new();
     state->locals = tacc_local_var_map_new(0x100);
     state->num_local_bytes = 0;
     state->clobbered_registers = 0;
@@ -218,6 +220,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
                               struct tacc_funcdef *func_def,
                               struct tacc_function_type *func_type) {
     size_t i;
+    uint32_t param_name;
     struct tacc_compound_member_list_entry *entry;
     struct tacc_declarator *declarator;
     struct tacc_function_param_list *param_list;
@@ -225,6 +228,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     struct tacc_type_list_entry *param_type_entry;
 
     state->func_type = func_type;
+    state->interface = tacc_target_callitf_from_func_type(func_type);
 
     tacc_assert(!state->func_type->is_vararg,
                 "TODO: support vararg in compile_statements");
@@ -234,10 +238,10 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
         for (i = 0; i < tacc_function_param_list_len(param_list); i = i + 1) {
             param_entry = tacc_function_param_list_get(param_list, i);
             param_type_entry = tacc_type_list_get(func_type->param_types, i);
+            param_name = tacc_declarator_name(param_entry->content->decl);
             tacc_cg_alloc_variable(
-                state,
-                param_type_entry->content,
-                tacc_declarator_name(param_entry->content->decl));
+                state, param_type_entry->content, param_name);
+            tacc_ident_list_push(state->param_names, param_name);
         }
     }
 
@@ -370,10 +374,14 @@ void tacc_cg_state_free(struct tacc_cg_state *state) {
     tacc_target_cg_state_free(state->target_state);
     tacc_dynstring_free(state->code_buffer);
     tacc_dynstring_free(state->prelude_buffer);
+    tacc_ident_list_free(state->param_names);
+    tacc_free(state->param_names);
     tacc_local_var_map_free(state->locals);
     tacc_free(state->locals);
     tacc_slot_list_free(state->stack);
     tacc_free(state->stack);
+    tacc_callitf_free(state->interface);
+
     tacc_free(state);
 }
 

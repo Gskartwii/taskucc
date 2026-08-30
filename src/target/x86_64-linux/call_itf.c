@@ -88,7 +88,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->int_regs_used = state->int_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) state->used_stack;
+            part->place.extra.stack_offset = (int) (state->used_stack);
             state->used_stack = state->used_stack + 8;
         }
         break;
@@ -106,14 +106,14 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->float_regs_used = state->float_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) state->used_stack;
+            part->place.extra.stack_offset = (int) (state->used_stack);
             state->used_stack = state->used_stack + 8;
         }
         break;
     case TYK_LONGDOUBLE:
         part->place.kind = CALLITF_PLACE_STACK;
         state->used_stack = (uint32_t) tacc_align_up(state->used_stack, 4);
-        part->place.extra.stack_offset = (int) state->used_stack;
+        part->place.extra.stack_offset = (int) (state->used_stack);
         state->used_stack = state->used_stack + 16;
         break;
     case TYK_ARRAY:
@@ -121,16 +121,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_VLA:
     case TYK_DECAYING_VLA:
     case TYK_FN:
-        if (state->int_regs_used < 6) {
-            part->place.kind = CALLITF_PLACE_REGISTER_BYREF;
-            part->place.extra.reg.reg_class = REGC_INT_Q;
-            part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
-            state->int_regs_used = state->int_regs_used + 1;
-        } else {
-            part->place.kind = CALLITF_PLACE_STACK_BYREF;
-            part->place.extra.stack_offset = (int) state->used_stack;
-            state->used_stack = state->used_stack + 8;
-        }
+        tacc_assert(0, "ICE: unnormalized function param type");
         break;
     case TYK_STRUCT:
     case TYK_UNION:
@@ -148,10 +139,13 @@ struct tacc_callitf *
 tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     struct tacc_callitf *ret;
     struct tacc_callitf_state state;
+    struct tacc_type_list_entry *ty_entry;
+    size_t i;
 
     ret = tacc_callitf_new();
     state.used_stack = 0;
     state.int_regs_used = 0;
+    state.float_regs_used = 0;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_RAX;
@@ -203,6 +197,13 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_ARRAY:
         tacc_assert(0, "invalid return type");
         break;
+    }
+
+    for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
+        ty_entry = tacc_type_list_get(ty->param_types, i);
+        tacc_callitf_part_list_push(
+            ret->param_parts,
+            tacc_target_callitf_part_from_arg(ty_entry->content, &state));
     }
 
     return ret;

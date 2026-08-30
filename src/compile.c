@@ -9,6 +9,20 @@
 #include "util.h"
 #include <stdarg.h>
 
+static void tacc_ident_free(uint32_t ident) { TACC_UNUSED(ident); }
+
+MK_DYNARRAY_OVER(tacc_ident_list,
+                 tacc_ident_list_entry,
+                 uint32_t,
+                 tacc_ident_list_new,
+                 tacc_ident_list_init,
+                 tacc_ident_list_get,
+                 tacc_ident_list_push,
+                 tacc_ident_list_pop,
+                 tacc_ident_list_len,
+                 tacc_ident_free,
+                 tacc_ident_list_free)
+
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
                                    ...) {
@@ -191,6 +205,7 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
                           struct tacc_function_declarator *declarator) {
     size_t i;
     struct tacc_function_param_list_entry *entry;
+    struct tacc_type *param_type;
 
     ty->is_vararg = 0;
 
@@ -209,12 +224,13 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
              i = i + 1) {
             entry = tacc_function_param_list_get(
                 declarator->param_list.modern_params, i);
-            tacc_type_list_push(ty->param_types,
-                                tacc_type_adjust_from_declarator(
-                                    compiler,
-                                    tacc_type_from_decl_type(
-                                        compiler, entry->content->base_type),
-                                    entry->content->decl));
+            param_type =
+                tacc_type_from_decl_type(compiler, entry->content->base_type);
+            param_type = tacc_type_adjust_from_declarator(
+                compiler, param_type, entry->content->decl);
+            param_type = tacc_type_normalize_function_param(
+                compiler->target->pointer_ty, param_type);
+            tacc_type_list_push(ty->param_types, param_type);
         }
         break;
     case FUNCPARAM_VOID:

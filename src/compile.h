@@ -2,6 +2,7 @@
 #define TACC_COMPILE_H
 
 #include "decl.h"
+#include "dynarray.h"
 #include "target/target.h"
 
 struct tacc_compiler {
@@ -13,6 +14,17 @@ struct tacc_compiler {
     /* borrow */
     struct tacc_string_list *names;
 };
+
+DECL_DYNARRAY_OVER(tacc_ident_list,
+                   tacc_ident_list_entry,
+                   uint32_t,
+                   tacc_ident_list_new,
+                   tacc_ident_list_init,
+                   tacc_ident_list_get,
+                   tacc_ident_list_push,
+                   tacc_ident_list_pop,
+                   tacc_ident_list_len,
+                   tacc_ident_list_free)
 
 struct tacc_block_scope *tacc_block_scope_new(void);
 void tacc_block_scope_free(struct tacc_block_scope *scope);

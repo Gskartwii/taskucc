@@ -1,7 +1,10 @@
 #include "codegen.h"
+#include "call_itf.h"
 #include "compile.h"
+#include "decl.h"
 #include "machine.h"
 #include "target/x86_64-linux/registers.h"
+#include "type.h"
 #include "util.h"
 
 struct tacc_target_cg_state {
@@ -301,11 +304,79 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
     tacc_cg_output(state, "\n\t xchgq %s, %s", reg_name, reg_name_2);
 }
 
+static void tacc_target_cg_store(struct tacc_cg_state *state,
+                                 uint32_t reg,
+                                 size_t off,
+                                 struct tacc_local_var *locvar_place,
+                                 tacc_bool in_prelude) {
+    char *op_suffix;
+    char *src_reg;
+
+    op_suffix = tacc_target_op_suffix(tacc_type_bit_width(locvar_place->ty));
+    src_reg =
+        tacc_target_register_name(reg, tacc_type_bit_width(locvar_place->ty));
+    if (in_prelude) {
+        tacc_cg_output_prelude(state,
+                               "\n\t mov%s %s, %d(%%rbp)",
+                               op_suffix,
+                               src_reg,
+                               locvar_place->offset);
+    } else {
+        tacc_cg_output(state,
+                       "\n\t mov%s %s, %d(%%rbp)",
+                       op_suffix,
+                       src_reg,
+                       locvar_place->offset + (int) off);
+    }
+}
+
+static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
+                                      struct tacc_callitf_part *in_place,
+                                      struct tacc_local_var *locvar_place) {
+    switch (in_place->place.kind) {
+    case CALLITF_PLACE_REGISTER:
+        tacc_assert(in_place->place.extra.reg.reg_class <= REGC_INT_Q,
+                    "TODO: non-integral function parameters");
+        tacc_target_cg_store(state,
+                             in_place->place.extra.reg.reg,
+                             in_place->offset_from_param_start,
+                             locvar_place,
+                             1);
+        break;
+    case CALLITF_PLACE_REGISTER_PAIR:
+        tacc_assert(0, "ICE: didn't expect a register pair param on x86_64");
+        break;
+    case CALLITF_PLACE_STACK:
+        tacc_cg_output_prelude(state,
+                               "\n\t movq %d(%%rbp), %%rax",
+                               (int) (in_place->offset_from_param_start));
+        tacc_target_cg_store(
+            state, REG_RAX, in_place->offset_from_param_start, locvar_place, 1);
+        break;
+    }
+}
+
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    struct tacc_callitf_part_list_entry *param_entry;
+    struct tacc_ident_list_entry *param_ident_entry;
+    struct tacc_local_var_map_entry *locvar_place;
+    size_t i;
+
     /* function entry with stack at 16k - 8 */
     tacc_cg_output_prelude(state, "\n\t pushq %%rbp");
     /* stack now aligned to 16 bytes */
     tacc_cg_output_prelude(state, "\n\t movq %%rsp, %%rbp");
+
+    for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
+         i = i + 1) {
+        param_entry =
+            tacc_callitf_part_list_get(state->interface->param_parts, i);
+        param_ident_entry = tacc_ident_list_get(state->param_names, i);
+        locvar_place =
+            tacc_local_var_map_get(state->locals, param_ident_entry->content);
+        tacc_target_cg_copy_param(
+            state, param_entry->content, locvar_place->content);
+    }
 
     /* non-volatile registers not allocated */
 

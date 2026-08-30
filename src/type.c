@@ -527,3 +527,41 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
     *kind_out = CONV_BOTH;
     return common_type;
 }
+
+struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
+                                                     struct tacc_type *ty) {
+    switch (ty->kind) {
+    case TYK_UCHAR:
+    case TYK_SCHAR:
+    case TYK_USHORT:
+    case TYK_SSHORT:
+    case TYK_UINT:
+    case TYK_SINT:
+    case TYK_ULONG:
+    case TYK_SLONG:
+    case TYK_ULONGLONG:
+    case TYK_SLONGLONG:
+    case TYK_FLOAT:
+    case TYK_DOUBLE:
+    case TYK_LONGDOUBLE:
+    case TYK_BOOL:
+    case TYK_PTR:
+    case TYK_UNION:
+    case TYK_ENUM:
+    case TYK_STRUCT:
+        return ty;
+    case TYK_VOID:
+        tacc_assert(0, "void cannot appear as function param");
+        return NULL;
+    case TYK_ARRAY:
+    case TYK_INCOMPLETE_ARRAY:
+    case TYK_VLA:
+    case TYK_DECAYING_VLA:
+        return tacc_type_to_pointer(repr, ty->extra.array->element_type, 1);
+    case TYK_FN:
+        return tacc_type_to_pointer(repr, ty, 1);
+    default:
+        tacc_assert(0, "unknown tyk");
+        return NULL;
+    }
+}
