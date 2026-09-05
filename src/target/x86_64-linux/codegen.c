@@ -349,7 +349,7 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
     case CALLITF_PLACE_STACK:
         tacc_cg_output_prelude(state,
                                "\n\t movq %d(%%rbp), %%rax",
-                               (int) (in_place->offset_from_param_start));
+                               (int) (in_place->place.extra.stack_offset));
         tacc_target_cg_store(
             state, REG_RAX, in_place->offset_from_param_start, locvar_place, 1);
         break;

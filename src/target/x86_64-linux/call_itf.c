@@ -82,7 +82,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         part->place.extra.reg.reg_class = REGC_INT_Q;
 
     alloc_int:
-        if (state->int_regs_used < 8) {
+        if (state->int_regs_used < 6) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
             state->int_regs_used = state->int_regs_used + 1;
@@ -143,7 +143,8 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     size_t i;
 
     ret = tacc_callitf_new();
-    state.used_stack = 0;
+    /* +8 for old rbp, +8 for return address */
+    state.used_stack = 16;
     state.int_regs_used = 0;
     state.float_regs_used = 0;
 
