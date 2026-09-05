@@ -98,8 +98,9 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
             tacc_assert(tacc_type_is_integral(var->ty),
                         "TODO: load non-integral value");
             tacc_target_cg_load_int(state, var);
+        } else {
+            tacc_assert(0, "TODO: resolve non-local names");
         }
-        tacc_assert(0, "TODO: resolve non-local names");
         break;
 
     case EX_UNINIT:
