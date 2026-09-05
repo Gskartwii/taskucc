@@ -3,6 +3,7 @@
 #include "compile.h"
 #include "decl.h"
 #include "machine.h"
+#include "target/target.h"
 #include "target/x86_64-linux/registers.h"
 #include "type.h"
 #include "util.h"
@@ -392,6 +393,7 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
 void tacc_target_cg_load_int(struct tacc_cg_state *state,
                              struct tacc_local_var *var) {
     size_t load_width;
+    struct tacc_target_place_register *reg_place;
     uint32_t reg;
 
     load_width = tacc_type_bit_width(var->ty);
@@ -407,6 +409,9 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
                        tacc_target_op_suffix(load_width),
                        var->offset,
                        tacc_target_register_name(reg, load_width));
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = reg;
+        tacc_cg_push_reg(state, reg_place, var->ty);
         break;
     default:
         tacc_assert(0, "invalid load width %d", load_width);
