@@ -235,7 +235,22 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     top_reg = slot->place.reg->reg;
     from_width = tacc_type_bit_width(slot->ty);
     to_width = tacc_type_bit_width(type);
-    width = (int) from_width;
+
+    if (from_width == to_width) {
+        /*
+         * Plain sign-conversion. For widths < 32, the value is already
+         * sign-extended. For widths 32 and 64, there is no sign/zero extension
+         * to be done, as the register width encodes the width.
+         */
+        return;
+    }
+    if (from_width > to_width) {
+        /* narrowing path */
+        width = (int) to_width;
+    } else {
+        width = (int) from_width;
+    }
+
     if (to_width <= 32) {
         reg_name = tacc_target_register_as_32(top_reg);
     } else {

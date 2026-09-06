@@ -218,7 +218,8 @@ void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
         }
     }
 
-    tacc_target_cg_ext_top(state, to_type, is_sext);
+    /* leave high bits indeterminate */
+    TACC_UNUSED(is_sext);
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
@@ -239,6 +240,11 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     slot = tacc_cg_get_top(state);
     from_width = tacc_type_bit_width(slot->ty);
     to_width = tacc_type_bit_width(type);
+
+    if (from_width == to_width) {
+        /* Plain sign-conversion. */
+        return;
+    }
 
     if (from_width <= 32 && to_width > 32) {
         tacc_target_cg_ext_top(
