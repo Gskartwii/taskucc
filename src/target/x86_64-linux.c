@@ -29,7 +29,7 @@ struct tacc_target *tacc_target_new(void) {
 
     target = tacc_malloc(sizeof(struct tacc_target));
 
-    target->signed_char = 0;
+    target->signed_char = 1;
     target->schar = tacc_mk_twos_complement(8, 0, 1);
     target->uchar = tacc_mk_twos_complement(8, 0, 0);
     target->sshort = tacc_mk_twos_complement(16, 1, 1);
