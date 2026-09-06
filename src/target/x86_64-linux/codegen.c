@@ -333,27 +333,20 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
 
 static void tacc_target_cg_store(struct tacc_cg_state *state,
                                  uint32_t reg,
-                                 size_t off,
-                                 struct tacc_local_var *locvar_place,
+                                 int off,
+                                 struct tacc_type *ty,
                                  tacc_bool in_prelude) {
     char *op_suffix;
     char *src_reg;
 
-    op_suffix = tacc_target_op_suffix(tacc_type_bit_width(locvar_place->ty));
-    src_reg =
-        tacc_target_register_name(reg, tacc_type_bit_width(locvar_place->ty));
+    op_suffix = tacc_target_op_suffix(tacc_type_bit_width(ty));
+    src_reg = tacc_target_register_name(reg, tacc_type_bit_width(ty));
     if (in_prelude) {
-        tacc_cg_output_prelude(state,
-                               "\n\t mov%s %s, %d(%%rbp)",
-                               op_suffix,
-                               src_reg,
-                               locvar_place->offset);
+        tacc_cg_output_prelude(
+            state, "\n\t mov%s %s, %d(%%rbp)", op_suffix, src_reg, off);
     } else {
-        tacc_cg_output(state,
-                       "\n\t mov%s %s, %d(%%rbp)",
-                       op_suffix,
-                       src_reg,
-                       locvar_place->offset + (int) off);
+        tacc_cg_output(
+            state, "\n\t mov%s %s, %d(%%rbp)", op_suffix, src_reg, off);
     }
 }
 
@@ -366,19 +359,16 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
                     "TODO: non-integral function parameters");
         tacc_target_cg_store(state,
                              in_place->place.extra.reg.reg,
-                             in_place->offset_from_param_start,
-                             locvar_place,
+                             (int) (in_place->offset_from_param_start) +
+                                 locvar_place->offset,
+                             in_place->ty,
                              1);
         break;
     case CALLITF_PLACE_REGISTER_PAIR:
         tacc_assert(0, "ICE: didn't expect a register pair param on x86_64");
         break;
     case CALLITF_PLACE_STACK:
-        tacc_cg_output_prelude(state,
-                               "\n\t movq %d(%%rbp), %%rax",
-                               (int) (in_place->place.extra.stack_offset));
-        tacc_target_cg_store(
-            state, REG_RAX, in_place->offset_from_param_start, locvar_place, 1);
+        /* skip */
         break;
     }
 }

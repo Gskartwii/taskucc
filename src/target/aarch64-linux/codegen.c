@@ -294,13 +294,77 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
         state, "\n\t eor %s, %s, %s", reg_name, reg_name, reg_name_2);
 }
 
+static void tacc_target_cg_store(struct tacc_cg_state *state,
+                                 uint32_t reg,
+                                 int off,
+                                 struct tacc_type *lval_ty,
+                                 tacc_bool in_prelude) {
+    char *src_reg;
+    char *width_suffix;
+
+    src_reg = tacc_target_register_name(reg, tacc_type_bit_width(lval_ty));
+    width_suffix = "";
+    if (tacc_type_bit_width(lval_ty) == 16) {
+        width_suffix = "h";
+    }
+    if (tacc_type_bit_width(lval_ty) == 8) {
+        width_suffix = "b";
+    }
+
+    if (in_prelude) {
+        tacc_cg_output_prelude(
+            state, "\n\t str%s %s, [fp, %d]", width_suffix, src_reg, off);
+    } else {
+        tacc_cg_output(
+            state, "\n\t str%s %s, [fp, %d]", width_suffix, src_reg, off);
+    }
+}
+
+static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
+                                      struct tacc_callitf_part *in_place,
+                                      struct tacc_local_var *locvar_place) {
+    switch (in_place->place.kind) {
+    case CALLITF_PLACE_REGISTER:
+        tacc_assert(in_place->place.extra.reg.reg_class <= REGC_INT_X,
+                    "TODO: non-integral function parameters");
+        tacc_target_cg_store(state,
+                             in_place->place.extra.reg.reg,
+                             (int) (in_place->offset_from_param_start) +
+                                 locvar_place->offset,
+                             locvar_place->ty,
+                             1);
+        break;
+    case CALLITF_PLACE_REGISTER_PAIR:
+        tacc_assert(0, "ICE: didn't expect a register pair param on aarch64");
+        break;
+    case CALLITF_PLACE_STACK:
+        /* skip */
+        break;
+    }
+}
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
+    struct tacc_callitf_part_list_entry *param_entry;
+    struct tacc_ident_list_entry *param_ident_entry;
+    struct tacc_local_var_map_entry *locvar_place;
+    size_t i;
+
     tacc_cg_output_prelude(state, "\n\t stp fp, lr, [sp, #-16]");
     /* non-volatile registers not allocated */
     tacc_cg_output_prelude(state,
                            "\n\t sub sp, sp, %d",
                            ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
     tacc_cg_output_prelude(state, "\n\t mov fp, sp");
+
+    for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
+         i = i + 1) {
+        param_entry =
+            tacc_callitf_part_list_get(state->interface->param_parts, i);
+        param_ident_entry = tacc_ident_list_get(state->param_names, i);
+        locvar_place =
+            tacc_local_var_map_get(state->locals, param_ident_entry->content);
+        tacc_target_cg_copy_param(
+            state, param_entry->content, locvar_place->content);
+    }
 
     tacc_cg_output(state, "\n\t mov sp, fp");
     tacc_cg_output(state,

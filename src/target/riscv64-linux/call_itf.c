@@ -77,6 +77,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_PTR:
     case TYK_ENUM:
     case TYK_BOOL:
+        part->ty = arg_type;
         if (state->int_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg_class = REGC_INT;
@@ -90,6 +91,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         break;
     case TYK_FLOAT:
     case TYK_DOUBLE:
+        part->ty = arg_type;
         if (state->float_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             if (arg_type->kind == TYK_FLOAT) {
@@ -107,6 +109,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         }
         break;
     case TYK_LONGDOUBLE:
+        part->ty = arg_type;
         state->int_regs_used =
             (uint32_t) tacc_align_up(state->int_regs_used, 1);
         if (state->int_regs_used < 8) {

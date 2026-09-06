@@ -38,6 +38,7 @@ struct tacc_callitf_part {
     size_t param_idx;
     size_t offset_from_param_start;
     struct tacc_callitf_place place;
+    struct tacc_type *ty;
 };
 
 DECL_DYNARRAY_OVER(tacc_callitf_part_list,

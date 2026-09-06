@@ -13,6 +13,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
 
     part = tacc_callitf_part_new();
 
+    part->ty = arg_type;
     part->place.kind = CALLITF_PLACE_STACK;
     part->place.extra.stack_offset = (int) (state->used_stack);
     state->used_stack = state->used_stack +
