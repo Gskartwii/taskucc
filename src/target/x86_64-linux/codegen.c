@@ -267,6 +267,22 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     slot = tacc_cg_get_top(state);
     from_width = tacc_type_bit_width(slot->ty);
     to_width = tacc_type_bit_width(ty);
+
+    if (from_width == to_width) {
+        /* plain sign-conversion */
+        return;
+    }
+    if (from_width == 32 && to_width == 64 && !is_sext) {
+        /*
+         * HACK: there is no movzlq, but we can move the low register to itself
+         * instead
+         */
+        top_reg = tacc_cg_ensure_top_is_single(state);
+        reg_name = tacc_target_register_name(top_reg, 32);
+        tacc_cg_output(state, "\n\t movl %s, %s", reg_name, reg_name);
+        return;
+    }
+
     op_suff_from = tacc_target_op_suffix(from_width);
     op_suff_to = tacc_target_op_suffix(to_width);
     top_reg = tacc_cg_ensure_top_is_single(state);
@@ -279,6 +295,16 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                    op_suff_to,
                    reg_name,
                    reg_name_2);
+}
+
+void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
+                               struct tacc_type *to_type,
+                               tacc_bool is_sext) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(to_type);
+    TACC_UNUSED(is_sext);
+
+    /* nothing to do, we leave the upper bits indeterminate */
 }
 
 void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,

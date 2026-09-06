@@ -176,7 +176,13 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
     from_type = slot->ty;
-    if (tacc_type_is_subset(to_type, from_type)) {
+    if (tacc_int_type_has_compatible_repr(to_type, from_type)) {
+        return;
+    }
+    if (!tacc_type_is_subset(to_type, from_type)) {
+        tacc_target_cg_narrow_top(
+            state, to_type, tacc_type_kind_is_signed(to_type->kind));
+        slot->ty = to_type;
         return;
     }
     tacc_target_cg_ext_top(

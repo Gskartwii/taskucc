@@ -163,6 +163,34 @@ tacc_bool tacc_type_is_subset(struct tacc_type *subset,
     return 1;
 }
 
+tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
+                                            struct tacc_type *b) {
+    struct tacc_u64 *max_val_b;
+    struct tacc_u64 *min_val_b;
+    struct tacc_u64 *max_val_a;
+    struct tacc_u64 *min_val_a;
+
+    if (tacc_type_kind_is_signed(a->kind)) {
+        if (!tacc_type_kind_is_signed(b->kind)) {
+            return 0;
+        }
+        min_val_a = a->extra.int_repr->min;
+        min_val_b = b->extra.int_repr->min;
+        if (!tacc_u64_eq(min_val_b, min_val_a)) {
+            return 0;
+        }
+    } else if (tacc_type_kind_is_signed(b->kind)) {
+        return 0;
+    }
+
+    max_val_a = a->extra.int_repr->max;
+    max_val_b = b->extra.int_repr->max;
+    if (!tacc_u64_eq(max_val_b, max_val_a)) {
+        return 0;
+    }
+    return 1;
+}
+
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
     switch (kind) {
     case TYK_BOOL:

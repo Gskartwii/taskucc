@@ -17,6 +17,9 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty);
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                             struct tacc_type *to_type,
                             tacc_bool is_sext);
+void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
+                               struct tacc_type *to_type,
+                               tacc_bool is_sext);
 void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
                                  uint32_t from_reg,
                                  uint32_t to_reg);
