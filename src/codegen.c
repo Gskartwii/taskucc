@@ -186,8 +186,10 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
         slot->ty = to_type;
         return;
     }
-    tacc_target_cg_ext_top(
-        state, to_type, tacc_type_kind_is_signed(to_type->kind));
+    tacc_target_cg_ext_top(state,
+                           to_type,
+                           tacc_type_kind_is_signed(to_type->kind) &&
+                               tacc_type_kind_is_signed(from_type->kind));
     slot = tacc_cg_get_top(state);
     slot->ty = to_type;
 }
