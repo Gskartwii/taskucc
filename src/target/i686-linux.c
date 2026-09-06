@@ -14,9 +14,7 @@ static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
 
     ret->max->low = 1;
     tacc_u64_neg(ret->max, ret->max);
-    printf("post-neg: %X:%X\n", ret->max->high, ret->max->low);
     tacc_u64_rsh_n(ret->max, ret->max, 64 - (int) bit_size);
-    printf("post-rsh: %X:%X\n", ret->max->high, ret->max->low);
     if (is_signed) {
         tacc_u64_rsh_n(ret->max, ret->max, 1);
         tacc_u64_add_u32(ret->min, ret->max, 1);
@@ -33,11 +31,6 @@ struct tacc_target *tacc_target_new(void) {
 
     target->signed_char = 1;
     target->schar = tacc_mk_twos_complement(8, 0, 1);
-    printf("schar data: %X:%X <= ... <= %X:%X",
-           target->schar->min->high,
-           target->schar->min->low,
-           target->schar->max->high,
-           target->schar->max->low);
     target->uchar = tacc_mk_twos_complement(8, 0, 0);
     target->sshort = tacc_mk_twos_complement(16, 1, 1);
     target->ushort = tacc_mk_twos_complement(16, 1, 0);
