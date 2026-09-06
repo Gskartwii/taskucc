@@ -60,8 +60,8 @@ uint32_t tacc_str_hash(char *name) {
         h2 = (h2 ^ ch) * ((uint32_t) 0x5F356495);
         name = name + 1;
     }
-    h1 = (h1 ^ (h1 >> 16)) * ((uint32_t) 0x85EBCA6B);
-    h1 = h1 ^ ((h2 ^ (h2 >> 13)) * ((uint32_t) 0xC2B2AE35));
+    h1 = (h1 ^ (h1 >> ((unsigned) 16))) * ((uint32_t) 0x85EBCA6B);
+    h1 = h1 ^ ((h2 ^ (h2 >> ((unsigned) 13))) * ((uint32_t) 0xC2B2AE35));
     return h1;
 }
 

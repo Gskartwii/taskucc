@@ -122,7 +122,7 @@ tacc_bool tacc_val_is_negative(struct tacc_val *val) {
     if (!tacc_val_is_signed(val)) {
         return 0;
     }
-    return (val->value.int_value->high >> 31) != 0;
+    return (val->value.int_value->high >> ((unsigned) 31)) != 0;
 }
 
 tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b) {

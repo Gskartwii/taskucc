@@ -166,11 +166,11 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     }
     tacc_cg_output(
         state, "\n\t movz %s, #0x%x", reg, val->value.int_value->low & 0xFFFF);
-    if ((val->value.int_value->low >> 16) != 0) {
+    if ((val->value.int_value->low >> ((unsigned) 16)) != 0) {
         tacc_cg_output(state,
                        "\n\t movk %s, #0x%x, lsl #16",
                        reg,
-                       (val->value.int_value->low >> 16) & 0xFFFF);
+                       (val->value.int_value->low >> ((unsigned) 16)) & 0xFFFF);
     }
     if (width > 32) {
         if ((val->value.int_value->high & 0xFFFF) != 0) {
@@ -179,11 +179,12 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
                            reg,
                            (val->value.int_value->high) & 0xFFFF);
         }
-        if ((val->value.int_value->high >> 16) != 0) {
+        if ((val->value.int_value->high >> ((unsigned) 16)) != 0) {
             tacc_cg_output(state,
                            "\n\t movk %s, #0x%x, lsl #48",
                            reg,
-                           (val->value.int_value->high >> 16) & 0xFFFF);
+                           (val->value.int_value->high >> ((unsigned) 16)) &
+                               0xFFFF);
         }
     }
 

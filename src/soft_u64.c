@@ -46,7 +46,7 @@ uint32_t tacc_u64_neg(struct tacc_u64 *dst, struct tacc_u64 *src) {
         dst->high = dst->high + 1;
     }
     dst->low = dst->low + 1;
-    return dst->high >> 31;
+    return dst->high >> ((unsigned) 31);
 }
 uint32_t tacc_u64_add(struct tacc_u64 *to,
                       struct tacc_u64 *left,
@@ -156,8 +156,9 @@ void tacc_u64_mul(struct tacc_u64 *to,
                   struct tacc_u64 *left,
                   struct tacc_u64 *right) {
     uint32_t low = left->low * right->low;
-    to->high = (left->low >> 16) * (right->low >> 16) +
-               left->high * right->low + left->low * right->high;
+    to->high =
+        (left->low >> ((unsigned) 16)) * (right->low >> ((unsigned) 16)) +
+        left->high * right->low + left->low * right->high;
     to->low = low;
 }
 
@@ -165,7 +166,8 @@ void tacc_u64_mul_u32(struct tacc_u64 *to,
                       struct tacc_u64 *left,
                       uint32_t right) {
     uint32_t low = left->low * right;
-    to->high = (left->low >> 16) * (right >> 16) + left->high * right;
+    to->high = (left->low >> ((unsigned) 16)) * (right >> ((unsigned) 16)) +
+               left->high * right;
     to->low = low;
 }
 
@@ -191,7 +193,7 @@ void tacc_u64_lsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
         to->high = low << (count - 32);
     } else {
         to->low = low << count;
-        to->high = (high << count) | (low >> (32 - count));
+        to->high = (high << count) | (low >> ((unsigned) (32 - count)));
     }
 }
 void tacc_u64_lsh(struct tacc_u64 *to,
@@ -215,10 +217,14 @@ void tacc_u64_rsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
     low = left->low;
     if (count > 31) {
         to->high = 0;
-        to->low = high >> (count - 32);
+        /*
+         * M2 hack: must cast right-hand side of rsh to unsigned for the
+         * operation to be recognized as operating on unsigned shiftee
+         */
+        to->low = high >> ((unsigned) (count - 32));
     } else {
-        to->high = high >> count;
-        to->low = (low >> count) | (high << (32 - count));
+        to->high = high >> ((unsigned) count);
+        to->low = (low >> ((unsigned) count)) | (high << (32 - count));
     }
 }
 void tacc_u64_rsh(struct tacc_u64 *to,
@@ -241,11 +247,12 @@ void tacc_u64_arsh_n(struct tacc_u64 *to, struct tacc_u64 *left, int n) {
     high = left->high;
     low = left->low;
     if (count > 31) {
-        to->high = -(high >> 31);
-        to->low = high >> (count - 32);
+        to->high = -(high >> (unsigned) 31);
+        to->low = high >> ((unsigned) (count - 32));
     } else {
-        to->high = (high >> count) | ((-(high >> 31)) << (32 - count));
-        to->low = (low >> count) | (high << (32 - count));
+        to->high =
+            (high >> ((unsigned) count)) | ((-(high >> 31)) << (32 - count));
+        to->low = (low >> ((unsigned) count)) | (high << (32 - count));
     }
 }
 void tacc_u64_arsh(struct tacc_u64 *to,
@@ -309,7 +316,9 @@ tacc_bool tacc_u64_sge(struct tacc_u64 *left, struct tacc_u64 *right) {
     return l_hi < r_hi || (l_hi == r_hi && l_lo >= r_lo);
 }
 
-tacc_bool tacc_u64_sign(struct tacc_u64 *src) { return (src->high >> 31) != 0; }
+tacc_bool tacc_u64_sign(struct tacc_u64 *src) {
+    return (src->high >> ((unsigned) 31)) != 0;
+}
 
 void tacc_u64_udiv(struct tacc_u64 *quot,
                    struct tacc_u64 *rem,
@@ -329,7 +338,7 @@ void tacc_u64_udiv(struct tacc_u64 *quot,
         clz_src = divisor->low;
     }
     for (i = 0; i < 32; i = i + 1) {
-        if ((clz_src >> 31) == 1) {
+        if ((clz_src >> ((unsigned) 31)) == 1) {
             break;
         }
         clz_src = clz_src << 1;

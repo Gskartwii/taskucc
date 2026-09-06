@@ -54,11 +54,11 @@ static void tacc_dynarray_ensure_further_cap(struct tacc_dynarray *array,
      * https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
      */
     required_cap_p2 = required_full_cap - 1;
-    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> 1);
-    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> 2);
-    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> 4);
-    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> 8);
-    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> 16);
+    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 1));
+    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 2));
+    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 4));
+    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 8));
+    required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 16));
     required_cap_p2 = required_cap_p2 + 1;
     tacc_assert((required_cap_p2 & (required_cap_p2 - 1)) == 0,
                 "didn't compute a power of two as cap");

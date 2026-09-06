@@ -292,11 +292,11 @@ void intscan(struct tacc_file_iter *f,
             goto done;
         }
     } else if (!(base & (base - 1))) {
-        switch (((0x17 * base) >> 5) & 7) {
+        switch (((0x17 * base) >> ((unsigned) 5)) & 7) {
         case 0:
         case 1:
         case 2:
-            bs = (0x17 * base) >> 5 & 7;
+            bs = (0x17 * base) >> ((unsigned) 5) & 7;
             break;
         case 3:
             bs = 4;

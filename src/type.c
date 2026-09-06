@@ -68,7 +68,7 @@ size_t tacc_type_size(struct tacc_type *type) {
         tacc_assert(0, "cannot take size of void");
         return 0;
     case TYK_PTR:
-        return type->extra.pointer.repr->bit_width >> 3;
+        return type->extra.pointer.repr->bit_width >> ((unsigned) 3);
     case TYK_STRUCT:
         return type->extra.structure->size;
     case TYK_UNION:
@@ -98,7 +98,7 @@ size_t tacc_type_size(struct tacc_type *type) {
         break;
     }
 
-    return ty->bit_width >> 3;
+    return ty->bit_width >> ((unsigned) 3);
 }
 
 size_t tacc_type_alignment_p2(struct tacc_type *type) {

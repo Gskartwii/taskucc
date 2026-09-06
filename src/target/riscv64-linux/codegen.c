@@ -87,13 +87,13 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
                    "\n\t addi %s, %s, 0x%x",
                    reg,
                    reg,
-                   (val->value.int_value->low >> 20) & 0x3FF);
+                   (val->value.int_value->low >> ((unsigned) 20)) & 0x3FF);
     tacc_cg_output(state, "\n\t slli %s, %s, 12", reg, reg);
     tacc_cg_output(state,
                    "\n\t addi %s, %s, 0x%x",
                    reg,
                    reg,
-                   (val->value.int_value->low >> 8) & 0x3FF);
+                   (val->value.int_value->low >> ((unsigned) 8)) & 0x3FF);
     tacc_cg_output(state, "\n\t slli %s, %s, 8", reg, reg);
     tacc_cg_output(state,
                    "\n\t addi %s, %s, 0x%x",

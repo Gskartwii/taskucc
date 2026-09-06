@@ -389,7 +389,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
             if (declarator_entry->content->bitfield_size == NULL) {
                 bit_offset = tacc_align_up(
                     bit_offset, 3 + tacc_type_alignment_p2(adjusted_ty));
-                field->offset = bit_offset >> 3;
+                field->offset = bit_offset >> ((unsigned) 3);
                 tacc_struct_push_field(compiler, ty, field);
                 bit_offset = bit_offset + (tacc_type_size(adjusted_ty) << 3);
                 continue;
@@ -398,7 +398,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
             }
         }
     }
-    ty->size = tacc_align_up(bit_offset >> 3, ty->alignment_p2);
+    ty->size = tacc_align_up(bit_offset >> ((unsigned) 3), ty->alignment_p2);
 
     return ty;
 }
