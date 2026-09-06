@@ -425,18 +425,18 @@ struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
 
 void tacc_gen_basic_types(struct tacc_target *target,
                           struct tacc_type_list *into) {
-    tacc_type_list_push(into, tacc_mk_basic_type(target->schar, TYK_SCHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(target->uchar, TYK_UCHAR));
-    tacc_type_list_push(into, tacc_mk_basic_type(target->sshort, TYK_SSHORT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->schar, TYK_SCHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(target->ushort, TYK_USHORT));
-    tacc_type_list_push(into, tacc_mk_basic_type(target->sint, TYK_SINT));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->sshort, TYK_SSHORT));
     tacc_type_list_push(into, tacc_mk_basic_type(target->uint, TYK_UINT));
-    tacc_type_list_push(into, tacc_mk_basic_type(target->slong, TYK_SLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->sint, TYK_SINT));
     tacc_type_list_push(into, tacc_mk_basic_type(target->ulong, TYK_ULONG));
-    tacc_type_list_push(into,
-                        tacc_mk_basic_type(target->sllong, TYK_SLONGLONG));
+    tacc_type_list_push(into, tacc_mk_basic_type(target->slong, TYK_SLONG));
     tacc_type_list_push(into,
                         tacc_mk_basic_type(target->ullong, TYK_ULONGLONG));
+    tacc_type_list_push(into,
+                        tacc_mk_basic_type(target->sllong, TYK_SLONGLONG));
     tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_FLOAT));
     tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_DOUBLE));
     tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_LONGDOUBLE));
