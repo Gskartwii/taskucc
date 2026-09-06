@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include "compile.h"
 #include "machine.h"
+#include "target/codegen.h"
 #include "target/i686-linux/registers.h"
 #include "target/target.h"
 #include "type.h"
@@ -189,6 +190,35 @@ void tacc_target_cg_prelude(struct tacc_compiler *compiler) {
 
 void tacc_target_cg_state_free(struct tacc_target_cg_state *state) {
     tacc_free(state);
+}
+
+void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
+                               struct tacc_type *to_type,
+                               tacc_bool is_sext) {
+    struct tacc_slot *slot;
+    struct tacc_target_place_register *top_place;
+    size_t from_width;
+    size_t to_width;
+
+    slot = tacc_cg_get_top(state);
+    from_width = tacc_type_bit_width(slot->ty);
+    to_width = tacc_type_bit_width(to_type);
+
+    if (from_width > 32 && to_width <= 32) {
+        /* first cast to int and forget reg_2 */
+        top_place = slot->place.pair.reg;
+        slot->place_kind = PLACE_REGISTER;
+        slot->place.reg = top_place;
+        if (tacc_type_kind_is_signed(slot->ty->kind)) {
+            slot->ty =
+                tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
+        } else {
+            slot->ty =
+                tacc_get_basic_type(state->compiler->basic_types, TYK_UINT);
+        }
+    }
+
+    tacc_target_cg_ext_top(state, to_type, is_sext);
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,

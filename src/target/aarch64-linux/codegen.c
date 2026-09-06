@@ -2,6 +2,7 @@
 #include "compile.h"
 #include "machine.h"
 #include "target/aarch64-linux/registers.h"
+#include "target/codegen.h"
 #include "type.h"
 #include "util.h"
 
@@ -211,6 +212,12 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
     TACC_UNUSED(ty);
 
     return 0;
+}
+
+void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
+                               struct tacc_type *to_type,
+                               tacc_bool is_sext) {
+    tacc_target_cg_ext_top(state, to_type, is_sext);
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
