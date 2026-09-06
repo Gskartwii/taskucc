@@ -321,6 +321,8 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
 
 void tacc_target_cg_load_int(struct tacc_cg_state *state,
                              struct tacc_local_var *var) {
+    struct tacc_target_place_register *reg_place;
+    struct tacc_target_place_register *reg_place_2;
     size_t load_width;
     uint32_t reg;
     uint32_t reg_2;
@@ -342,6 +344,9 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
                        tacc_target_op_suffix(load_width),
                        var->offset,
                        tacc_target_register_name(reg, load_width));
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = reg;
+        tacc_cg_push_reg(state, reg_place, var->ty);
         break;
     case 64:
         tacc_cg_output(state,
@@ -352,6 +357,11 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
                        "\n\t movl %d(%%ebp), %s",
                        var->offset + 4,
                        tacc_target_register_as_32(reg_2));
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = reg;
+        reg_place_2 = tacc_target_place_register_new();
+        reg_place_2->reg = reg_2;
+        tacc_cg_push_reg_pair(state, reg_place, reg_place_2, var->ty);
         break;
     default:
         tacc_assert(0, "invalid load width %d", load_width);

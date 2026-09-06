@@ -296,6 +296,7 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
 
 void tacc_target_cg_load_int(struct tacc_cg_state *state,
                              struct tacc_local_var *var) {
+    struct tacc_target_place_register *reg_place;
     size_t load_width;
     uint32_t reg;
     char *reg_name;
@@ -312,6 +313,8 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
     if (tacc_type_kind_is_signed(var->ty->kind)) {
         sext = "s";
     }
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
 
     switch (load_width) {
     case 8:
@@ -329,4 +332,5 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
     default:
         tacc_assert(0, "invalid load width %d", load_width);
     }
+    tacc_cg_push_reg(state, reg_place, var->ty);
 }
