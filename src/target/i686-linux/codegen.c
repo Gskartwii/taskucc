@@ -313,6 +313,8 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     /* sp at 16k - 16 */
     tacc_cg_output_prelude(state, "\n\t pushl %%edi");
 
+    /* no need to move params to stack, they should already all be on stack */
+
     tacc_cg_output_prelude(state,
                            "\n\t subl $%d, %%esp",
                            (int) (state->num_local_bytes + 0xF) & ~0xF);

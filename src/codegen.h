@@ -121,6 +121,10 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state);
 struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
                                               struct tacc_type *ty,
                                               uint32_t name_ref);
+struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,
+                                            struct tacc_type *ty,
+                                            uint32_t name_ref,
+                                            int stack_offset);
 void tacc_local_var_free(struct tacc_local_var *var);
 
 #endif

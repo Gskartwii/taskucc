@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "call_itf.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
@@ -233,6 +234,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     struct tacc_function_param_list *param_list;
     struct tacc_function_param_list_entry *param_entry;
     struct tacc_type_list_entry *param_type_entry;
+    struct tacc_callitf_part_list_entry *itf_part_entry;
 
     state->func_type = func_type;
     state->interface = tacc_target_callitf_from_func_type(func_type);
@@ -243,12 +245,33 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     declarator = func_def->innermost_declarator;
     if (declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST) {
         param_list = declarator->extra.func_decl->param_list.modern_params;
-        for (i = 0; i < tacc_function_param_list_len(param_list); i = i + 1) {
-            param_entry = tacc_function_param_list_get(param_list, i);
-            param_type_entry = tacc_type_list_get(func_type->param_types, i);
+        for (i = 0;
+             i < tacc_callitf_part_list_len(state->interface->param_parts);
+             i = i + 1) {
+            itf_part_entry =
+                tacc_callitf_part_list_get(state->interface->param_parts, i);
+            if (itf_part_entry->content->offset_from_param_start != 0) {
+                /* this stack variable allocated earlier */
+                continue;
+            }
+
+            param_entry = tacc_function_param_list_get(
+                param_list, itf_part_entry->content->param_idx);
+            param_type_entry = tacc_type_list_get(
+                func_type->param_types, itf_part_entry->content->param_idx);
             param_name = tacc_declarator_name(param_entry->content->decl);
-            tacc_cg_alloc_variable(
-                state, param_type_entry->content, param_name);
+
+            if (itf_part_entry->content->place.kind == CALLITF_PLACE_STACK) {
+                tacc_cg_add_variable(
+                    state,
+                    param_type_entry->content,
+                    param_name,
+                    itf_part_entry->content->place.extra.stack_offset);
+            } else {
+                tacc_cg_alloc_variable(
+                    state, param_type_entry->content, param_name);
+            }
+
             tacc_ident_list_push(state->param_names, param_name);
         }
     }
@@ -522,9 +545,21 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
         align <= 4, "type alignment %d exceeds stack alignment of 16", align);
     state->num_local_bytes = tacc_align_up(state->num_local_bytes, align);
     state->num_local_bytes = state->num_local_bytes + size;
+    var = tacc_cg_add_variable(
+        state, ty, name_ref, -((int) (state->num_local_bytes)));
+
+    return var;
+}
+
+struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,
+                                            struct tacc_type *ty,
+                                            uint32_t name_ref,
+                                            int stack_offset) {
+    struct tacc_local_var *var;
+
     var = tacc_local_var_new();
     var->name_ref = name_ref;
-    var->offset = -(int) (state->num_local_bytes);
+    var->offset = stack_offset;
     var->ty = ty;
     tacc_local_var_map_insert(state->locals, var);
 
