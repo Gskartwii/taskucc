@@ -230,6 +230,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
 
     state->func_type = func_type;
     state->interface = tacc_target_callitf_from_func_type(func_type);
+    state->func_name = tacc_declarator_name(func_def->func_declaration);
 
     tacc_assert(!state->func_type->is_vararg,
                 "TODO: support vararg in compile_statements");
@@ -498,7 +499,7 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state) {
 }
 
 void tacc_cg_finalize(struct tacc_cg_state *state) {
-    tacc_cg_output(state, "\n.Lepilog:");
+    tacc_cg_output(state, "\n.L%u_epilog:", state->func_name);
     tacc_target_cg_finalize(state);
 }
 

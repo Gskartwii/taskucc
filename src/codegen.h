@@ -66,6 +66,7 @@ struct tacc_cg_state {
 
     size_t num_local_bytes;
     uint32_t clobbered_registers;
+    uint32_t func_name;
 };
 
 struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler);

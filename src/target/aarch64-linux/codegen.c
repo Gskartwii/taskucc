@@ -194,7 +194,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
 void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
     tacc_cg_move(state, tacc_cg_get_top(state), REG_X0);
     tacc_cg_pop(state);
-    tacc_cg_output(state, "\n\t b .Lepilog");
+    tacc_cg_output(state, "\n\t b .L%u_epilog", state->func_name);
 }
 
 void tacc_target_cg_prelude(struct tacc_compiler *compiler) {
