@@ -153,7 +153,29 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
 void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
                                struct tacc_type *to_type,
                                tacc_bool is_sext) {
-    tacc_target_cg_ext_top(state, to_type, is_sext);
+    struct tacc_slot *slot;
+    enum tacc_target_register top_reg;
+    char *reg_name;
+    size_t to_width;
+    int width;
+
+    slot = tacc_cg_get_top(state);
+    tacc_target_cg_move(state, slot, REG_VOLATILE);
+    top_reg = slot->place.reg->reg;
+    to_width = tacc_type_bit_width(to_type);
+    width = 64 - (int) to_width;
+    reg_name = tacc_target_register_as_64(top_reg);
+    tacc_cg_output(state, "\n\t slli %s, %s, %d", reg_name, reg_name, width);
+    if (is_sext) {
+        tacc_cg_output(
+            state, "\n\t srai %s, %s, %d", reg_name, reg_name, width);
+    } else {
+        tacc_cg_output(
+            state, "\n\t srli %s, %s, %d", reg_name, reg_name, width);
+        if (to_width <= 32) {
+            tacc_cg_output(state, "\n\t addiw %s, %s, 0", reg_name, reg_name);
+        }
+    }
 }
 
 void tacc_target_cg_ext_top(struct tacc_cg_state *state,
@@ -180,6 +202,9 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     } else {
         tacc_cg_output(
             state, "\n\t srli %s, %s, %d", reg_name, reg_name, width);
+        if (tacc_type_bit_width(ty) <= 32) {
+            tacc_cg_output(state, "\n\t addiw %s, %s, 0", reg_name, reg_name);
+        }
     }
 }
 
