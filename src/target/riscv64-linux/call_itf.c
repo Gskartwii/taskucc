@@ -154,8 +154,9 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     size_t i;
 
     ret = tacc_callitf_new();
-    state.used_stack = 0;
+    state.used_stack = 16; /* ra and fp */
     state.int_regs_used = 0;
+    state.float_regs_used = 0;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_A0;
@@ -210,6 +211,8 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
             ret->param_parts,
             tacc_target_callitf_part_from_arg(ty_entry->content, &state));
     }
+
+    ret->frame_offset = 16;
 
     return ret;
 }

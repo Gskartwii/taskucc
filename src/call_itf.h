@@ -62,6 +62,8 @@ struct tacc_callitf {
     uint32_t retval_reg;
     uint32_t retval_reg_2;
     uint32_t retval_reg_class;
+
+    int frame_offset;
 };
 
 struct tacc_callitf *tacc_callitf_new(void);

@@ -89,5 +89,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
             tacc_target_callitf_part_from_arg(ty_entry->content, &state));
     }
 
+    ret->frame_offset = 0;
+
     return ret;
 }

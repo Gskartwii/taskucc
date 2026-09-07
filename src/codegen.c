@@ -241,6 +241,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     state->func_type = func_type;
     state->interface = tacc_target_callitf_from_func_type(func_type);
     state->func_name = tacc_declarator_name(func_def->func_declaration);
+    state->num_local_bytes = (size_t) (state->interface->frame_offset);
 
     tacc_assert(!state->func_type->is_vararg,
                 "TODO: support vararg in compile_statements");
