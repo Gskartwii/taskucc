@@ -82,37 +82,37 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
 
     switch (val->type->kind) {
     case TYK_FLOAT:
-        tacc_assert(0, "TODO: float support");
+        tacc_assert(ASSERT_TODO, 0, "float support");
         return;
     case TYK_DOUBLE:
-        tacc_assert(0, "TODO: float support");
+        tacc_assert(ASSERT_TODO, 0, "float support");
         return;
     case TYK_LONGDOUBLE:
-        tacc_assert(0, "TODO: float support");
+        tacc_assert(ASSERT_TODO, 0, "float support");
         return;
     case TYK_VOID:
-        tacc_assert(0, "cannot output value of void type");
+        tacc_assert(ASSERT_TODO, 0, "cannot output value of void type");
         return;
     case TYK_PTR:
-        tacc_assert(0, "TODO: compile ptr constant");
+        tacc_assert(ASSERT_TODO, 0, "compile ptr constant");
         break;
     case TYK_STRUCT:
-        tacc_assert(0, "TODO: compile struct constant");
+        tacc_assert(ASSERT_TODO, 0, "compile struct constant");
         break;
     case TYK_UNION:
-        tacc_assert(0, "TODO: compile union constant");
+        tacc_assert(ASSERT_TODO, 0, "compile union constant");
         break;
     case TYK_ENUM:
-        tacc_assert(0, "TODO: compile enum constant");
+        tacc_assert(ASSERT_TODO, 0, "compile enum constant");
         break;
     case TYK_ARRAY:
-        tacc_assert(0, "TODO: compile array constant");
+        tacc_assert(ASSERT_TODO, 0, "compile array constant");
         break;
     case TYK_FN:
-        tacc_assert(0, "TODO: compile fn constant (?)");
+        tacc_assert(ASSERT_TODO, 0, "compile fn constant (?)");
         break;
     default:
-        tacc_assert(0, "unexpected type kind");
+        tacc_assert(ASSERT_ICE, 0, "unexpected type kind");
         return;
     }
 }
@@ -131,13 +131,16 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
         } else {
             if (!initializer->plain_expr) {
                 tacc_assert(
+                    ASSERT_DIAG,
                     tacc_sub_initializer_list_len(initializer->value.list) == 1,
                     "multiple initializers for a scalar");
                 entry =
                     tacc_sub_initializer_list_get(initializer->value.list, 0);
-                tacc_assert(entry->content->designator_kind == DESIGNATOR_NONE,
+                tacc_assert(ASSERT_DIAG,
+                            entry->content->designator_kind == DESIGNATOR_NONE,
                             "designator used on scalar");
-                tacc_assert(entry->content->value->plain_expr,
+                tacc_assert(ASSERT_DIAG,
+                            entry->content->value->plain_expr,
                             "nested braced initializers for scalar");
                 expr = entry->content->value->value.expr;
             } else {
@@ -152,7 +155,7 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
         tacc_val_free(val);
         return;
     }
-    tacc_assert(0, "TODO: non-scalar data");
+    tacc_assert(ASSERT_TODO, 0, "non-scalar data");
 }
 
 static struct tacc_type *tacc_eval_enumerators(
@@ -171,18 +174,21 @@ static struct tacc_type *tacc_eval_enumerators(
         if (entry->content->value != NULL) {
             val = tacc_expr_const_eval(
                 entry->content->value, compiler->target, compiler->basic_types);
-            tacc_assert(tacc_val_is_integral(val),
+            tacc_assert(ASSERT_DIAG,
+                        tacc_val_is_integral(val),
                         "enumerator must be integer constant");
             if (tacc_val_is_negative(val)) {
                 use_negative = 1;
             }
-            tacc_assert(tacc_u64_sge(val->value.int_value,
+            tacc_assert(ASSERT_DIAG,
+                        tacc_u64_sge(val->value.int_value,
                                      compiler->target->sint->min) &&
                             tacc_u64_sle(val->value.int_value,
                                          compiler->target->sint->max),
                         "enumerator value out of range");
         } else {
-            tacc_assert(counter.low != 0xFFFFFFFF || counter.high != 0xFFFFFFFF,
+            tacc_assert(ASSERT_DIAG,
+                        counter.low != 0xFFFFFFFF || counter.high != 0xFFFFFFFF,
                         "enumerator overflow when implicitly incrementing");
             tacc_u64_add_u32(&counter, &counter, 1);
         }
@@ -213,6 +219,7 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
     case FUNCPARAM_LIST_VARARG:
         ty->is_vararg = 1;
         tacc_assert(
+            ASSERT_DIAG,
             tacc_function_param_list_len(declarator->param_list.modern_params) >
                 0,
             "function with ... in parameter list without other parameters");
@@ -294,9 +301,11 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                     compiler->basic_types);
                 if (dimension != NULL) {
                     curr_type->kind = TYK_ARRAY;
-                    tacc_assert(tacc_val_is_integral(dimension),
+                    tacc_assert(ASSERT_DIAG,
+                                tacc_val_is_integral(dimension),
                                 "array dimension must be an integer");
-                    tacc_assert(!tacc_val_is_negative(dimension),
+                    tacc_assert(ASSERT_DIAG,
+                                !tacc_val_is_negative(dimension),
                                 "array dimension must be nonnegative");
                     tacc_val_convert(
                         dimension,
@@ -394,7 +403,7 @@ tacc_eval_struct(struct tacc_compiler *compiler,
                 bit_offset = bit_offset + (tacc_type_size(adjusted_ty) << 3);
                 continue;
             } else {
-                tacc_assert(0, "TODO: evaluate bitfields in structures");
+                tacc_assert(ASSERT_TODO, 0, "evaluate bitfields in structures");
             }
         }
     }
@@ -436,7 +445,7 @@ tacc_eval_union(struct tacc_compiler *compiler,
                 tacc_union_push_field(compiler, ty, field);
                 continue;
             } else {
-                tacc_assert(0, "TODO: evaluate bitfields in unions");
+                tacc_assert(ASSERT_TODO, 0, "evaluate bitfields in unions");
             }
         }
     }
@@ -468,6 +477,7 @@ tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
     ty = tacc_compiler_get_named_type(compiler, name_ref);
     if (ty != NULL) {
         tacc_assert(
+            ASSERT_DIAG,
             ty->kind == kind,
             "incompatible redeclaration of tag %s",
             tacc_dynstring_as_str(tacc_compile_get_name(compiler, name_ref)));
@@ -483,7 +493,8 @@ tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
 
 static void tacc_compiler_add_new_named_type(struct tacc_compiler *compiler,
                                              struct tacc_type *ty) {
-    tacc_assert(tacc_compiler_get_named_type(compiler, ty->name_ref) == NULL,
+    tacc_assert(ASSERT_DIAG,
+                tacc_compiler_get_named_type(compiler, ty->name_ref) == NULL,
                 "type %s redeclared",
                 tacc_compile_get_name(compiler, ty->name_ref));
     tacc_type_list_push(compiler->named_types, ty);
@@ -568,10 +579,12 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
     case TYPESPEC_ENUM:
         base_type = TYK_ENUM;
         if (type->extra.enumerators == NULL) {
-            tacc_assert(type->name_ref != 0,
+            tacc_assert(ASSERT_DIAG,
+                        type->name_ref != 0,
                         "anonymous unspecified enumeration");
             ty = tacc_compiler_get_named_type(compiler, type->name_ref);
-            tacc_assert(ty != NULL,
+            tacc_assert(ASSERT_DIAG,
+                        ty != NULL,
                         "forward declaration of enum %s",
                         tacc_dynstring_as_str(
                             tacc_compile_get_name(compiler, type->name_ref)));
@@ -597,7 +610,8 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
             base_type = TYK_UNION;
         }
         if (type->extra.struct_fields == NULL) {
-            tacc_assert(type->name_ref != 0,
+            tacc_assert(ASSERT_DIAG,
+                        type->name_ref != 0,
                         "anonymous unspecified struct/union");
             ty = tacc_compiler_get_named_type_or_forwdecl(
                 compiler, type->name_ref, base_type);
@@ -624,10 +638,10 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         }
         break;
     case TYPESPEC_TYPEDEF:
-        tacc_assert(0, "TODO: construct type from typedef");
+        tacc_assert(ASSERT_TODO, 0, "construct type from typedef");
         return NULL;
     default:
-        tacc_assert(0, "type unsupported as of now");
+        tacc_assert(ASSERT_ICE, 0, "type unsupported as of now");
         return NULL;
     }
 
@@ -647,8 +661,9 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
         compiler,
         tacc_type_from_decl_type(compiler, function_def->base_type),
         function_def->extra.func_def->func_declaration);
-    tacc_assert(function_def->extra.func_def->old_style_param_list == NULL,
-                "TODO: old-style function parameter types");
+    tacc_assert(ASSERT_TODO,
+                function_def->extra.func_def->old_style_param_list == NULL,
+                "old-style function parameter types");
 
     state = tacc_cg_state_new(compiler);
     tacc_cg_compile_function(
@@ -696,17 +711,18 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         tacc_compile_function_def(compiler, decl);
         return;
     }
-    tacc_assert(decl->kind == DECL_DECLARATORS, "TODO: function definition");
-    tacc_assert(decl->storage_class == STORAGE_UNSPECIFIED,
-                "TODO: different storage classes");
+    tacc_assert(ASSERT_TODO,
+                decl->storage_class == STORAGE_UNSPECIFIED,
+                "different storage classes");
     type = tacc_type_from_decl_type(compiler, decl->base_type);
     for (i = 0; i < tacc_init_declarator_list_len(decl->extra.declarators);
          i = i + 1) {
         entry = tacc_init_declarator_list_get(decl->extra.declarators, i);
         data_name = tacc_declarator_name(entry->content->declarator);
         declarator = entry->content;
-        tacc_assert(declarator->declarator->kind == DECLARATOR_PLAIN,
-                    "TODO: non-plain declarator");
+        tacc_assert(ASSERT_TODO,
+                    declarator->declarator->kind == DECLARATOR_PLAIN,
+                    "non-plain declarator");
         tacc_compile_data(compiler,
                           type,
                           tacc_compile_get_name(compiler, data_name),
@@ -719,7 +735,7 @@ struct tacc_enumerator *tacc_compile_resolve_enumerator(
     struct tacc_compiler *compiler, uint32_t name_ref) {
     TACC_UNUSED(compiler);
     TACC_UNUSED(name_ref);
-    tacc_assert(0, "TODO: resolve enumerators");
+    tacc_assert(ASSERT_TODO, 0, "resolve enumerators");
 
     return NULL;
 }

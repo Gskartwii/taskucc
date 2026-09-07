@@ -126,7 +126,8 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         size_t i;                                                           \
         uint32_t h;                                                         \
                                                                             \
-        tacc_assert(map->map->fill < map->map->cap,                         \
+        tacc_assert(ASSERT_TODO,                                            \
+                    map->map->fill < map->map->cap,                         \
                     "TODO: grow hashmap: %d == %d",                         \
                     map->map->fill,                                         \
                     map->map->cap);                                         \
@@ -216,8 +217,9 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         size_t i;                                                             \
         uint32_t h;                                                           \
                                                                               \
-        tacc_assert(map->map->fill < map->map->cap,                           \
-                    "TODO: grow hashmap: %d == %d",                           \
+        tacc_assert(ASSERT_TODO,                                              \
+                    map->map->fill < map->map->cap,                           \
+                    "grow hashmap: %d == %d",                                 \
                     map->map->fill,                                           \
                     map->map->cap);                                           \
         h = tacc_u32_hash(content->hash_key);                                 \

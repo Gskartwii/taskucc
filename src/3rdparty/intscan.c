@@ -235,8 +235,8 @@ static int shgetc(struct tacc_file_iter *file) {
     return (int) ch;
 }
 
-#define shunget(f)                                          \
-    tacc_assert((f->src != f->orig), "unget at beginning"); \
+#define shunget(f)                                                      \
+    tacc_assert(ASSERT_ICE, (f->src != f->orig), "unget at beginning"); \
     f->src = f->src - 1
 
 static unsigned char intscan_val(int c) {
@@ -264,7 +264,7 @@ void intscan(struct tacc_file_iter *f,
     neg = 0;
     tacc_u64_zero(&y);
 
-    tacc_assert(!(base > 36 || base < 2), "bad base %d", base);
+    tacc_assert(ASSERT_ICE, !(base > 36 || base < 2), "bad base %d", base);
 
     if (base == 10) {
         ullong_max_div_base.high = 0x19999999;
@@ -314,7 +314,7 @@ void intscan(struct tacc_file_iter *f,
             bs = 5;
             break;
         default:
-            tacc_assert(0, "invalid base: %d", base);
+            tacc_assert(ASSERT_ICE, 0, "invalid base: %d", base);
             bs = 0;
             break;
         }
@@ -359,9 +359,11 @@ void intscan(struct tacc_file_iter *f,
             tacc_u64_add_u32(&y, &aux1, intscan_val(c));
         }
     }
-    tacc_assert(intscan_val(c) >= base,
+    tacc_assert(ASSERT_DIAG,
+                intscan_val(c) >= base,
                 "constant number overflow, too many digits");
-    tacc_assert(tacc_u64_ule(&y, lim),
+    tacc_assert(ASSERT_DIAG,
+                tacc_u64_ule(&y, lim),
                 "constant number overflow, out of requested range");
 done:
     shunget(f);

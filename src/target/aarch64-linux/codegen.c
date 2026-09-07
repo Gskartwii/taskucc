@@ -146,7 +146,7 @@ static char *tacc_target_register_name(enum tacc_target_register reg,
     case 8:
         return tacc_target_register_as_32(reg);
     default:
-        tacc_assert(0, "invalid width %d", width);
+        tacc_assert(ASSERT_ICE, 0, "invalid width %d", width);
         return NULL;
     }
 }
@@ -325,8 +325,9 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
                                       struct tacc_local_var *locvar_place) {
     switch (in_place->place.kind) {
     case CALLITF_PLACE_REGISTER:
-        tacc_assert(in_place->place.extra.reg.reg_class <= REGC_INT_X,
-                    "TODO: non-integral function parameters");
+        tacc_assert(ASSERT_TODO,
+                    in_place->place.extra.reg.reg_class <= REGC_INT_X,
+                    "non-integral function parameters");
         tacc_target_cg_store(state,
                              in_place->place.extra.reg.reg,
                              (int) (in_place->offset_from_param_start) +
@@ -335,7 +336,9 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
                              1);
         break;
     case CALLITF_PLACE_REGISTER_PAIR:
-        tacc_assert(0, "ICE: didn't expect a register pair param on aarch64");
+        tacc_assert(ASSERT_ICE,
+                    0,
+                    "ICE: didn't expect a register pair param on aarch64");
         break;
     case CALLITF_PLACE_STACK:
         /* skip */
@@ -410,7 +413,7 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
         tacc_cg_output(state, "\n\t ldr %s, [fp, #%d]", reg_name, var->offset);
         break;
     default:
-        tacc_assert(0, "invalid load width %d", load_width);
+        tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
     tacc_cg_push_reg(state, reg_place, var->ty);
 }

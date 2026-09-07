@@ -39,18 +39,21 @@ tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
 }
 
 struct tacc_u64 *tacc_type_max_val(struct tacc_type *type) {
-    tacc_assert(tacc_type_kind_is_integral(type->kind),
+    tacc_assert(ASSERT_ICE,
+                tacc_type_kind_is_integral(type->kind),
                 "cannot take max val for non-integral type");
     return type->extra.int_repr->max;
 }
 struct tacc_u64 *tacc_type_min_val(struct tacc_type *type) {
-    tacc_assert(tacc_type_kind_is_integral(type->kind),
+    tacc_assert(ASSERT_ICE,
+                tacc_type_kind_is_integral(type->kind),
                 "cannot take min val for non-integral type");
     return type->extra.int_repr->min;
 }
 
 size_t tacc_type_bit_width(struct tacc_type *type) {
-    tacc_assert(tacc_type_kind_is_integral(type->kind),
+    tacc_assert(ASSERT_ICE,
+                tacc_type_kind_is_integral(type->kind),
                 "cannot take bit width val for non-integral type");
     return type->extra.int_repr->bit_width;
 }
@@ -62,10 +65,10 @@ size_t tacc_type_size(struct tacc_type *type) {
     case TYK_FLOAT:
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
-        tacc_assert(0, "TODO: floating point type size");
+        tacc_assert(ASSERT_TODO, 0, "floating point type size");
         return 0;
     case TYK_VOID:
-        tacc_assert(0, "cannot take size of void");
+        tacc_assert(ASSERT_DIAG, 0, "cannot take size of void");
         return 0;
     case TYK_PTR:
         return type->extra.pointer.repr->bit_width >> ((unsigned) 3);
@@ -76,22 +79,25 @@ size_t tacc_type_size(struct tacc_type *type) {
     case TYK_ENUM:
         return tacc_type_size(type->extra.enumeration->underlying_type);
     case TYK_ARRAY:
-        tacc_assert(type->extra.array->dimension->high == 0,
-                    "TODO: array too large for sizeof");
+        tacc_assert(ASSERT_TODO,
+                    type->extra.array->dimension->high == 0,
+                    "array too large for sizeof");
         /* TODO: overflow in multiplication? */
         return tacc_type_size(type->extra.array->element_type) *
                type->extra.array->dimension->low;
     case TYK_INCOMPLETE_ARRAY:
-        tacc_assert(0, "cannot take size of incomplete array type");
+        tacc_assert(
+            ASSERT_DIAG, 0, "cannot take size of incomplete array type");
         return 0;
     case TYK_VLA:
-        tacc_assert(0, "cannot take constant size of VLA.");
+        tacc_assert(ASSERT_DIAG, 0, "cannot take constant size of VLA.");
         return 0;
     case TYK_DECAYING_VLA:
-        tacc_assert(0, "cannot take constant size of decaying VLA.");
+        tacc_assert(
+            ASSERT_DIAG, 0, "cannot take constant size of decaying VLA.");
         return 0;
     case TYK_FN:
-        tacc_assert(0, "cannot take size of function");
+        tacc_assert(ASSERT_DIAG, 0, "cannot take size of function");
         return 0;
     default:
         ty = type->extra.int_repr;
@@ -108,10 +114,10 @@ size_t tacc_type_alignment_p2(struct tacc_type *type) {
     case TYK_FLOAT:
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
-        tacc_assert(0, "TODO: floating point type alignment_p2");
+        tacc_assert(ASSERT_TODO, 0, "floating point type alignment_p2");
         return 0;
     case TYK_VOID:
-        tacc_assert(0, "cannot take alignment of void");
+        tacc_assert(ASSERT_DIAG, 0, "cannot take alignment of void");
         return 0;
     case TYK_PTR:
         return type->extra.pointer.repr->alignment_p2;
@@ -127,7 +133,7 @@ size_t tacc_type_alignment_p2(struct tacc_type *type) {
     case TYK_DECAYING_VLA:
         return tacc_type_alignment_p2(type->extra.array->element_type);
     case TYK_FN:
-        tacc_assert(0, "cannot take alignment of function");
+        tacc_assert(ASSERT_DIAG, 0, "cannot take alignment of function");
         return 0;
     default:
         ty = type->extra.int_repr;
@@ -211,7 +217,7 @@ enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
     case TYK_SLONGLONG:
         return IRANK_LLONG;
     default:
-        tacc_assert(0, "cannot compute rank for non-integral type");
+        tacc_assert(ASSERT_ICE, 0, "cannot compute rank for non-integral type");
         return 0;
     }
 }
@@ -236,7 +242,8 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     case TYK_BOOL:
         return TYK_BOOL;
     default:
-        tacc_assert(0, "can't convert non-integral type kind to unsigned");
+        tacc_assert(
+            ASSERT_ICE, 0, "can't convert non-integral type kind to unsigned");
         return 0;
     }
 }
@@ -310,7 +317,7 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
             return ty_entry->content;
         }
     }
-    tacc_assert(0, "couldn't find registred type for basic type");
+    tacc_assert(ASSERT_ICE, 0, "couldn't find registred type for basic type");
     return NULL;
 }
 
@@ -510,8 +517,9 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
     a_type = left->kind;
     b_type = right->kind;
 
-    tacc_assert(tacc_type_is_integral(left) && tacc_type_is_integral(right),
-                "TODO: arith conversions for non-integral types");
+    tacc_assert(ASSERT_TODO,
+                tacc_type_is_integral(left) && tacc_type_is_integral(right),
+                "arith conversions for non-integral types");
 
     if (a_type == b_type) {
         *kind_out = CONV_NONE;
@@ -579,7 +587,7 @@ struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
     case TYK_STRUCT:
         return ty;
     case TYK_VOID:
-        tacc_assert(0, "void cannot appear as function param");
+        tacc_assert(ASSERT_DIAG, 0, "void cannot appear as function param");
         return NULL;
     case TYK_ARRAY:
     case TYK_INCOMPLETE_ARRAY:
@@ -589,7 +597,7 @@ struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
     case TYK_FN:
         return tacc_type_to_pointer(repr, ty, 1);
     default:
-        tacc_assert(0, "unknown tyk");
+        tacc_assert(ASSERT_ICE, 0, "unknown tyk");
         return NULL;
     }
 }

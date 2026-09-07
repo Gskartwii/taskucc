@@ -18,7 +18,7 @@ static void tacc_format_indent(struct tacc_formatter *fmt) {
     fmt->indent = fmt->indent + 1;
 }
 static void tacc_format_deindent(struct tacc_formatter *fmt) {
-    tacc_assert(fmt->indent > 0, "cannot deindent at base level");
+    tacc_assert(ASSERT_ICE, fmt->indent > 0, "cannot deindent at base level");
     fmt->indent = fmt->indent - 1;
 }
 
@@ -54,59 +54,6 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
 
 static void tacc_format_declarator(struct tacc_formatter *fmt,
                                    struct tacc_declarator *declarator);
-
-/*
-static void tacc_format_compound_type(struct tacc_formatter *fmt,
-                      struct tacc_compound_type *ty) {
-size_t i;
-struct tacc_type_list_entry *entry;
-
-switch (ty->kind) {
-case TYC_PTR:
-tacc_format_begin_scope(fmt, "ptr");
-tacc_format_newline(fmt);
-tacc_format_decl_type(fmt, ty->extra.contained);
-tacc_format_end_scope(fmt);
-break;
-case TYC_STRUCT:
-tacc_assert(0, "todo: format struct type");
-break;
-case TYC_UNION:
-tacc_assert(0, "todo: format union type");
-break;
-case TYC_ENUM:
-tacc_assert(0, "todo: format enum type");
-break;
-case TYC_ARRAY:
-case TYC_ARRAY_FLEX:
-case TYC_FN:
-tacc_format_begin_scope(fmt, "fn");
-tacc_format_field_name(fmt, "ret");
-tacc_format_decl_type(fmt, ty->extra.function->return_type);
-tacc_format_field_name(fmt, "params");
-if (ty->extra.function->param_list_kind == FUNCPARAM_EMPTY_LIST) {
-tacc_format_print(fmt, "unspecified");
-} else if (ty->extra.function->param_list_kind == FUNCPARAM_VOID) {
-tacc_format_print(fmt, "void");
-} else {
-if (ty->extra.function->param_list_kind == FUNCPARAM_LIST_VARARG) {
-tacc_format_begin_scope(fmt, "list-va");
-} else {
-tacc_format_begin_scope(fmt, "list");
-}
-for (i = 0; i < tacc_type_list_len(ty->extra.function->param_types);
- i = i + 1) {
-entry = tacc_type_list_get(ty->extra.function->param_types, i);
-tacc_format_newline(fmt);
-tacc_format_decl_type(fmt, entry->content);
-}
-tacc_format_end_scope(fmt);
-}
-tacc_format_end_scope(fmt);
-break;
-}
-}
-*/
 
 static void tacc_format_enumerators(struct tacc_formatter *fmt,
                                     struct tacc_enumerator_list *enumerators) {
@@ -526,10 +473,10 @@ static void tacc_format_expr(struct tacc_formatter *fmt,
         n = 3;
         break;
     case EX_COMPOUND_LIT:
-        tacc_assert(0, "TODO: format compound literal");
+        tacc_assert(ASSERT_TODO, 0, "format compound literal");
         return;
     default:
-        tacc_assert(0, "invalid expression");
+        tacc_assert(ASSERT_ICE, 0, "invalid expression");
         return;
     }
 

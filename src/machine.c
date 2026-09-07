@@ -19,7 +19,7 @@ struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
     if (tacc_val_is_integral(orig_val)) {
         val->value.int_value = tacc_u64_clone(orig_val->value.int_value);
     } else {
-        tacc_assert(0, "non-integral vals");
+        tacc_assert(ASSERT_TODO, 0, "non-integral vals");
     }
 
     return val;
@@ -79,7 +79,7 @@ tacc_bool tacc_val_is_truthy(struct tacc_val *val) {
     if (tacc_val_is_integral(val)) {
         return !tacc_u64_is_zero(val->value.int_value);
     }
-    tacc_assert(0, "todo: non-integral values");
+    tacc_assert(ASSERT_TODO, 0, "non-integral values");
     return 0;
 }
 
@@ -126,8 +126,9 @@ tacc_bool tacc_val_is_negative(struct tacc_val *val) {
 }
 
 tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b) {
-    tacc_assert(tacc_val_is_integral(a) && tacc_val_is_integral(b),
-                "TODO: non-integral eq");
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral eq");
     return tacc_u64_eq(a->value.int_value, b->value.int_value);
 }
 
@@ -154,8 +155,9 @@ void tacc_val_free(struct tacc_val *val) {
 struct tacc_val *tacc_val_zero(struct tacc_type *ty) {
     struct tacc_val *val;
 
-    tacc_assert(tacc_type_is_integral(ty),
-                "TODO: zero values for non-integral types");
+    tacc_assert(ASSERT_TODO,
+                tacc_type_is_integral(ty),
+                "zero values for non-integral types");
     val = tacc_val_new();
     val->type = ty;
     val->value.int_value = tacc_u64_new();
@@ -171,7 +173,7 @@ tacc_int_literal_eval(struct tacc_int_literal *literal,
     tacc_bool can_be_unsigned = literal->suffix_u || (literal->base != 10);
 
     if (tacc_u64_ugt(literal->number, target->sllong->max)) {
-        tacc_assert(can_be_unsigned, "integer literal overflow");
+        tacc_assert(ASSERT_DIAG, can_be_unsigned, "integer literal overflow");
     }
 
     val = tacc_val_new();
@@ -247,65 +249,67 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
     switch (expr->kind) {
     case EX_UNINIT:
-        tacc_assert(0, "invalid uninitialized expr");
+        tacc_assert(ASSERT_ICE, 0, "invalid uninitialized expr");
         break;
     case EX_INT_LIT:
         return tacc_int_literal_eval(
             expr->extra.int_literal, target, basic_types);
     case EX_CHAR_LIT:
-        tacc_assert(0, "todo: char-literal consteval");
+        tacc_assert(ASSERT_TODO, 0, "char-literal consteval");
         break;
     case EX_STRING_LIT:
-        tacc_assert(0, "todo: string consteval");
+        tacc_assert(ASSERT_TODO, 0, "string consteval");
         break;
     case EX_IDENT:
-        tacc_assert(0, "todo: ident consteval");
+        tacc_assert(ASSERT_TODO, 0, "ident consteval");
         break;
     case EX_ADD:
-        tacc_assert(0, "todo: add consteval");
+        tacc_assert(ASSERT_TODO, 0, "add consteval");
         break;
     case EX_SUB:
-        tacc_assert(0, "todo: sub consteval");
+        tacc_assert(ASSERT_TODO, 0, "sub consteval");
         break;
     case EX_MUL:
-        tacc_assert(0, "todo: mul consteval");
+        tacc_assert(ASSERT_TODO, 0, "mul consteval");
         break;
     case EX_DIV:
-        tacc_assert(0, "todo: div consteval");
+        tacc_assert(ASSERT_TODO, 0, "div consteval");
         break;
     case EX_REM:
-        tacc_assert(0, "todo: rem consteval");
+        tacc_assert(ASSERT_TODO, 0, "rem consteval");
         break;
     case EX_POS:
-        tacc_assert(0, "todo: pos consteval");
+        tacc_assert(ASSERT_TODO, 0, "pos consteval");
         break;
     case EX_NEG:
-        tacc_assert(0, "todo: neg consteval");
+        tacc_assert(ASSERT_TODO, 0, "neg consteval");
         break;
     case EX_BAND:
-        tacc_assert(0, "todo: & consteval");
+        tacc_assert(ASSERT_TODO, 0, "& consteval");
         break;
     case EX_BOR:
-        tacc_assert(0, "todo: | consteval");
+        tacc_assert(ASSERT_TODO, 0, "| consteval");
         break;
     case EX_BXOR:
-        tacc_assert(0, "todo: ^ consteval");
+        tacc_assert(ASSERT_TODO, 0, "^ consteval");
         break;
     case EX_BNOT:
-        tacc_assert(0, "todo: ~ consteval");
+        tacc_assert(ASSERT_TODO, 0, "~ consteval");
         break;
     case EX_SHL:
-        tacc_assert(0, "todo: << consteval");
+        tacc_assert(ASSERT_TODO, 0, "<< consteval");
         break;
     case EX_SHR:
-        tacc_assert(0, "todo: >> consteval");
+        tacc_assert(ASSERT_TODO, 0, ">> consteval");
         break;
     case EX_AND:
         l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
         if (l_result == NULL) {
             return NULL;
         }
-        tacc_assert(tacc_val_is_scalar(l_result), "&& takes a scalar operand");
+        tacc_assert(ASSERT_DIAG,
+                    tacc_val_is_scalar(l_result),
+                    "&& takes a scalar operand");
         if (!tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
             return tacc_val_from_int(0, sint_ty);
@@ -330,7 +334,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         if (l_result == NULL) {
             return NULL;
         }
-        tacc_assert(tacc_val_is_scalar(l_result), "|| takes a scalar operand");
+        tacc_assert(ASSERT_DIAG,
+                    tacc_val_is_scalar(l_result),
+                    "|| takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
             return tacc_val_from_int(1, sint_ty);
@@ -355,7 +361,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         if (l_result == NULL) {
             return NULL;
         }
-        tacc_assert(tacc_val_is_scalar(l_result), "! takes a scalar operand");
+        tacc_assert(ASSERT_DIAG,
+                    tacc_val_is_scalar(l_result),
+                    "! takes a scalar operand");
         if (tacc_val_is_truthy(l_result)) {
             tacc_val_free(l_result);
             return tacc_val_from_int(0, sint_ty);
@@ -373,7 +381,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         }
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
-                    "todo: non-arithmetic eq consteval");
+                    ASSERT_TODO,
+                    "non-arithmetic eq consteval");
         tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
         if (!tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
@@ -394,7 +403,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         }
         tacc_assert(tacc_val_is_arithmetic(l_result) &&
                         tacc_val_is_arithmetic(r_result),
-                    "todo: non-arithmetic ne consteval");
+                    ASSERT_TODO,
+                    "non-arithmetic ne consteval");
         tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
         if (tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
@@ -405,100 +415,100 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(r_result);
         return tacc_val_from_int(1, sint_ty);
     case EX_LE:
-        tacc_assert(0, "todo: <= consteval");
+        tacc_assert(ASSERT_TODO, 0, "<= consteval");
         break;
     case EX_LT:
-        tacc_assert(0, "todo: < consteval");
+        tacc_assert(ASSERT_TODO, 0, "< consteval");
         break;
     case EX_GE:
-        tacc_assert(0, "todo: >= consteval");
+        tacc_assert(ASSERT_TODO, 0, ">= consteval");
         break;
     case EX_GT:
-        tacc_assert(0, "todo: > consteval");
+        tacc_assert(ASSERT_TODO, 0, "> consteval");
         break;
     case EX_ASSI:
-        tacc_assert(0, "todo: = consteval");
+        tacc_assert(ASSERT_TODO, 0, "= consteval");
         break;
     case EX_ADD_ASSI:
-        tacc_assert(0, "todo: += consteval");
+        tacc_assert(ASSERT_TODO, 0, "+= consteval");
         break;
     case EX_SUB_ASSI:
-        tacc_assert(0, "todo: -= consteval");
+        tacc_assert(ASSERT_TODO, 0, "-= consteval");
         break;
     case EX_MUL_ASSI:
-        tacc_assert(0, "todo: *= consteval");
+        tacc_assert(ASSERT_TODO, 0, "*= consteval");
         break;
     case EX_DIV_ASSI:
-        tacc_assert(0, "todo: /= consteval");
+        tacc_assert(ASSERT_TODO, 0, "/= consteval");
         break;
     case EX_REM_ASSI:
-        tacc_assert(0, "todo: %= consteval");
+        tacc_assert(ASSERT_TODO, 0, "%= consteval");
         break;
     case EX_BAND_ASSI:
-        tacc_assert(0, "todo: &= consteval");
+        tacc_assert(ASSERT_TODO, 0, "&= consteval");
         break;
     case EX_BOR_ASSI:
-        tacc_assert(0, "todo: |= consteval");
+        tacc_assert(ASSERT_TODO, 0, "|= consteval");
         break;
     case EX_BXOR_ASSI:
-        tacc_assert(0, "todo: ^= consteval");
+        tacc_assert(ASSERT_TODO, 0, "^= consteval");
         break;
     case EX_LSH_ASSI:
-        tacc_assert(0, "todo: <<= consteval");
+        tacc_assert(ASSERT_TODO, 0, "<<= consteval");
         break;
     case EX_RSH_ASSI:
-        tacc_assert(0, "todo: >>= consteval");
+        tacc_assert(ASSERT_TODO, 0, ">>= consteval");
         break;
     case EX_INCR_PRE:
-        tacc_assert(0, "todo: ++pre consteval");
+        tacc_assert(ASSERT_TODO, 0, "++pre consteval");
         break;
     case EX_DECR_PRE:
-        tacc_assert(0, "todo: --pre consteval");
+        tacc_assert(ASSERT_TODO, 0, "--pre consteval");
         break;
     case EX_INCR_POST:
-        tacc_assert(0, "todo: post++ consteval");
+        tacc_assert(ASSERT_TODO, 0, "post++ consteval");
         break;
     case EX_DECR_POST:
-        tacc_assert(0, "todo: post-- consteval");
+        tacc_assert(ASSERT_TODO, 0, "post-- consteval");
         break;
     case EX_SUBSCRIPT:
-        tacc_assert(0, "todo: _[_] consteval");
+        tacc_assert(ASSERT_TODO, 0, "_[_] consteval");
         break;
     case EX_DEREF:
-        tacc_assert(0, "todo: deref consteval");
+        tacc_assert(ASSERT_TODO, 0, "deref consteval");
         break;
     case EX_ADDROF:
-        tacc_assert(0, "todo: ampersand consteval");
+        tacc_assert(ASSERT_TODO, 0, "ampersand consteval");
         break;
     case EX_MEMBER:
-        tacc_assert(0, "todo: _._ consteval");
+        tacc_assert(ASSERT_TODO, 0, "_._ consteval");
         break;
     case EX_PTR_MEMBER:
-        tacc_assert(0, "todo: _->_ consteval");
+        tacc_assert(ASSERT_TODO, 0, "_->_ consteval");
         break;
     case EX_CALL:
-        tacc_assert(0, "todo: _(_) consteval");
+        tacc_assert(ASSERT_TODO, 0, "_(_) consteval");
         break;
     case EX_COMMA:
-        tacc_assert(0, "todo: _,_ consteval");
+        tacc_assert(ASSERT_TODO, 0, "_,_ consteval");
         break;
     case EX_CAST:
-        tacc_assert(0, "todo: (_)_ consteval");
+        tacc_assert(ASSERT_TODO, 0, "(_)_ consteval");
         break;
     case EX_SIZEOF:
-        tacc_assert(0, "todo: sizeof _ consteval");
+        tacc_assert(ASSERT_TODO, 0, "sizeof _ consteval");
         break;
     case EX_SIZEOF_TY:
-        tacc_assert(0, "todo: sizeof(_ty) consteval");
+        tacc_assert(ASSERT_TODO, 0, "sizeof(_ty) consteval");
         break;
     case EX_SELECT:
-        tacc_assert(0, "todo: selection consteval");
+        tacc_assert(ASSERT_TODO, 0, "selection consteval");
         break;
     case EX_COMPOUND_LIT:
-        tacc_assert(0, "todo: (_){_} consteval");
+        tacc_assert(ASSERT_TODO, 0, "(_){_} consteval");
         break;
     case EX_NAME_OF_FUNC:
-        tacc_assert(0, "todo: __FUCNTION__ consteval");
+        tacc_assert(ASSERT_TODO, 0, "__FUCNTION__ consteval");
         break;
     }
     return NULL;

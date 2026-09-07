@@ -21,30 +21,35 @@ struct tacc_options {
     tacc_bool dump_ast;
 };
 
-#define ARG_SHORT_APPEND(ch, to_list)                                         \
-    do {                                                                      \
-        if (*arg == ch) {                                                     \
-            arg = arg + 1;                                                    \
-            if (!*arg) {                                                      \
-                i = i + 1;                                                    \
-                tacc_assert(i < count, "incomplete argument -%s\n", arg - 1); \
-                arg = argv[i];                                                \
-            }                                                                 \
-            str = tacc_dynstring_new();                                       \
-            tacc_dynstring_concat(str, arg);                                  \
-            tacc_string_list_push(to_list, str);                              \
-            goto next;                                                        \
-        }                                                                     \
+#define ARG_SHORT_APPEND(ch, to_list)                    \
+    do {                                                 \
+        if (*arg == ch) {                                \
+            arg = arg + 1;                               \
+            if (!*arg) {                                 \
+                i = i + 1;                               \
+                tacc_assert(ASSERT_DIAG,                 \
+                            i < count,                   \
+                            "incomplete argument -%s\n", \
+                            arg - 1);                    \
+                arg = argv[i];                           \
+            }                                            \
+            str = tacc_dynstring_new();                  \
+            tacc_dynstring_concat(str, arg);             \
+            tacc_string_list_push(to_list, str);         \
+            goto next;                                   \
+        }                                                \
     } while (0)
-#define ARG_SHORT_SET_FLAG(ch, flag)                                          \
-    do {                                                                      \
-        if (*arg == ch) {                                                     \
-            arg = arg + 1;                                                    \
-            tacc_assert(                                                      \
-                (*arg) == 0, "cannot take content for flag: -%s\n", arg - 1); \
-            flag = 1;                                                         \
-            goto next;                                                        \
-        }                                                                     \
+#define ARG_SHORT_SET_FLAG(ch, flag)                           \
+    do {                                                       \
+        if (*arg == ch) {                                      \
+            arg = arg + 1;                                     \
+            tacc_assert(ASSERT_DIAG,                           \
+                        (*arg) == 0,                           \
+                        "cannot take content for flag: -%s\n", \
+                        arg - 1);                              \
+            flag = 1;                                          \
+            goto next;                                         \
+        }                                                      \
     } while (0)
 #define ARG_LONG_SET_FLAG(name, flag) \
     do {                              \
@@ -72,7 +77,8 @@ static void tacc_parse_options(struct tacc_options *options,
     for (i = 1; i < count; i = i + 1) {
         arg = argv[i];
         if (*arg != '-') {
-            tacc_assert(!options->filename, "multiple filenames given");
+            tacc_assert(
+                ASSERT_DIAG, !options->filename, "multiple filenames given");
             options->filename = arg;
             continue;
         }
@@ -81,7 +87,7 @@ static void tacc_parse_options(struct tacc_options *options,
         ARG_SHORT_SET_FLAG('E', options->preprocess);
         ARG_LONG_SET_FLAG("dA", options->dump_ast);
         ARG_SHORT_APPEND('I', options->include_path);
-        tacc_assert(0, "invalid option %s\n", argv[i]);
+        tacc_assert(ASSERT_DIAG, 0, "invalid option %s\n", argv[i]);
 #ifdef __M2__
     next:
         0;
@@ -259,7 +265,7 @@ int main(int argc, char **argv) {
     init_io();
 
     tacc_parse_options(&options, argc, argv);
-    tacc_assert(options.filename != NULL, "need filename");
+    tacc_assert(ASSERT_DIAG, options.filename != NULL, "need filename");
 
     if (!strcmp(options.filename, "run-tests")) {
         tacc_string_list_free(options.defines);

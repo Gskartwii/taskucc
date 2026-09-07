@@ -74,7 +74,7 @@ tacc_parse_assert(struct tacc_tok_iter *iter, tacc_bool cond, char *msg, ...) {
     vfprintf(stderr, msg, va);
     fprintf(stderr, "\n");
     va_end(va);
-    tacc_assert(0, "parse error");
+    tacc_assert(ASSERT_DIAG, 0, "parse error");
 }
 
 static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
@@ -93,7 +93,7 @@ static void tacc_parse_error(struct tacc_tok_iter *iter, char *msg, ...) {
     vfprintf(stderr, msg, va);
     va_end(va);
     fprintf(stderr, "\n");
-    tacc_assert(0, "parse error");
+    tacc_assert(ASSERT_DIAG, 0, "parse error");
 }
 
 uint32_t tacc_parse_registry_intern(struct tacc_parse_registry *registry,
@@ -289,12 +289,12 @@ static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
     struct tacc_u64 limit;
 
     literal = tacc_int_literal_new();
-    tacc_assert(tok->str != NULL, "need str to parse numlit");
+    tacc_assert(ASSERT_ICE, tok->str != NULL, "need str to parse numlit");
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
     tok = NULL;
 
-    tacc_assert(len > 0, "invalid empty ppnumber");
+    tacc_assert(ASSERT_ICE, len > 0, "invalid empty ppnumber");
     if (len == 1) {
         tacc_u64_add_u32(
             literal->number, literal->number, (uint32_t) (*cstr - '0'));
@@ -482,10 +482,12 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                     iter, tok->str != NULL, "need str to parse ident");
                 ident_entry = tacc_parse_registry_lookup_untagged(
                     registry, tacc_dynstring_as_str(tok->str));
-                tacc_assert(ident_entry != NULL,
+                tacc_assert(ASSERT_DIAG,
+                            ident_entry != NULL,
                             "referenced ident not found: %s",
                             tacc_dynstring_as_str(tok->str));
                 tacc_assert(
+                    ASSERT_DIAG,
                     ident_entry->kind == UNTAGGED_IDENT_OBJECT ||
                         ident_entry->kind == UNTAGGED_IDENT_ENUMERATOR,
                     "primary expression doesn't refer to recognized object: %s",
@@ -1029,7 +1031,8 @@ static void tacc_parse_registry_add_tagged(struct tacc_parse_registry *registry,
     existing_entry = tacc_tagged_ident_list_get(
         scope->tagged_idents, tacc_dynstring_as_str(str_entry->content));
     if (existing_entry != NULL) {
-        tacc_assert(kind == existing_entry->content->kind,
+        tacc_assert(ASSERT_DIAG,
+                    kind == existing_entry->content->kind,
                     "name %s redeclared as different kind of tag",
                     tacc_dynstring_as_str(str_entry->content));
         /* later pass will detect redefinitions */
@@ -1060,10 +1063,12 @@ tacc_parse_registry_add_variable(struct tacc_parse_registry *registry,
     existing_entry = tacc_untagged_ident_list_get(
         scope->untagged_idents, tacc_dynstring_as_str(str_entry->content));
     if (existing_entry != NULL) {
-        tacc_assert(kind == existing_entry->content->kind,
+        tacc_assert(ASSERT_DIAG,
+                    kind == existing_entry->content->kind,
                     "name %s redeclared as different kind of identifier",
                     tacc_dynstring_as_str(str_entry->content));
-        tacc_assert(kind != UNTAGGED_IDENT_ENUMERATOR,
+        tacc_assert(ASSERT_DIAG,
+                    kind != UNTAGGED_IDENT_ENUMERATOR,
                     "enumerator %s redeclared",
                     tacc_dynstring_as_str(str_entry->content));
     }
@@ -1239,7 +1244,8 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
             tacc_dynstring_free(tag_name);
             tag_name = NULL;
         } else {
-            tacc_assert(kind != ID_ENUM,
+            tacc_assert(ASSERT_DIAG,
+                        kind != ID_ENUM,
                         "forward declaration of enum %s",
                         tacc_dynstring_as_str(tag_name));
             name_ref = tacc_parse_registry_intern(registry, tag_name);
@@ -1986,7 +1992,8 @@ tacc_parse_func_def(struct tacc_declarator *declarator,
                     struct tacc_decl_list *old_style_param_list) {
     struct tacc_funcdef *def = tacc_funcdef_new();
 
-    tacc_assert(declarator->kind == DECLARATOR_FUNC,
+    tacc_assert(ASSERT_DIAG,
+                declarator->kind == DECLARATOR_FUNC,
                 "expected function declarator for function definition");
     def->func_declaration = declarator;
     def->innermost_declarator = innermost_declarator;
@@ -2142,8 +2149,9 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
                         to_parse->kind = DECL_FUNCTION_DEF;
 
                         tacc_assert(
+                            ASSERT_ICE,
                             registry->pending_func_proto_scope != NULL,
-                            "ICE: expected to find function prototype scope when entering function definition");
+                            "expected to find function prototype scope when entering function definition");
                         tacc_ident_scope_list_push(
                             registry->scopes,
                             registry->pending_func_proto_scope);

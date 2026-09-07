@@ -33,12 +33,13 @@ static void tacc_dynstring_grow_to(tacc_string_p string, size_t target_sz) {
     if (string->cap > target_sz) {
         return;
     }
-    tacc_assert(target_sz >= string->len,
+    tacc_assert(ASSERT_ICE,
+                target_sz >= string->len,
                 "cannot shrink tacc_string below its used length");
-    tacc_assert(target_sz != 0, "cannot grow to zero");
+    tacc_assert(ASSERT_ICE, target_sz != 0, "cannot grow to zero");
 
     string->string = realloc(string->string, target_sz);
-    tacc_assert(string->string != NULL, "failed to realloc string");
+    tacc_assert(ASSERT_ICE, string->string != NULL, "failed to realloc string");
     string->cap = target_sz - 1;
     end = string->string + string->cap;
     *end = 0;
@@ -49,7 +50,8 @@ static void tacc_dynstring_ensure_further_cap(tacc_string_p string,
     size_t required_full_cap;
     size_t required_cap_p2;
 
-    tacc_assert(0x7FFFFFFF - required_cap > string->len, "overlong string");
+    tacc_assert(
+        ASSERT_ICE, 0x7FFFFFFF - required_cap > string->len, "overlong string");
     required_full_cap = required_cap + string->len + 1;
 
     if (string->cap >= required_full_cap) {
@@ -66,9 +68,11 @@ static void tacc_dynstring_ensure_further_cap(tacc_string_p string,
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 8));
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 16));
     required_cap_p2 = required_cap_p2 + 1;
-    tacc_assert((required_cap_p2 & (required_cap_p2 - 1)) == 0,
+    tacc_assert(ASSERT_ICE,
+                (required_cap_p2 & (required_cap_p2 - 1)) == 0,
                 "didn't compute a power of two as cap");
-    tacc_assert(required_cap_p2 >= required_full_cap,
+    tacc_assert(ASSERT_ICE,
+                required_cap_p2 >= required_full_cap,
                 "cap_p2 doesn't cover expected cap");
 
     tacc_dynstring_grow_to(string, required_cap_p2);
@@ -125,7 +129,8 @@ size_t tacc_dynstring_len(tacc_string_p string) { return string->len; }
 char tacc_dynstring_at(tacc_string_p string, size_t index) {
     char *at;
 
-    tacc_assert(index < string->len, "index %u out of bounds", index);
+    tacc_assert(
+        ASSERT_ICE, index < string->len, "index %u out of bounds", index);
     at = string->string + index;
 
     return *at;
@@ -173,7 +178,7 @@ void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list arg) {
         consumed = vsnprintf(string->string + string->len, remaining, fmt, va);
 #endif
 
-        tacc_assert(consumed >= 0, "invalid printf");
+        tacc_assert(ASSERT_ICE, consumed >= 0, "invalid printf");
         if (((size_t) consumed + 1) >= remaining) {
             /* Always allocate at least one more character. */
             tacc_dynstring_ensure_further_cap(string,

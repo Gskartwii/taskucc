@@ -96,11 +96,12 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     case EX_IDENT:
         var = tacc_cg_resolve_local(state, expr->extra.name_ref);
         if (var != NULL) {
-            tacc_assert(tacc_type_is_integral(var->ty),
-                        "TODO: load non-integral value");
+            tacc_assert(ASSERT_TODO,
+                        tacc_type_is_integral(var->ty),
+                        "load non-integral value");
             tacc_target_cg_load_int(state, var);
         } else {
-            tacc_assert(0, "TODO: resolve non-local names");
+            tacc_assert(ASSERT_TODO, 0, "resolve non-local names");
         }
         break;
 
@@ -157,7 +158,7 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     case EX_SELECT:
     case EX_COMPOUND_LIT:
     case EX_NAME_OF_FUNC:
-        tacc_assert(0, "TODO: unsupported expression in codegen");
+        tacc_assert(ASSERT_TODO, 0, "unsupported expression in codegen");
         break;
     }
 }
@@ -196,16 +197,18 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
 
 void tacc_cg_compile_body_member(struct tacc_cg_state *state,
                                  struct tacc_compound_member *member) {
-    tacc_assert(member->kind == COMPOUND_MEMBER_STMT,
-                "TODO: compile declaration in body");
+    tacc_assert(ASSERT_TODO,
+                member->kind == COMPOUND_MEMBER_STMT,
+                "compile declaration in body");
     switch (member->member.statement->kind) {
     case STMT_NULL:
         break;
     case STMT_RETURN:
         tacc_cg_compile_expr(state, member->member.statement->extra.expr);
         tacc_cg_convert_top(state, state->func_type->return_type);
-        tacc_assert(tacc_cg_top_is_int(state),
-                    "TODO: return of non-integral type");
+        tacc_assert(ASSERT_TODO,
+                    tacc_cg_top_is_int(state),
+                    "return of non-integral type");
         tacc_target_cg_return_top_int(state);
         break;
     case STMT_LABEL_NAMED:
@@ -221,7 +224,7 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
     case STMT_GOTO:
     case STMT_CONTINUE:
     case STMT_BREAK:
-        tacc_assert(0, "TODO: unsupported statement in codegen");
+        tacc_assert(ASSERT_TODO, 0, "unsupported statement in codegen");
         break;
     }
 }
@@ -243,8 +246,9 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     state->func_name = tacc_declarator_name(func_def->func_declaration);
     state->num_local_bytes = (size_t) (state->interface->frame_offset);
 
-    tacc_assert(!state->func_type->is_vararg,
-                "TODO: support vararg in compile_statements");
+    tacc_assert(ASSERT_TODO,
+                !state->func_type->is_vararg,
+                "support vararg in compile_statements");
     declarator = func_def->innermost_declarator;
     if (declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST) {
         param_list = declarator->extra.func_decl->param_list.modern_params;
@@ -289,7 +293,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
 void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
     TACC_UNUSED(state);
     TACC_UNUSED(slot);
-    tacc_assert(0, "TODO: spill");
+    tacc_assert(ASSERT_TODO, 0, "spill");
 }
 
 struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state) {
@@ -433,7 +437,7 @@ void tacc_cg_move(struct tacc_cg_state *state,
         tacc_target_cg_move_reg_reg(state, slot->place.reg->reg, new_reg);
         slot->place.reg->reg = new_reg;
     } else {
-        tacc_assert(0, "TODO: move from stack to register");
+        tacc_assert(ASSERT_TODO, 0, "move from stack to register");
     }
 }
 
@@ -504,7 +508,7 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
         new_reg = tacc_target_cg_alloc_reg(state, permissible_low & ~new_reg);
         tacc_target_cg_move_reg_reg(state, slot->place.pair.reg->reg, new_reg);
     } else {
-        tacc_assert(0, "TODO: move from stack to register pair");
+        tacc_assert(ASSERT_TODO, 0, "move from stack to register pair");
     }
 }
 
@@ -515,7 +519,8 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
 
-    tacc_assert(slot->place_kind == PLACE_REGISTER_PAIR,
+    tacc_assert(ASSERT_TODO,
+                slot->place_kind == PLACE_REGISTER_PAIR,
                 "expected register pair at stack top");
     *lo_reg = slot->place.pair.reg->reg;
     *hi_reg = slot->place.pair.reg_2->reg;
@@ -525,7 +530,8 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state) {
 
     slot = tacc_cg_get_top(state);
 
-    tacc_assert(slot->place_kind == PLACE_REGISTER,
+    tacc_assert(ASSERT_TODO,
+                slot->place_kind == PLACE_REGISTER,
                 "expected register at stack top");
     return slot->place.reg->reg;
 }
@@ -544,8 +550,10 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
 
     size = tacc_type_size(ty);
     align = tacc_type_alignment_p2(ty);
-    tacc_assert(
-        align <= 4, "type alignment %d exceeds stack alignment of 16", align);
+    tacc_assert(ASSERT_DIAG,
+                align <= 4,
+                "type alignment %d exceeds stack alignment of 16",
+                align);
     state->num_local_bytes = tacc_align_up(state->num_local_bytes, align);
     state->num_local_bytes = state->num_local_bytes + size;
     var = tacc_cg_add_variable(

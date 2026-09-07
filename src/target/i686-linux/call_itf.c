@@ -78,7 +78,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_VLA:
     case TYK_DECAYING_VLA:
     case TYK_ARRAY:
-        tacc_assert(0, "invalid return type");
+        tacc_assert(ASSERT_DIAG, 0, "invalid return type");
         break;
     }
 

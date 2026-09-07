@@ -54,8 +54,8 @@
   ];
   includes = map (file: "${m2libc}/${file}") includes-m2;
   local_hdrs = [
-    "m2_shim.h"
     "util.h"
+    "m2_shim.h"
     "dynarray.h"
     "dynhash.h"
     "dynstring.h"

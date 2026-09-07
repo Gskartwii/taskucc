@@ -86,7 +86,7 @@ static char *tacc_target_register_name(enum tacc_target_register reg,
     case 8:
         return tacc_target_register_as_8(reg);
     default:
-        tacc_assert(0, "invalid width %d", width);
+        tacc_assert(ASSERT_ICE, 0, "invalid width %d", width);
         return NULL;
     }
 }
@@ -100,7 +100,7 @@ static char *tacc_target_op_suffix(size_t width) {
     case 8:
         return "b";
     default:
-        tacc_assert(0, "invalid width %d", width);
+        tacc_assert(ASSERT_ICE, 0, "invalid width %d", width);
         return NULL;
     }
 }
@@ -252,7 +252,8 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_UINT),
             is_sext);
         slot = tacc_cg_get_top(state);
-        tacc_assert(slot->place_kind == PLACE_REGISTER,
+        tacc_assert(ASSERT_ICE,
+                    slot->place_kind == PLACE_REGISTER,
                     "top must be single when extending with from_width <= 32");
         top_place = slot->place.reg;
         top_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY);
@@ -372,6 +373,6 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
         tacc_cg_push_reg_pair(state, reg_place, reg_place_2, var->ty);
         break;
     default:
-        tacc_assert(0, "invalid load width %d", load_width);
+        tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
 }

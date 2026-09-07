@@ -116,14 +116,16 @@ char *tacc_pp_tok_content(struct pp_tok *tok) {
     case TOK_INCDIR_ANGLE:
     case TOK_INCDIR_STRING:
     case TOK_FAKE_TRIVIA:
-        tacc_assert(
-            tok->str != NULL,
-            "ICE: cannot create token content from thin air for token %d",
-            tok->kind);
+        tacc_assert(ASSERT_ICE,
+                    tok->str != NULL,
+                    "cannot create token content from thin air for token %d",
+                    tok->kind);
         return tacc_dynstring_as_str(tok->str);
     case TOK_FAKE_END_OF_MACRO:
-        tacc_assert(
-            0, "ICE: asking for content of internal token %d", tok->kind);
+        tacc_assert(ASSERT_ICE,
+                    0,
+                    "asking for content of internal token %d",
+                    tok->kind);
         return NULL;
 
     case TOK_FAKE_PMARK:
@@ -228,7 +230,7 @@ char *tacc_pp_tok_content(struct pp_tok *tok) {
         return ",";
     default:
         tacc_assert(
-            0, "ICE: asking for content of unknown token %d", tok->kind);
+            ASSERT_ICE, 0, "asking for content of unknown token %d", tok->kind);
         return tacc_dynstring_as_str(tok->str);
     }
 }
@@ -406,7 +408,7 @@ char tacc_file_iter_peek_ch(struct tacc_file_iter *iter) {
     char *cur;
 
     cur = tacc_file_iter_cur(iter);
-    tacc_assert(!tacc_file_is_eof(iter), "eof while peeking");
+    tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof while peeking");
     return *cur;
 }
 
@@ -416,7 +418,7 @@ char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
     char ch;
 
     cur = tacc_file_iter_cur(iter);
-    tacc_assert(!tacc_file_is_eof(iter), "unexpected eof");
+    tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "unexpected eof");
     ch = *cur;
 
     /*
@@ -454,13 +456,15 @@ tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter, char accept) {
 static void tacc_file_iter_eat_comment(struct tacc_file_iter *iter) {
     char ch;
 
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning comment");
-    tacc_assert(tacc_file_iter_accept_ch(iter, '*'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '*'),
                 "error while scanning comment");
 
     while (1) {
-        tacc_assert(!tacc_file_is_eof(iter), "eof in comment");
+        tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof in comment");
         ch = tacc_file_iter_consume_ch(iter);
         if (ch == '*') {
             if (tacc_file_iter_accept_ch(iter, '/')) {
@@ -476,9 +480,11 @@ static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
                                        struct pp_tok *tok) {
     char ch;
 
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning comment");
-    tacc_assert(tacc_file_iter_accept_ch(iter, '*'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '*'),
                 "error while scanning comment");
 
     tok->kind = TOK_FAKE_TRIVIA;
@@ -487,7 +493,7 @@ static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
     }
     tacc_dynstring_concat(tok->str, "/*");
     while (1) {
-        tacc_assert(!tacc_file_is_eof(iter), "eof in comment");
+        tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof in comment");
         ch = tacc_file_iter_consume_ch(iter);
         tacc_dynstring_push(tok->str, ch);
         if (ch == '*') {
@@ -505,9 +511,11 @@ static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
 static void tacc_file_iter_eat_new_comment(struct tacc_file_iter *iter) {
     char ch;
 
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning new comment");
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning new comment");
 
     ch = tacc_file_iter_peek_ch(iter);
@@ -524,9 +532,11 @@ static void tacc_file_iter_lex_new_comment(struct tacc_file_iter *iter,
                                            struct pp_tok *tok) {
     char ch;
 
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning new comment");
-    tacc_assert(tacc_file_iter_accept_ch(iter, '/'),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '/'),
                 "error while scanning new comment");
 
     tok->kind = TOK_FAKE_TRIVIA;
@@ -659,7 +669,8 @@ static void tacc_file_iter_lex_escape(struct tacc_file_iter *iter,
         tacc_dynstring_push(str, ch);
         return;
     default:
-        tacc_assert(ch >= '0' && ch <= '7', "invalid escape %x", ch);
+        tacc_assert(
+            ASSERT_DIAG, ch >= '0' && ch <= '7', "invalid escape %x", ch);
         tacc_dynstring_push(str, '\\');
         tacc_dynstring_push(str, ch);
 
@@ -740,11 +751,13 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
     ret->kind = TOK_CHAR;
     tacc_dynstring_push(out_str, '\'');
 
-    tacc_assert(!tacc_file_iter_accept_ch(iter, '\''),
+    tacc_assert(ASSERT_DIAG,
+                !tacc_file_iter_accept_ch(iter, '\''),
                 "empty character literal");
     if (!tacc_file_iter_accept_ch(iter, '\\')) {
         contained = tacc_file_iter_consume_ch(iter);
-        tacc_assert(tacc_file_iter_accept_ch(iter, '\''),
+        tacc_assert(ASSERT_DIAG,
+                    tacc_file_iter_accept_ch(iter, '\''),
                     "overlong character literal");
 
         tacc_dynstring_push(out_str, contained);
@@ -753,7 +766,8 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
         return ret;
     }
     tacc_file_iter_lex_escape(iter, out_str);
-    tacc_assert(tacc_file_iter_accept_ch(iter, '\''),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_iter_accept_ch(iter, '\''),
                 "overlong character literal");
     tacc_dynstring_push(out_str, '\'');
     tacc_pp_tok_assign_tstr(ret, out_str);
@@ -774,7 +788,8 @@ static struct pp_tok *tacc_file_iter_lex_string(struct tacc_file_iter *iter,
     tacc_dynstring_push(out_str, '"');
 
     while (!tacc_file_iter_accept_ch(iter, '"')) {
-        tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
+        tacc_assert(ASSERT_DIAG,
+                    !tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
         if (!tacc_file_iter_accept_ch(iter, '\\')) {
             tacc_dynstring_push(out_str, tacc_file_iter_consume_ch(iter));
@@ -818,7 +833,8 @@ static struct pp_tok *tacc_file_iter_lex_incfile(struct tacc_file_iter *iter,
     tacc_dynstring_push(out_str, first);
 
     while (!tacc_file_iter_accept_ch(iter, last)) {
-        tacc_assert(!tacc_file_iter_accept_ch(iter, '\n'),
+        tacc_assert(ASSERT_DIAG,
+                    !tacc_file_iter_accept_ch(iter, '\n'),
                     "newline in string literal");
         if (!tacc_file_iter_accept_ch(iter, '\\')) {
             tacc_dynstring_push(out_str, tacc_file_iter_consume_ch(iter));
@@ -1149,7 +1165,8 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
 
     switch (first) {
     case '#':
-        tacc_assert(ctx != LEX_TOP_LEVEL, "stray # outside directive");
+        tacc_assert(
+            ASSERT_DIAG, ctx != LEX_TOP_LEVEL, "stray # outside directive");
         ret->kind = TOK_SHARP;
         tacc_file_iter_maybe_special(iter, ret, TOK_SHARP_2, "##");
         return ret;
@@ -1329,7 +1346,8 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
 
     tok = tacc_pp_tok_new();
     ch = tacc_file_iter_consume_ch(iter);
-    tacc_assert((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+    tacc_assert(ASSERT_DIAG,
+                (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                     (ch == '_'),
                 "expected identifier, got %x",
                 ch);
@@ -1572,7 +1590,7 @@ static struct tacc_file *tacc_pp_search_include_path(
     struct tacc_string_list_entry *entry;
     size_t i;
 
-    tacc_assert(cur_file_path != NULL, "opened file without path");
+    tacc_assert(ASSERT_ICE, cur_file_path != NULL, "opened file without path");
 
     cur_file_path_end = cur_file_path + strlen(cur_file_path);
     cur_file_path_cur = cur_file_path_end;
@@ -1604,7 +1622,10 @@ static struct tacc_file *tacc_pp_search_include_path(
             return try_file;
         }
     }
-    tacc_assert(0, "unable to find suitable file for include: %s", subpath);
+    tacc_assert(ASSERT_DIAG,
+                0,
+                "unable to find suitable file for include: %s",
+                subpath);
     return NULL;
 }
 
@@ -1648,7 +1669,8 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
 
     tok = tacc_tok_iter_next(tok_iter);
     if (tok->kind != TOK_INCDIR_ANGLE) {
-        tacc_assert(tok->kind == TOK_INCDIR_STRING,
+        tacc_assert(ASSERT_DIAG,
+                    tok->kind == TOK_INCDIR_STRING,
                     "expected include file string, got %s",
                     tacc_pp_to_string(tok));
     }
@@ -1656,22 +1678,26 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     hdr_name = tacc_malloc(1024);
     hdr_name_start = hdr_name;
 
-    tacc_assert(tok->str != NULL, "need content for header name");
-    tacc_assert(tacc_dynstring_len(tok->str) > 2, "empty include string");
-    tacc_assert(tacc_dynstring_len(tok->str) < 1024, "overlong include string");
+    tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for header name");
+    tacc_assert(
+        ASSERT_DIAG, tacc_dynstring_len(tok->str) > 2, "empty include string");
+    tacc_assert(ASSERT_DIAG,
+                tacc_dynstring_len(tok->str) < 1024,
+                "overlong include string");
     strcpy(hdr_name, tacc_dynstring_as_str(tok->str) + 1);
     hdr_name[tacc_dynstring_len(tok->str) - 2] = 0; /* drop > or " */
 
     tacc_file_iter_eat_ws_no_newlines(iter);
     tacc_pp_tok_free(tok);
     tok = tacc_tok_iter_next(tok_iter);
-    tacc_assert(tok->kind == TOK_EOF, "junk after #include");
+    tacc_assert(ASSERT_DIAG, tok->kind == TOK_EOF, "junk after #include");
     tacc_pp_tok_free(tok);
     tok = NULL;
     tacc_tok_iter_free(tok_iter);
 
-    tacc_assert(last_iter->file_iter != NULL,
-                "ICE: cannot use #include from floating tok_iter");
+    tacc_assert(ASSERT_ICE,
+                last_iter->file_iter != NULL,
+                "cannot use #include from floating tok_iter");
     included_file = tacc_pp_search_include_path(
         first->state, last_iter->file_iter->filename, hdr_name_start);
 
@@ -1704,7 +1730,7 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
     macro = tacc_malloc(sizeof(struct tacc_macro_def));
 
     tok = tacc_file_iter_expect_ident(iter);
-    tacc_assert(tok->str != NULL, "need content for directive");
+    tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for directive");
     macro->name = tacc_dynstring_clone(tok->str);
     tacc_pp_tok_free(tok);
     tok = NULL;
@@ -1727,12 +1753,15 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
             while (1) {
                 tacc_file_iter_eat_ws_no_newlines(iter);
                 if (tacc_file_iter_accept_ch(iter, '.')) {
-                    tacc_assert(tacc_file_iter_accept_ch(iter, '.'),
+                    tacc_assert(ASSERT_DIAG,
+                                tacc_file_iter_accept_ch(iter, '.'),
                                 "expected ...");
-                    tacc_assert(tacc_file_iter_accept_ch(iter, '.'),
+                    tacc_assert(ASSERT_DIAG,
+                                tacc_file_iter_accept_ch(iter, '.'),
                                 "expected ...");
                     tacc_file_iter_eat_ws_no_newlines(iter);
-                    tacc_assert(tacc_file_iter_accept_ch(iter, ')'),
+                    tacc_assert(ASSERT_DIAG,
+                                tacc_file_iter_accept_ch(iter, ')'),
                                 "expected )");
 
                     /* has params up to and excluding i */
@@ -1742,7 +1771,9 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
                 }
 
                 tok = tacc_file_iter_expect_ident(iter);
-                tacc_assert(tok->str != NULL, "need content for macro param");
+                tacc_assert(ASSERT_DIAG,
+                            tok->str != NULL,
+                            "need content for macro param");
                 tacc_string_list_push(macro->params,
                                       tacc_dynstring_clone(tok->str));
                 tacc_pp_tok_free(tok);
@@ -1752,12 +1783,14 @@ static void tacc_tok_iter_handle_define(struct tacc_tok_iter *first,
                 if (tacc_file_iter_accept_ch(iter, ',')) {
                     continue;
                 }
-                tacc_assert(tacc_file_iter_accept_ch(iter, ')'),
+                tacc_assert(ASSERT_DIAG,
+                            tacc_file_iter_accept_ch(iter, ')'),
                             "expected , or )");
                 terminated = 1;
                 break;
             }
-            tacc_assert(terminated, "overlong macro parameter list");
+            tacc_assert(
+                ASSERT_DIAG, terminated, "overlong macro parameter list");
         }
         tacc_file_iter_eat_ws_no_newlines(iter);
     } else {
@@ -1799,7 +1832,8 @@ static void tacc_tok_iter_handle_undef(struct tacc_tok_iter *first,
     }
 
     tok = tacc_file_iter_expect_ident(iter);
-    tacc_assert(tok->str != NULL, "need content for undefined macro name");
+    tacc_assert(
+        ASSERT_DIAG, tok->str != NULL, "need content for undefined macro name");
     tacc_pp_undef(first->state, tacc_dynstring_as_str(tok->str));
     tacc_pp_tok_free(tok);
     tacc_file_iter_free(iter);
@@ -1822,9 +1856,9 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(tacc_file_is_eof(iter), "junk after #ifndef");
+    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #ifndef");
 
-    tacc_assert(tok->str != NULL, "need content for ifndef");
+    tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for ifndef");
     if (!tacc_pp_macro_is_defined(first->state,
                                   tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
@@ -1855,9 +1889,9 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(tacc_file_is_eof(iter), "junk after #ifdef");
+    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #ifdef");
 
-    tacc_assert(tok->str != NULL, "need content for ifdef");
+    tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for ifdef");
     if (tacc_pp_macro_is_defined(first->state,
                                  tacc_dynstring_as_str(tok->str))) {
         last_iter->inc_level = last_iter->inc_level + 1;
@@ -1876,7 +1910,7 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
     struct tacc_tok_iter *last_iter;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(tacc_file_is_eof(iter), "junk after #endif");
+    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #endif");
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -1888,7 +1922,7 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
         tacc_file_iter_free(iter);
         return;
     }
-    tacc_assert(last_iter->inc_level > 0, "stray #endif");
+    tacc_assert(ASSERT_DIAG, last_iter->inc_level > 0, "stray #endif");
     last_iter->inc_level = last_iter->inc_level - 1;
     tacc_file_iter_free(iter);
 }
@@ -1899,7 +1933,7 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
     struct tacc_tok_iter *last_iter;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(tacc_file_is_eof(iter), "junk after #else");
+    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #else");
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -1920,7 +1954,7 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
         tacc_file_iter_free(iter);
         return;
     }
-    tacc_assert(last_iter->inc_level > 0, "stray #else");
+    tacc_assert(ASSERT_DIAG, last_iter->inc_level > 0, "stray #else");
     last_iter->inc_level = last_iter->inc_level - 1;
     last_iter->skip_level = last_iter->skip_level + 1;
     tacc_file_iter_free(iter);
@@ -1957,12 +1991,14 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
         expr, first->state->target, first->state->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
-    tacc_assert(tok->kind == TOK_EOF,
+    tacc_assert(ASSERT_DIAG,
+                tok->kind == TOK_EOF,
                 "junk after #if: %s /*...*/ %s",
                 tacc_pp_tok_content(tok),
                 tok_iter->file_iter->src);
     tacc_pp_tok_free(tok);
-    tacc_assert(tacc_val_is_integral(val),
+    tacc_assert(ASSERT_DIAG,
+                tacc_val_is_integral(val),
                 "#if argument must evaluate to integer");
 
     if (tacc_u64_is_zero(val->value.int_value)) {
@@ -1996,7 +2032,8 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
         return;
     }
     if (last_iter->skip_level == 0) {
-        tacc_assert(last_iter->inc_level > 0,
+        tacc_assert(ASSERT_DIAG,
+                    last_iter->inc_level > 0,
                     "encountered #elif without corresponding #if/ifndef/ifdef");
         last_iter->skip_level = 1;
         last_iter->inc_level = last_iter->inc_level - 1;
@@ -2007,7 +2044,8 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     /*
      * we are skipping, and should evaluate whether to stop skipping
      */
-    tacc_assert(last_iter->skip_level == 1,
+    tacc_assert(ASSERT_DIAG,
+                last_iter->skip_level == 1,
                 "encountered #elif without corresponding #if/ifndef/ifdef");
 
     tacc_file_iter_eat_ws_no_newlines(iter);
@@ -2023,12 +2061,14 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
         expr, first->state->target, first->state->basic_types);
 
     tok = tacc_tok_iter_next(tok_iter);
-    tacc_assert(tok->kind == TOK_EOF,
+    tacc_assert(ASSERT_DIAG,
+                tok->kind == TOK_EOF,
                 "junk after #elif: %s /*...*/ %s",
                 tacc_pp_tok_content(tok),
                 tok_iter->file_iter->src);
     tacc_pp_tok_free(tok);
-    tacc_assert(tacc_val_is_integral(val),
+    tacc_assert(ASSERT_DIAG,
+                tacc_val_is_integral(val),
                 "#elif argument must evaluate to integer");
 
     if (!tacc_u64_is_zero(val->value.int_value)) {
@@ -2054,7 +2094,7 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
 
     tacc_file_iter_eat_ws_no_newlines(iter);
 
-    tacc_assert(0, "#error: %s", iter->src);
+    tacc_assert(ASSERT_DIAG, 0, "#error: %s", iter->src);
     tacc_file_iter_free(iter);
 
 #ifdef __STDC__
@@ -2111,25 +2151,32 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
     }
     tok = tacc_file_iter_expect_ident(dir_scanner);
     tacc_file_iter_eat_ws_no_newlines(dir_scanner);
-    tacc_assert(tok->str != NULL, "need content for directive name");
+    tacc_assert(
+        ASSERT_DIAG, tok->str != NULL, "need content for directive name");
     directive_name = tacc_dynstring_take_str(tok->str);
     tacc_pp_tok_free(tok);
     tok = NULL;
 
     if (!strcmp(directive_name, "include")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #include");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #include");
         tacc_tok_iter_handle_include(first, dir_scanner);
         tacc_free(directive_name);
         return;
     }
     if (!strcmp(directive_name, "define")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #define");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #define");
         tacc_tok_iter_handle_define(first, dir_scanner);
         tacc_free(directive_name);
         return;
     }
     if (!strcmp(directive_name, "undef")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #undef");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #undef");
         tacc_tok_iter_handle_undef(first, dir_scanner);
         tacc_free(directive_name);
         return;
@@ -2140,13 +2187,17 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
         return;
     }
     if (!strcmp(directive_name, "ifdef")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #ifdef");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #ifdef");
         tacc_tok_iter_handle_ifdef(first, dir_scanner);
         tacc_free(directive_name);
         return;
     }
     if (!strcmp(directive_name, "ifndef")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #ifndef");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #ifndef");
         tacc_tok_iter_handle_ifndef(first, dir_scanner);
         tacc_free(directive_name);
         return;
@@ -2157,7 +2208,9 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
         return;
     }
     if (!strcmp(directive_name, "elif")) {
-        tacc_assert(dir_scanner->is_ws, "expected whitespace after #ifndef");
+        tacc_assert(ASSERT_DIAG,
+                    dir_scanner->is_ws,
+                    "expected whitespace after #ifndef");
         tacc_tok_iter_handle_elif(first, dir_scanner);
         tacc_free(directive_name);
         return;
@@ -2185,7 +2238,7 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
         return;
     }
 
-    tacc_assert(0, "unknown directive: %s", directive_name);
+    tacc_assert(ASSERT_DIAG, 0, "unknown directive: %s", directive_name);
 }
 
 /* iter: borrow, tok: borrow */
@@ -2197,7 +2250,8 @@ static void tacc_tok_maybe_finalize(struct tacc_tok_iter *iter,
     if ((tok->kind != TOK_IDENT) || (tok->is_final)) {
         return;
     }
-    tacc_assert(tok->str != NULL, "need content for finalized ident");
+    tacc_assert(
+        ASSERT_DIAG, tok->str != NULL, "need content for finalized ident");
     macro_def_list_entry =
         tacc_pp_find_macro(iter->state, tacc_dynstring_as_str(tok->str));
     if (!macro_def_list_entry) {
@@ -2247,11 +2301,13 @@ static struct pp_tok *tacc_tok_iter_peek_nomacro(struct tacc_tok_iter *iter) {
     if (tok->kind == TOK_FAKE_END_OF_MACRO) {
         tacc_token_list_pop(iter->pending);
 
-        tacc_assert(tok->str != NULL,
+        tacc_assert(ASSERT_DIAG,
+                    tok->str != NULL,
                     "need content for end of macro pseudo-token");
         macro_entry =
             tacc_pp_find_macro(iter->state, tacc_dynstring_as_str(tok->str));
-        tacc_assert(macro_entry != NULL,
+        tacc_assert(ASSERT_DIAG,
+                    macro_entry != NULL,
                     "failed to find macrodef for macro being expanded: %s",
                     tok->str);
         macro_def = macro_entry->content;
@@ -2330,7 +2386,8 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
     new_tok->preceded_by_ws = tok->preceded_by_ws;
     new_tok->preceded_by_bol = tok->preceded_by_bol;
     tacc_file_iter_eat_ws_no_newlines(file_iter);
-    tacc_assert(tacc_file_is_eof(file_iter),
+    tacc_assert(ASSERT_DIAG,
+                tacc_file_is_eof(file_iter),
                 "multiple tokens produced by joining: %s",
                 new_tok_str);
 
@@ -2391,7 +2448,8 @@ static struct tacc_token_list *tacc_pp_split_args(
     size_t max_param;
 
     nest_level = 0;
-    tacc_assert(macro_def->is_function_like,
+    tacc_assert(ASSERT_DIAG,
+                macro_def->is_function_like,
                 "object-like macro takes no params");
     max_param = tacc_string_list_len(macro_def->params);
     /* +1 to leave space for overflow, even if varargs are not used */
@@ -2426,7 +2484,8 @@ static struct tacc_token_list *tacc_pp_split_args(
             j = j + 1;
             tacc_token_list_push(ret_cur, raw_arg);
         }
-        tacc_assert(nest_level == 0, "missing ) in macro argument list");
+        tacc_assert(
+            ASSERT_DIAG, nest_level == 0, "missing ) in macro argument list");
     }
 
     tacc_dynarray_free(raw_args->list);
@@ -2459,7 +2518,8 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_list *tokens) {
         }
         if ((tok->kind == TOK_STRING) || (tok->kind == TOK_CHAR)) {
             this_tok_str = tok->str;
-            tacc_assert(this_tok_str != NULL,
+            tacc_assert(ASSERT_DIAG,
+                        this_tok_str != NULL,
                         "need content for stringified string/char token");
             for (j = 0; j < (size_t) tacc_dynstring_len(this_tok_str);
                  j = j + 1) {
@@ -2607,11 +2667,13 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
             macro_def->replacement_list,
             tacc_token_list_len(macro_def->replacement_list) - i - 1);
         replacing_tok = replacing_tok_entry->content;
-        tacc_assert(replacing_tok->kind != TOK_SHARP,
+        tacc_assert(ASSERT_DIAG,
+                    replacing_tok->kind != TOK_SHARP,
                     "stray # in function-like macro expansion list");
         if (replacing_tok->kind == TOK_SHARP_2) {
             i = i + 1;
-            tacc_assert(i < tacc_token_list_len(macro_def->replacement_list),
+            tacc_assert(ASSERT_DIAG,
+                        i < tacc_token_list_len(macro_def->replacement_list),
                         "## on edge of function-like macro expansion list");
 
             replacing_tok_entry = tacc_token_list_get(
@@ -2624,7 +2686,9 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                 continue;
             }
 
-            tacc_assert(next_tok->str != NULL, "need content for glued ident");
+            tacc_assert(ASSERT_DIAG,
+                        next_tok->str != NULL,
+                        "need content for glued ident");
             par_position = tacc_macro_def_index_of_par(
                 macro_def, tacc_dynstring_as_str(next_tok->str));
             if (par_position == TACC_PARAM_NOT_FOUND) {
@@ -2661,7 +2725,8 @@ static void tacc_pp_macro_def_func_expand(struct tacc_tok_iter *iter_within,
                                        tacc_pp_tok_clone(replacing_tok));
             continue;
         }
-        tacc_assert(replacing_tok->str != NULL,
+        tacc_assert(ASSERT_DIAG,
+                    replacing_tok->str != NULL,
                     "need content for ident within macro replacement list");
         par_position = tacc_macro_def_index_of_par(
             macro_def, tacc_dynstring_as_str(replacing_tok->str));
@@ -2761,15 +2826,20 @@ static struct pp_tok *tacc_tok_iter_eval_defined(struct tacc_tok_iter *iter) {
     } else {
         had_paren = 0;
     }
-    tacc_assert(tok->kind == TOK_IDENT, "expected identified after defined");
-    tacc_assert(tok->str != NULL, "need content for defined() parameter");
+    tacc_assert(ASSERT_DIAG,
+                tok->kind == TOK_IDENT,
+                "expected identified after defined");
+    tacc_assert(
+        ASSERT_DIAG, tok->str != NULL, "need content for defined() parameter");
     is_defined = tacc_pp_macro_is_defined(iter->state, tok->str->string);
     tacc_pp_tok_free(tok);
     tok = NULL;
 
     if (had_paren) {
         tok = tacc_tok_iter_consume_nomacro(iter);
-        tacc_assert(tok->kind == TOK_RPAREN, "expected ) to close defined(");
+        tacc_assert(ASSERT_DIAG,
+                    tok->kind == TOK_RPAREN,
+                    "expected ) to close defined(");
         tacc_pp_tok_free(tok);
         tok = NULL;
     }
@@ -2871,7 +2941,7 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
         if (tok->preceded_by_ws) {
             iter->pending_ws = 1;
         }
-        tacc_assert(tok->str != NULL, "need content for identifier when peeking");
+        tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for identifier when peeking");
         if (iter->in_if && !strcmp(tok->str->string, "defined")) {
             return tacc_tok_iter_eval_defined(iter);
         }
@@ -2904,10 +2974,10 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
 
                 if (src_tok_entry->content->kind ==
                     TOK_SHARP_2) {
-                    tacc_assert(i != 0,
+                    tacc_assert(ASSERT_DIAG, i != 0,
                                 "unexpected ## at beginning of replacement "
                                 "list of object-like macro");
-                    tacc_assert(
+                    tacc_assert(ASSERT_DIAG, 
                         i != tacc_token_list_len(macro_def->replacement_list) - 1,
                         "unexpected ## at end of replacement list of "
                         "object-like macro");
@@ -2959,7 +3029,7 @@ tacc_tok_iter_peek_handle_macros(struct tacc_tok_iter *iter) {
             iter->in_macro_args = 1;
             tok = tacc_tok_iter_consume_nomacro(iter);
             iter->in_macro_args = 0;
-            tacc_assert(tok->kind != TOK_EOF,
+            tacc_assert(ASSERT_DIAG, tok->kind != TOK_EOF,
                         "unmatched paren while invoking function-like macro");
             if (tok->kind == TOK_LPAREN) {
                 nest_level = nest_level + 1;
@@ -2992,12 +3062,12 @@ void tacc_tok_iter_free(struct tacc_tok_iter *iter) {
         tacc_tok_iter_free(iter->override);
     }
 
-    tacc_assert((iter->skip_level == 0) && (iter->inc_level == 0), "unclosed conditional inclusion");
+    tacc_assert(ASSERT_DIAG, (iter->skip_level == 0) && (iter->inc_level == 0), "unclosed conditional inclusion");
 
     if (tacc_token_list_len(iter->pending) > 0) {
-        tacc_assert(tacc_token_list_len(iter->pending) == 1, "tokens left pending in iterator");
+        tacc_assert(ASSERT_ICE, tacc_token_list_len(iter->pending) == 1, "tokens left pending in iterator");
         tok_entry = tacc_token_list_get(iter->pending, 0);
-        tacc_assert(tok_entry->content->kind == TOK_EOF, "tokens left pending in iterator");
+        tacc_assert(ASSERT_ICE, tok_entry->content->kind == TOK_EOF, "tokens left pending in iterator");
         /* will be freed by tacc_token_list_free */
     }
     tacc_token_list_free(iter->pending);
@@ -3030,10 +3100,10 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
         /* ensure there is a token saved in peek buffer */
         peek_tok = tacc_tok_iter_peek_handle_macros(last_iter);
         if (peek_tok->kind == TOK_EOF) {
-            tacc_assert(last_iter->inc_level == 0,
+            tacc_assert(ASSERT_DIAG, last_iter->inc_level == 0,
                         "missing #endif, including at level %d",
                         last_iter->inc_level);
-            tacc_assert(last_iter->skip_level == 0,
+            tacc_assert(ASSERT_DIAG, last_iter->skip_level == 0,
                         "missing #endif, skipping at level %d",
                         last_iter->skip_level);
             /* EOF of current file; consume */
@@ -3071,7 +3141,7 @@ static struct pp_tok* tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter*
 
         /* going to handle a directive, so it's no longer pending */
         peek_tok = tacc_tok_iter_consume_nomacro(last_iter);
-        tacc_assert(peek_tok->str != NULL, "need content for directive");
+        tacc_assert(ASSERT_DIAG, peek_tok->str != NULL, "need content for directive");
         directive = peek_tok->str;
         peek_tok->str = NULL;
         tacc_pp_tok_free(peek_tok);

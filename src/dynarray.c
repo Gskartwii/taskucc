@@ -25,15 +25,16 @@ static void tacc_dynarray_grow_to(struct tacc_dynarray *array,
     if (array->cap > target_sz) {
         return;
     }
-    tacc_assert(target_sz >= array->len,
+    tacc_assert(ASSERT_ICE,
+                target_sz >= array->len,
                 "cannot shrink tacc_dynarray below its used length");
-    tacc_assert(target_sz != 0, "cannot grow array to zero");
+    tacc_assert(ASSERT_ICE, target_sz != 0, "cannot grow array to zero");
 
     array->buffer =
         realloc(array->buffer, target_sz * array->element_size + 15);
     array->buffer =
         (void *) ((((uintptr_t) (array->buffer)) + 15) & ~(uintptr_t) 0xF);
-    tacc_assert(array->buffer != NULL, "failed to realloc array");
+    tacc_assert(ASSERT_ICE, array->buffer != NULL, "failed to realloc array");
     array->cap = target_sz;
 }
 
@@ -42,7 +43,8 @@ static void tacc_dynarray_ensure_further_cap(struct tacc_dynarray *array,
     size_t required_full_cap;
     size_t required_cap_p2;
 
-    tacc_assert(0x7FFFFFFF / array->element_size - required_cap > array->len,
+    tacc_assert(ASSERT_ICE,
+                0x7FFFFFFF / array->element_size - required_cap > array->len,
                 "overlong array");
 
     required_full_cap = required_cap + array->len;
@@ -60,9 +62,11 @@ static void tacc_dynarray_ensure_further_cap(struct tacc_dynarray *array,
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 8));
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 16));
     required_cap_p2 = required_cap_p2 + 1;
-    tacc_assert((required_cap_p2 & (required_cap_p2 - 1)) == 0,
+    tacc_assert(ASSERT_ICE,
+                (required_cap_p2 & (required_cap_p2 - 1)) == 0,
                 "didn't compute a power of two as cap");
-    tacc_assert(required_cap_p2 >= required_full_cap,
+    tacc_assert(ASSERT_ICE,
+                required_cap_p2 >= required_full_cap,
                 "cap_p2 doesn't cover expected cap");
 
     tacc_dynarray_grow_to(array, required_cap_p2);
@@ -70,7 +74,8 @@ static void tacc_dynarray_ensure_further_cap(struct tacc_dynarray *array,
 void *tacc_dynarray_get(struct tacc_dynarray *array, size_t index) {
     char *buf;
 
-    tacc_assert(array->len > index,
+    tacc_assert(ASSERT_ICE,
+                array->len > index,
                 "index %" PRIsz " out of bounds for %" PRIsz,
                 index,
                 array->len);
@@ -91,7 +96,7 @@ void tacc_dynarray_push(struct tacc_dynarray *array, void *elem) {
 void tacc_dynarray_pop(struct tacc_dynarray *array, void *out) {
     char *elem;
 
-    tacc_assert(array->len > 0, "cannot pop from empty array");
+    tacc_assert(ASSERT_ICE, array->len > 0, "cannot pop from empty array");
     elem = array->buffer;
     elem = elem + (array->len - 1) * array->element_size;
 

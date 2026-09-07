@@ -14,7 +14,8 @@ tacc_file_p tacc_open(char *name) {
     tacc_file_p out_file;
 
     f = fopen(name, "r");
-    tacc_assert(f != NULL, "failed to open file %s: %d", name, errno);
+    tacc_assert(
+        ASSERT_DIAG, f != NULL, "failed to open file %s: %d", name, errno);
 
     /*
      * ignore return value; should return 0 on success per standard, but m2libc
@@ -23,7 +24,11 @@ tacc_file_p tacc_open(char *name) {
     fseek(f, 0, SEEK_END);
 
     file_sz = ftell(f);
-    tacc_assert(file_sz != -1, "failed to get file %s size: %d", name, errno);
+    tacc_assert(ASSERT_DIAG,
+                file_sz != -1,
+                "failed to get file %s size: %d",
+                name,
+                errno);
 
     fseek(f, 0, SEEK_SET);
 
@@ -31,12 +36,17 @@ tacc_file_p tacc_open(char *name) {
     src = tacc_malloc(((size_t) file_sz + 1) * sizeof(char));
 
     read_sz = fread(src, sizeof(char), (size_t) file_sz, f);
-    tacc_assert(read_sz == (size_t) file_sz,
+    tacc_assert(ASSERT_DIAG,
+                read_sz == (size_t) file_sz,
                 "failed to read file %s: got %zu bytes with errno %d",
                 name,
                 read_sz,
                 errno);
-    tacc_assert(fclose(f) == 0, "failed to close file %s: %d", name, errno);
+    tacc_assert(ASSERT_DIAG,
+                fclose(f) == 0,
+                "failed to close file %s: %d",
+                name,
+                errno);
 
     src[file_sz] = 0;
 

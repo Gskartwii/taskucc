@@ -29,7 +29,7 @@ uint32_t tacc_callitf_areg(uint32_t index) {
     case 7:
         return REG_A7;
     default:
-        tacc_assert(0, "ICE: impossible areg %d", index);
+        tacc_assert(ASSERT_ICE, 0, "impossible areg %d", index);
         return 0;
     }
 }
@@ -53,7 +53,7 @@ uint32_t tacc_callitf_float_areg(uint32_t index) {
     case 7:
         return REGF_A7;
     default:
-        tacc_assert(0, "ICE: impossible areg %d", index);
+        tacc_assert(ASSERT_ICE, 0, "impossible areg %d", index);
         return 0;
     }
 }
@@ -132,14 +132,15 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_VLA:
     case TYK_DECAYING_VLA:
     case TYK_FN:
-        tacc_assert(0, "ICE: unnormalized function param type");
+        tacc_assert(ASSERT_ICE, 0, "unnormalized function param type");
         break;
     case TYK_STRUCT:
     case TYK_UNION:
-        tacc_assert(0, "TODO: call interface for struct/union on riscv64");
+        tacc_assert(
+            ASSERT_TODO, 0, "call interface for struct/union on riscv64");
         break;
     case TYK_VOID:
-        tacc_assert(0, "function cannot take void as parameter");
+        tacc_assert(ASSERT_DIAG, 0, "function cannot take void as parameter");
         break;
     }
 
@@ -194,14 +195,14 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
         break;
     case TYK_STRUCT:
     case TYK_UNION:
-        tacc_assert(0, "TODO: returning struct/union on riscv64");
+        tacc_assert(ASSERT_TODO, 0, "returning struct/union on riscv64");
         break;
     case TYK_FN:
     case TYK_INCOMPLETE_ARRAY:
     case TYK_VLA:
     case TYK_DECAYING_VLA:
     case TYK_ARRAY:
-        tacc_assert(0, "invalid return type");
+        tacc_assert(ASSERT_DIAG, 0, "invalid return type");
         break;
     }
 

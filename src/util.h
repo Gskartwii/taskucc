@@ -5,6 +5,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+enum tacc_assertion_class {
+    ASSERT_ICE,
+    ASSERT_DIAG,
+    ASSERT_TODO,
+};
+
 /* M2 unconditionally sign-extends 0xffffffff on x86_64, but might store x in a
  * zero-extended register. So a naive comparison doesn't work. */
 #define IS_U32_MAX(x)                                                \
@@ -18,7 +24,7 @@
 
 typedef int tacc_bool;
 
-void tacc_die(char *err, ...);
+void tacc_die(enum tacc_assertion_class class, char *err, ...);
 void *tacc_malloc(size_t sz);
 void tacc_free(void *allocation);
 uint8_t tacc_hex_to_dec(char hex);

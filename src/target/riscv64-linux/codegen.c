@@ -124,7 +124,7 @@ static void tacc_target_cg_move(struct tacc_cg_state *state,
                        tacc_target_register_as_64(slot->place.reg->reg));
         slot->place.reg->reg = new_reg;
     } else {
-        tacc_assert(0, "TODO: move from stack to register");
+        tacc_assert(ASSERT_TODO, 0, "move from stack to register");
     }
 }
 
@@ -260,7 +260,8 @@ static void tacc_target_cg_store(struct tacc_cg_state *state,
         break;
     default:
         width_suffix = "";
-        tacc_assert(0, "ICE: bad lval width %d", tacc_type_bit_width(lval_ty));
+        tacc_assert(
+            ASSERT_ICE, 0, "bad lval width %d", tacc_type_bit_width(lval_ty));
         break;
     }
 
@@ -278,8 +279,9 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
                                       struct tacc_local_var *locvar_place) {
     switch (in_place->place.kind) {
     case CALLITF_PLACE_REGISTER:
-        tacc_assert(in_place->place.extra.reg.reg_class == REGC_INT,
-                    "TODO: non-integral function parameters");
+        tacc_assert(ASSERT_TODO,
+                    in_place->place.extra.reg.reg_class == REGC_INT,
+                    "non-integral function parameters");
         tacc_target_cg_store(state,
                              in_place->place.extra.reg.reg,
                              (int) (in_place->offset_from_param_start) +
@@ -288,7 +290,8 @@ static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
                              1);
         break;
     case CALLITF_PLACE_REGISTER_PAIR:
-        tacc_assert(0, "ICE: didn't expect a register pair param on aarch64");
+        tacc_assert(
+            ASSERT_ICE, 0, "didn't expect a register pair param on riscv64");
         break;
     case CALLITF_PLACE_STACK:
         /* skip */
@@ -362,7 +365,7 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
             state, "\n\t ld%s %s, %d(s0)", zext, reg_name, var->offset);
         break;
     default:
-        tacc_assert(0, "invalid load width %d", load_width);
+        tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
     tacc_cg_push_reg(state, reg_place, var->ty);
 }
