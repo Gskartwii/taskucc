@@ -338,11 +338,9 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     uint32_t reg_2;
 
     load_width = tacc_type_bit_width(int_type);
+    reg = tacc_cg_ensure_top_is_single(state);
     if (load_width > 32) {
-        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
         reg_2 = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
-    } else {
-        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     }
     slot = tacc_cg_get_top(state);
 
