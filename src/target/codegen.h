@@ -26,8 +26,10 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
 void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
                                  uint32_t reg_a,
                                  uint32_t reg_b);
-void tacc_target_cg_load_int(struct tacc_cg_state *state,
-                             struct tacc_local_var *var);
+void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
+                               struct tacc_local_var *var);
+void tacc_target_cg_deref_int(struct tacc_cg_state *state,
+                              struct tacc_type *int_type);
 void tacc_target_cg_finalize(struct tacc_cg_state *state);
 
 #endif

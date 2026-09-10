@@ -409,14 +409,15 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t ret");
 }
 
-void tacc_target_cg_load_int(struct tacc_cg_state *state,
-                             struct tacc_local_var *var) {
+void tacc_target_cg_deref_int(struct tacc_cg_state *state,
+                              struct tacc_type *int_type) {
     size_t load_width;
-    struct tacc_target_place_register *reg_place;
+    struct tacc_slot *slot;
     uint32_t reg;
 
-    load_width = tacc_type_bit_width(var->ty);
+    load_width = tacc_type_bit_width(int_type);
     reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    slot = tacc_cg_get_top(state);
 
     switch (load_width) {
     case 8:
@@ -424,15 +425,31 @@ void tacc_target_cg_load_int(struct tacc_cg_state *state,
     case 32:
     case 64:
         tacc_cg_output(state,
-                       "\n\t mov%s %d(%%rbp), %s",
+                       "\n\t mov%s (%s), %s",
                        tacc_target_op_suffix(load_width),
-                       var->offset,
+                       tacc_target_register_as_64(reg),
                        tacc_target_register_name(reg, load_width));
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
-        tacc_cg_push_reg(state, reg_place, var->ty);
+        slot->ty = int_type;
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
+}
+
+void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
+                               struct tacc_local_var *var) {
+    struct tacc_target_place_register *reg_place;
+    uint32_t reg;
+    char *reg_name;
+
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+
+    reg_name = tacc_target_register_as_64(reg);
+    tacc_cg_output(state, "\n\t leaq %d(%%rbp), %s", var->offset, reg_name);
+    tacc_cg_push_reg(
+        state,
+        reg_place,
+        tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
 }

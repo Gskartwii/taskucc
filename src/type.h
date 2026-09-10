@@ -148,6 +148,9 @@ struct tacc_type {
 
         /* borrow */
         struct tacc_int_type *int_repr;
+
+        /* borrow */
+        struct tacc_expr *vla_size_expr;
     } extra;
 
     uint32_t name_ref;

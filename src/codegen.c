@@ -1,5 +1,7 @@
 #include "codegen.h"
 #include "call_itf.h"
+#include "compile.h"
+#include "decl.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
@@ -8,6 +10,7 @@
 #include "target/codegen.h"
 #include "target/target.h"
 #include "type.h"
+#include "util.h"
 
 MK_DYNARRAY_OVER(tacc_slot_list,
                  tacc_slot_list_entry,
@@ -78,10 +81,102 @@ struct tacc_local_var *tacc_cg_resolve_local(struct tacc_cg_state *state,
     return entry->content;
 }
 
+static void tacc_cg_compile_lval(struct tacc_cg_state *state,
+                                 struct tacc_expr *expr) {
+    struct tacc_local_var *var;
+
+    switch (expr->kind) {
+    case EX_UNINIT:
+    case EX_INT_LIT:
+    case EX_CHAR_LIT:
+    case EX_ADD:
+    case EX_SUB:
+    case EX_MUL:
+    case EX_DIV:
+    case EX_REM:
+    case EX_POS:
+    case EX_NEG:
+    case EX_BAND:
+    case EX_BOR:
+    case EX_BXOR:
+    case EX_BNOT:
+    case EX_SHL:
+    case EX_SHR:
+    case EX_AND:
+    case EX_OR:
+    case EX_NOT:
+    case EX_EQ:
+    case EX_NE:
+    case EX_LE:
+    case EX_LT:
+    case EX_GE:
+    case EX_GT:
+    case EX_ASSI:
+    case EX_ADD_ASSI:
+    case EX_SUB_ASSI:
+    case EX_MUL_ASSI:
+    case EX_DIV_ASSI:
+    case EX_REM_ASSI:
+    case EX_BAND_ASSI:
+    case EX_BOR_ASSI:
+    case EX_BXOR_ASSI:
+    case EX_LSH_ASSI:
+    case EX_RSH_ASSI:
+    case EX_ADDROF:
+    case EX_CALL:
+    case EX_CAST:
+    case EX_SIZEOF:
+    case EX_SIZEOF_TY:
+    case EX_COMMA:
+    case EX_SELECT:
+        tacc_assert(ASSERT_DIAG, 0, "invalid lvalue");
+        break;
+
+    case EX_IDENT:
+        var = tacc_cg_resolve_local(state, expr->extra.name_ref);
+        if (var != NULL) {
+            tacc_assert(ASSERT_TODO,
+                        tacc_type_is_integral(var->ty),
+                        "load non-integral value");
+            tacc_target_cg_addrof_var(state, var);
+        } else {
+            tacc_assert(ASSERT_TODO, 0, "resolve non-local names");
+        }
+        break;
+
+    case EX_STRING_LIT:
+    case EX_INCR_PRE:
+    case EX_DECR_PRE:
+    case EX_INCR_POST:
+    case EX_DECR_POST:
+    case EX_SUBSCRIPT:
+    case EX_DEREF:
+    case EX_MEMBER:
+    case EX_PTR_MEMBER:
+    case EX_COMPOUND_LIT:
+    case EX_NAME_OF_FUNC:
+        tacc_assert(ASSERT_TODO, 0, "lvalue");
+        break;
+    }
+}
+
+void tacc_cg_deref(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+    struct tacc_type *pointed_ty;
+
+    slot = tacc_cg_get_top(state);
+    tacc_assert(ASSERT_DIAG,
+                slot->ty->kind == TYK_PTR,
+                "attempt to dereference non-pointer");
+    pointed_ty = slot->ty->extra.pointer.pointee;
+    tacc_assert(
+        ASSERT_TODO, tacc_type_is_integral(pointed_ty), "load of non-integer");
+    tacc_target_cg_deref_int(state, pointed_ty);
+}
+
 void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
     struct tacc_slot *slot;
-    struct tacc_local_var *var;
 
     switch (expr->kind) {
     case EX_INT_LIT:
@@ -94,18 +189,12 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         break;
 
     case EX_IDENT:
-        var = tacc_cg_resolve_local(state, expr->extra.name_ref);
-        if (var != NULL) {
-            tacc_assert(ASSERT_TODO,
-                        tacc_type_is_integral(var->ty),
-                        "load non-integral value");
-            tacc_target_cg_load_int(state, var);
-        } else {
-            tacc_assert(ASSERT_TODO, 0, "resolve non-local names");
-        }
+        tacc_cg_compile_lval(state, expr);
+        tacc_cg_deref(state);
         break;
 
     case EX_UNINIT:
+    case EX_ASSI:
     case EX_CHAR_LIT:
     case EX_STRING_LIT:
     case EX_ADD:
@@ -130,7 +219,6 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     case EX_LT:
     case EX_GE:
     case EX_GT:
-    case EX_ASSI:
     case EX_ADD_ASSI:
     case EX_SUB_ASSI:
     case EX_MUL_ASSI:
@@ -195,11 +283,52 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
     slot->ty = to_type;
 }
 
+static void tacc_cg_decl(struct tacc_cg_state *state, struct tacc_decl *decl) {
+    struct tacc_init_declarator_list_entry *entry;
+    struct tacc_type *base_ty;
+    struct tacc_type *derived_ty;
+    struct tacc_local_var *allocated_var;
+    size_t i;
+
+    tacc_assert(ASSERT_DIAG,
+                decl->kind != DECL_FUNCTION_DEF,
+                "function definition within function body");
+    if (decl->storage_class == STORAGE_TYPEDEF) {
+        tacc_assert(ASSERT_TODO, 0, "typedef in function body");
+        return;
+    }
+
+    tacc_assert(ASSERT_TODO,
+                decl->storage_class == STORAGE_AUTO ||
+                    decl->storage_class == STORAGE_REGISTER ||
+                    decl->storage_class == STORAGE_UNSPECIFIED,
+                "non-local storage class in function");
+
+    base_ty = tacc_type_from_decl_type(state->compiler, decl->base_type);
+    for (i = 0; i < tacc_init_declarator_list_len(decl->extra.declarators);
+         i = i + 1) {
+        entry = tacc_init_declarator_list_get(decl->extra.declarators, i);
+        derived_ty = tacc_type_adjust_from_declarator(
+            state->compiler, base_ty, entry->content->declarator);
+        /* TODO: evaluate remaining VLA sizes */
+        allocated_var = tacc_cg_alloc_variable(
+            state,
+            derived_ty,
+            tacc_declarator_name(entry->content->declarator));
+
+        tacc_assert(ASSERT_TODO,
+                    entry->content->initializer == NULL,
+                    "initializers in function bodies");
+        TACC_UNUSED(allocated_var);
+    }
+}
+
 void tacc_cg_compile_body_member(struct tacc_cg_state *state,
                                  struct tacc_compound_member *member) {
-    tacc_assert(ASSERT_TODO,
-                member->kind == COMPOUND_MEMBER_STMT,
-                "compile declaration in body");
+    if (member->kind == COMPOUND_MEMBER_DECL) {
+        tacc_cg_decl(state, member->member.declaration);
+        return;
+    }
     switch (member->member.statement->kind) {
     case STMT_NULL:
         break;

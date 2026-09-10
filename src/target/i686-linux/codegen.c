@@ -328,51 +328,71 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t ret");
 }
 
-void tacc_target_cg_load_int(struct tacc_cg_state *state,
-                             struct tacc_local_var *var) {
+void tacc_target_cg_deref_int(struct tacc_cg_state *state,
+                              struct tacc_type *int_type) {
     struct tacc_target_place_register *reg_place;
     struct tacc_target_place_register *reg_place_2;
     size_t load_width;
+    struct tacc_slot *slot;
     uint32_t reg;
     uint32_t reg_2;
 
-    load_width = tacc_type_bit_width(var->ty);
+    load_width = tacc_type_bit_width(int_type);
     if (load_width > 32) {
-        reg = tacc_target_cg_alloc_reg(state, REG_ANY);
-        reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
+        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+        reg_2 = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
     } else {
-        reg = tacc_target_cg_alloc_reg(state, REG_ANY);
+        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     }
+    slot = tacc_cg_get_top(state);
 
     switch (load_width) {
     case 8:
     case 16:
     case 32:
         tacc_cg_output(state,
-                       "\n\t mov%s %d(%%ebp), %s",
+                       "\n\t mov%s (%s), %s",
                        tacc_target_op_suffix(load_width),
-                       var->offset,
+                       tacc_target_register_as_32(reg),
                        tacc_target_register_name(reg, load_width));
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
-        tacc_cg_push_reg(state, reg_place, var->ty);
+        slot->ty = int_type;
         break;
     case 64:
         tacc_cg_output(state,
-                       "\n\t movl %d(%%ebp), %s",
-                       var->offset,
-                       tacc_target_register_as_32(reg));
-        tacc_cg_output(state,
-                       "\n\t movl %d(%%ebp), %s",
-                       var->offset + 4,
+                       "\n\t movl 4(%s), %s",
+                       tacc_target_register_as_32(reg),
                        tacc_target_register_as_32(reg_2));
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
+        tacc_cg_output(state,
+                       "\n\t movl (%s), %s",
+                       tacc_target_register_as_32(reg),
+                       tacc_target_register_as_32(reg));
+        reg_place = slot->place.reg;
         reg_place_2 = tacc_target_place_register_new();
         reg_place_2->reg = reg_2;
-        tacc_cg_push_reg_pair(state, reg_place, reg_place_2, var->ty);
+        slot->place_kind = PLACE_REGISTER_PAIR;
+        slot->place.pair.reg = reg_place;
+        slot->place.pair.reg_2 = reg_place_2;
+        slot->ty = int_type;
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
+}
+
+void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
+                               struct tacc_local_var *var) {
+    struct tacc_target_place_register *reg_place;
+    uint32_t reg;
+    char *reg_name;
+
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+
+    reg_name = tacc_target_register_as_32(reg);
+    tacc_cg_output(state, "\n\t leal %d(%%ebp), %s", var->offset, reg_name);
+    tacc_cg_push_reg(
+        state,
+        reg_place,
+        tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
 }

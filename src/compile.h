@@ -36,6 +36,10 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
                                    ...);
+struct tacc_type *
+tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
+                                 struct tacc_type *base_type,
+                                 struct tacc_declarator *declarator);
 struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
                                           uint32_t name_ref);
 void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...);

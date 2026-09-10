@@ -200,11 +200,6 @@ static struct tacc_type *tacc_eval_enumerators(
     return tacc_get_basic_type(compiler->basic_types, TYK_UINT);
 }
 
-static struct tacc_type *
-tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
-                                 struct tacc_type *base_type,
-                                 struct tacc_declarator *declarator);
-
 static void
 tacc_type_adjust_function(struct tacc_compiler *compiler,
                           struct tacc_function_type *ty,
@@ -254,7 +249,7 @@ tacc_type_adjust_function(struct tacc_compiler *compiler,
     }
 }
 
-static struct tacc_type *
+struct tacc_type *
 tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                  struct tacc_type *base_type,
                                  struct tacc_declarator *declarator) {
@@ -314,6 +309,8 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                         dimension->value.int_value;
                 } else {
                     curr_type->kind = TYK_VLA;
+                    curr_type->extra.vla_size_expr =
+                        curr_declarator->extra.arr_decl->dim_expr;
                 }
             }
             tacc_type_list_push(sub_type->derived_array_types, curr_type);

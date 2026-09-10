@@ -329,43 +329,58 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t ret");
 }
 
-void tacc_target_cg_load_int(struct tacc_cg_state *state,
-                             struct tacc_local_var *var) {
-    struct tacc_target_place_register *reg_place;
+void tacc_target_cg_deref_int(struct tacc_cg_state *state,
+                              struct tacc_type *int_type) {
+    struct tacc_slot *slot;
     size_t load_width;
     uint32_t reg;
     char *reg_name;
+    char *addr_name;
     char *zext;
 
-    load_width = tacc_type_bit_width(var->ty);
-    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    slot = tacc_cg_get_top(state);
+    load_width = tacc_type_bit_width(int_type);
+    reg = tacc_cg_ensure_top_is_single(state);
     reg_name = tacc_target_register_as_64(reg);
+    addr_name = tacc_target_register_as_64(reg);
     zext = "";
-    if (!tacc_type_kind_is_signed(var->ty->kind)) {
+    if (!tacc_type_kind_is_signed(int_type->kind)) {
         zext = "u";
     }
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
 
     switch (load_width) {
     case 8:
-        tacc_cg_output(
-            state, "\n\t lb%s %s, %d(s0)", zext, reg_name, var->offset);
+        tacc_cg_output(state, "\n\t lb%s %s, (%s)", zext, reg_name, addr_name);
         break;
     case 16:
-        tacc_cg_output(
-            state, "\n\t lh%s %s, %d(s0)", zext, reg_name, var->offset);
+        tacc_cg_output(state, "\n\t lh%s %s, (%s)", zext, reg_name, addr_name);
         break;
     case 32:
-        tacc_cg_output(
-            state, "\n\t lw%s %s, %d(s0)", zext, reg_name, var->offset);
+        tacc_cg_output(state, "\n\t lw%s %s, (%s)", zext, reg_name, addr_name);
         break;
     case 64:
-        tacc_cg_output(
-            state, "\n\t ld%s %s, %d(s0)", zext, reg_name, var->offset);
+        tacc_cg_output(state, "\n\t ld %s, (%s)", reg_name, addr_name);
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
     }
-    tacc_cg_push_reg(state, reg_place, var->ty);
+    slot->ty = int_type;
+}
+
+void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
+                               struct tacc_local_var *var) {
+    struct tacc_target_place_register *reg_place;
+    uint32_t reg;
+    char *reg_name;
+
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+
+    reg_name = tacc_target_register_as_64(reg);
+    tacc_cg_output(state, "\n\t addi %s, s0, %d", reg_name, var->offset);
+    tacc_cg_push_reg(
+        state,
+        reg_place,
+        tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
 }
