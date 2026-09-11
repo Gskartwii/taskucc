@@ -364,8 +364,6 @@ void tacc_u64_udiv(struct tacc_u64 *quot,
     tacc_u64_copy(quot, &quot_aux);
 }
 
-extern int printf(const char *, ...);
-
 void tacc_u64_sdiv(struct tacc_u64 *quot,
                    struct tacc_u64 *rem,
                    struct tacc_u64 *dividend,
