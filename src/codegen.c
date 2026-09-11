@@ -128,6 +128,10 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     case EX_SIZEOF:
     case EX_SIZEOF_TY:
     case EX_COMMA:
+    case EX_INCR_PRE:
+    case EX_DECR_PRE:
+    case EX_INCR_POST:
+    case EX_DECR_POST:
     case EX_SELECT:
         tacc_assert(ASSERT_DIAG, 0, "invalid lvalue");
         break;
@@ -145,10 +149,6 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
         break;
 
     case EX_STRING_LIT:
-    case EX_INCR_PRE:
-    case EX_DECR_PRE:
-    case EX_INCR_POST:
-    case EX_DECR_POST:
     case EX_SUBSCRIPT:
     case EX_DEREF:
     case EX_MEMBER:
