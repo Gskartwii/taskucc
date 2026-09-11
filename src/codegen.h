@@ -95,6 +95,11 @@ __attribute__((format(printf, 2, 3)))
 void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...);
 
 struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state);
+struct tacc_slot *tacc_cg_get_over(struct tacc_cg_state *state);
+tacc_bool tacc_cg_stack_is_empty(struct tacc_cg_state *state);
+void tacc_cg_dup(struct tacc_cg_state *state);
+void tacc_cg_swap(struct tacc_cg_state *state);
+void tacc_cg_rot(struct tacc_cg_state *state);
 void tacc_cg_pop(struct tacc_cg_state *state);
 void tacc_cg_state_free(struct tacc_cg_state *state);
 void tacc_slot_free(struct tacc_slot *slot);
@@ -104,8 +109,6 @@ struct tacc_target_place_register *tacc_target_place_register_new(void);
 void tacc_target_place_register_free(struct tacc_target_place_register *reg);
 uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
                                   uint32_t desired_registers);
-uint32_t tacc_target_cg_alloc_reg_pair(struct tacc_cg_state *state,
-                                       uint32_t *permissible_pairs);
 void tacc_cg_move_pair(struct tacc_cg_state *state,
                        struct tacc_slot *slot,
                        uint32_t permissible_low,
@@ -118,6 +121,7 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,
                                 uint32_t *hi_reg);
 uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state);
+uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state);
 struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
                                               struct tacc_type *ty,
                                               uint32_t name_ref);

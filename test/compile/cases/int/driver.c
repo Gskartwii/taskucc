@@ -4,11 +4,19 @@
 
 extern int konst(void);
 
-#define DECL_CASTER(from, to, n) extern to cast_##n(from);
+#define DECL_CASTER(from, to, n) \
+    extern to cast_##n(from);    \
+    extern to store_##n(from);
 #define CHECK_CASTER(from, to, n)                                       \
     if (cast_##n((from) check_n) != ((to) (from) check_n)) {            \
         printf("caster failed on " #from " -> " #to ": %lld != %lld\n", \
                (long long) cast_##n((from) check_n),                    \
+               (long long) ((to) (from) check_n));                      \
+        ok = 0;                                                         \
+    }                                                                   \
+    if (store_##n((from) check_n) != ((to) (from) check_n)) {           \
+        printf("store failed on " #from " -> " #to ": %lld != %lld\n",  \
+               (long long) store_##n((from) check_n),                   \
                (long long) ((to) (from) check_n));                      \
         ok = 0;                                                         \
     }

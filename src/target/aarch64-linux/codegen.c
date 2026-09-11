@@ -420,6 +420,43 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     slot->ty = int_type;
 }
 
+void tacc_target_cg_store_int(struct tacc_cg_state *state,
+                              struct tacc_type *int_type) {
+    size_t store_width;
+    uint32_t reg;
+    uint32_t addr_reg;
+    char *reg_name;
+    char *addr_name;
+
+    store_width = tacc_type_bit_width(int_type);
+    reg = tacc_cg_ensure_top_is_single(state);
+    addr_reg = tacc_cg_ensure_over_is_single(state);
+    addr_name = tacc_target_register_as_64(addr_reg);
+    if (store_width > 32) {
+        reg_name = tacc_target_register_as_64(reg);
+    } else {
+        reg_name = tacc_target_register_as_32(reg);
+    }
+
+    switch (store_width) {
+    case 8:
+        tacc_cg_output(state, "\n\t strb %s, [%s]", reg_name, addr_name);
+        break;
+    case 16:
+        tacc_cg_output(state, "\n\t strh %s, [%s]", reg_name, addr_name);
+        break;
+    case 32:
+    case 64:
+        tacc_cg_output(state, "\n\t str %s, [%s]", reg_name, addr_name);
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "invalid store width %d", store_width);
+    }
+
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+}
+
 void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
                                struct tacc_local_var *var) {
     struct tacc_target_place_register *reg_place;
@@ -436,4 +473,19 @@ void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
         state,
         reg_place,
         tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
+}
+
+void tacc_target_cg_dup(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+    struct tacc_target_place_register *reg_place;
+    uint32_t reg;
+    uint32_t new_reg;
+
+    slot = tacc_cg_get_top(state);
+    reg = tacc_cg_ensure_top_is_single(state);
+    new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
+    tacc_target_cg_move_reg_reg(state, reg, new_reg);
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = new_reg;
+    tacc_cg_push_reg(state, reg_place, slot->ty);
 }

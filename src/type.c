@@ -197,6 +197,13 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
     return 1;
 }
 
+tacc_bool tacc_type_is_compatible(struct tacc_type *a, struct tacc_type *b) {
+    tacc_assert(ASSERT_TODO,
+                tacc_type_is_integral(a),
+                "compatibility of non-integral types");
+    return a->kind == b->kind;
+}
+
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
     switch (kind) {
     case TYK_BOOL:

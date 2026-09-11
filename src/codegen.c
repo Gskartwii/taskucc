@@ -160,7 +160,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     }
 }
 
-void tacc_cg_deref(struct tacc_cg_state *state) {
+static void tacc_cg_deref(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
     struct tacc_type *pointed_ty;
 
@@ -173,6 +173,30 @@ void tacc_cg_deref(struct tacc_cg_state *state) {
         ASSERT_TODO, tacc_type_is_integral(pointed_ty), "load of non-integer");
     tacc_target_cg_deref_int(state, pointed_ty);
 }
+
+static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
+    struct tacc_slot *slot_rval;
+    struct tacc_slot *slot_lval;
+    struct tacc_type *pointed_ty;
+
+    slot_rval = tacc_cg_get_top(state);
+    slot_lval = tacc_cg_get_over(state);
+    tacc_assert(ASSERT_DIAG,
+                slot_lval->ty->kind == TYK_PTR,
+                "attempt to dereference non-pointer");
+    pointed_ty = slot_rval->ty;
+    tacc_assert(ASSERT_ICE,
+                tacc_type_is_compatible(slot_lval->ty->extra.pointer.pointee,
+                                        pointed_ty),
+                "trying to store to incompatible pointer");
+    tacc_assert(ASSERT_TODO,
+                tacc_type_is_integral(slot_rval->ty),
+                "store of non-integer");
+    tacc_target_cg_store_int(state, pointed_ty);
+}
+
+static void tacc_cg_convert_top(struct tacc_cg_state *state,
+                                struct tacc_type *to_type);
 
 void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
@@ -193,8 +217,21 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         tacc_cg_deref(state);
         break;
 
-    case EX_UNINIT:
     case EX_ASSI:
+        tacc_cg_compile_lval(state, expr->op1);
+        slot = tacc_cg_get_top(state);
+        tacc_assert(ASSERT_ICE,
+                    slot->ty->kind == TYK_PTR,
+                    "lval compilation didn't produce pointer");
+        tacc_cg_compile_expr(state, expr->op2);
+        tacc_cg_convert_top(state, slot->ty->extra.pointer.pointee);
+        tacc_cg_dup(state);
+        tacc_cg_rot(state);
+        tacc_cg_swap(state);
+        tacc_cg_compile_assign(state);
+        break;
+
+    case EX_UNINIT:
     case EX_CHAR_LIT:
     case EX_STRING_LIT:
     case EX_ADD:
@@ -259,8 +296,8 @@ static tacc_bool tacc_cg_top_is_int(struct tacc_cg_state *state) {
     return tacc_type_is_integral(slot->ty);
 }
 
-void tacc_cg_convert_top(struct tacc_cg_state *state,
-                         struct tacc_type *to_type) {
+static void tacc_cg_convert_top(struct tacc_cg_state *state,
+                                struct tacc_type *to_type) {
     struct tacc_slot *slot;
     struct tacc_type *from_type;
 
@@ -332,6 +369,7 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
     switch (member->member.statement->kind) {
     case STMT_NULL:
         break;
+
     case STMT_RETURN:
         tacc_cg_compile_expr(state, member->member.statement->extra.expr);
         tacc_cg_convert_top(state, state->func_type->return_type);
@@ -339,12 +377,23 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
                     tacc_cg_top_is_int(state),
                     "return of non-integral type");
         tacc_target_cg_return_top_int(state);
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "stack not fully consumed by return");
         break;
+
+    case STMT_EXPRESSION:
+        tacc_cg_compile_expr(state, member->member.statement->extra.expr);
+        tacc_cg_pop(state);
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "expression statement produced long stack");
+        break;
+
     case STMT_LABEL_NAMED:
     case STMT_CASE:
     case STMT_DEFAULT:
     case STMT_COMPOUND:
-    case STMT_EXPRESSION:
     case STMT_IF:
     case STMT_SWITCH:
     case STMT_WHILE:
@@ -434,8 +483,48 @@ struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state) {
     return entry->content;
 }
 
+struct tacc_slot *tacc_cg_get_over(struct tacc_cg_state *state) {
+    struct tacc_slot_list_entry *entry;
+
+    entry =
+        tacc_slot_list_get(state->stack, tacc_slot_list_len(state->stack) - 2);
+
+    return entry->content;
+}
+
 void tacc_cg_pop(struct tacc_cg_state *state) {
     tacc_slot_free(tacc_slot_list_pop(state->stack));
+}
+
+void tacc_cg_dup(struct tacc_cg_state *state) { tacc_target_cg_dup(state); }
+
+void tacc_cg_swap(struct tacc_cg_state *state) {
+    struct tacc_slot *top;
+    struct tacc_slot *over;
+
+    top = tacc_slot_list_pop(state->stack);
+    over = tacc_slot_list_pop(state->stack);
+
+    tacc_slot_list_push(state->stack, top);
+    tacc_slot_list_push(state->stack, over);
+}
+
+void tacc_cg_rot(struct tacc_cg_state *state) {
+    struct tacc_slot *top;
+    struct tacc_slot *over;
+    struct tacc_slot *third;
+
+    top = tacc_slot_list_pop(state->stack);
+    over = tacc_slot_list_pop(state->stack);
+    third = tacc_slot_list_pop(state->stack);
+
+    tacc_slot_list_push(state->stack, over);
+    tacc_slot_list_push(state->stack, top);
+    tacc_slot_list_push(state->stack, third);
+}
+
+tacc_bool tacc_cg_stack_is_empty(struct tacc_cg_state *state) {
+    return tacc_slot_list_len(state->stack) == 0;
 }
 
 void tacc_slot_free(struct tacc_slot *slot) {
@@ -658,6 +747,16 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_top(state);
+
+    tacc_assert(ASSERT_TODO,
+                slot->place_kind == PLACE_REGISTER,
+                "expected register at stack top");
+    return slot->place.reg->reg;
+}
+uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_over(state);
 
     tacc_assert(ASSERT_TODO,
                 slot->place_kind == PLACE_REGISTER,
