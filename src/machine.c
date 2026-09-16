@@ -257,6 +257,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
     case EX_CHAR_LIT:
         tacc_assert(ASSERT_TODO, 0, "char-literal consteval");
         break;
+    case EX_FLOAT_LIT:
+        tacc_assert(ASSERT_TODO, 0, "float-literal consteval");
+        break;
     case EX_STRING_LIT:
         tacc_assert(ASSERT_TODO, 0, "string consteval");
         break;

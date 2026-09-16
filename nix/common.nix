@@ -4,6 +4,7 @@ in {
   src = [
     "util.c"
     "3rdparty/intscan.c"
+    "3rdparty/floatscan.c"
     "call_itf.c"
     "codegen.c"
     "compile.c"
@@ -12,6 +13,8 @@ in {
     "dynstring.c"
     "string_list.c"
     "soft_u64.c"
+    "soft_u128.c"
+    "soft_float.c"
     "machine.c"
     "type.c"
     "expr.c"

@@ -9,6 +9,8 @@ CompileFlags:
     -Werror,
     -Wconversion,
     -Warith-conversion,
+    -Wsign-conversion,
     -Wtype-limits,
+    -Wparentheses,
     -Isrc
   ]

@@ -62,6 +62,8 @@
     "string_list.h"
     "tasku_file.h"
     "soft_u64.h"
+    "soft_u128.h"
+    "soft_float.h"
     "type.h"
     "machine.h"
     "target/${stdenvNoCC.targetPlatform.system}/registers.h"

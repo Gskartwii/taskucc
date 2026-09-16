@@ -88,6 +88,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     switch (expr->kind) {
     case EX_UNINIT:
     case EX_INT_LIT:
+    case EX_FLOAT_LIT:
     case EX_CHAR_LIT:
     case EX_ADD:
     case EX_SUB:
@@ -233,6 +234,7 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
 
     case EX_UNINIT:
     case EX_CHAR_LIT:
+    case EX_FLOAT_LIT:
     case EX_STRING_LIT:
     case EX_ADD:
     case EX_SUB:

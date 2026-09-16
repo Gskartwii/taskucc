@@ -9,6 +9,7 @@ enum tacc_expr_kind {
     EX_UNINIT,
 
     EX_INT_LIT,
+    EX_FLOAT_LIT,
     EX_CHAR_LIT,
     EX_STRING_LIT,
     EX_IDENT,
@@ -107,6 +108,12 @@ struct tacc_char_literal {
     struct tacc_u64 *number;
 };
 
+struct tacc_float_literal {
+    struct tacc_float *number;
+    tacc_bool suffix_f;
+    tacc_bool suffix_l;
+};
+
 struct tacc_expr {
     enum tacc_expr_kind kind;
 
@@ -120,6 +127,7 @@ struct tacc_expr {
         struct tacc_string *field_name;
         uint32_t name_ref;
         struct tacc_int_literal *int_literal;
+        struct tacc_float_literal *float_literal;
         struct tacc_char_literal *char_literal;
     } extra;
 };

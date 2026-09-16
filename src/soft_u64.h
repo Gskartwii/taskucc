@@ -23,6 +23,9 @@ uint32_t tacc_u64_add(struct tacc_u64 *to,
 uint32_t tacc_u64_add_u32(struct tacc_u64 *to,
                           struct tacc_u64 *left,
                           uint32_t right);
+uint32_t tacc_u64_add_s32(struct tacc_u64 *to,
+                          struct tacc_u64 *left,
+                          int32_t right);
 /* returns carry */
 uint32_t tacc_u64_sub(struct tacc_u64 *to,
                       struct tacc_u64 *left,
@@ -76,7 +79,9 @@ tacc_bool tacc_u64_ugt(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_ule(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_uge(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_slt(struct tacc_u64 *left, struct tacc_u64 *right);
+tacc_bool tacc_u64_slt_s32(struct tacc_u64 *left, int32_t right);
 tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right);
+tacc_bool tacc_u64_sgt_s32(struct tacc_u64 *left, int32_t right);
 tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_sge(struct tacc_u64 *left, struct tacc_u64 *right);
 tacc_bool tacc_u64_sign(struct tacc_u64 *src);

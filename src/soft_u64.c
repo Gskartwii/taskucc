@@ -30,6 +30,20 @@ struct tacc_u64 *tacc_u64_new_from_u32(uint32_t val) {
     return u64;
 }
 
+void tacc_u64_from_u32(struct tacc_u64 *dst, uint32_t from) {
+    dst->high = 0;
+    dst->low = from;
+}
+
+void tacc_u64_from_i32(struct tacc_u64 *dst, int32_t from) {
+    dst->low = (uint32_t) from;
+    if ((from >> 31) != 0) {
+        dst->high = 0xFFFFFFFF;
+    } else {
+        dst->high = 0;
+    }
+}
+
 void tacc_u64_zero(struct tacc_u64 *dst) {
     dst->high = 0;
     dst->low = 0;
@@ -100,6 +114,15 @@ uint32_t tacc_u64_add_u32(struct tacc_u64 *to,
     }
     return 0;
 }
+
+uint32_t tacc_u64_add_s32(struct tacc_u64 *to,
+                          struct tacc_u64 *left,
+                          int32_t right) {
+    struct tacc_u64 aux;
+    tacc_u64_from_i32(&aux, right);
+    return tacc_u64_add(to, left, &aux);
+}
+
 uint32_t tacc_u64_sub(struct tacc_u64 *to,
                       struct tacc_u64 *left,
                       struct tacc_u64 *right) {
@@ -291,6 +314,13 @@ tacc_bool tacc_u64_slt(struct tacc_u64 *left, struct tacc_u64 *right) {
 
     return l_hi < r_hi || (l_hi == r_hi && l_lo < r_lo);
 }
+
+tacc_bool tacc_u64_slt_s32(struct tacc_u64 *left, int32_t right) {
+    struct tacc_u64 aux;
+    tacc_u64_from_i32(&aux, right);
+    return tacc_u64_slt(left, &aux);
+}
+
 tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
@@ -299,6 +329,13 @@ tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right) {
 
     return l_hi > r_hi || (l_hi == r_hi && l_lo > r_lo);
 }
+
+tacc_bool tacc_u64_sgt_s32(struct tacc_u64 *left, int32_t right) {
+    struct tacc_u64 aux;
+    tacc_u64_from_i32(&aux, right);
+    return tacc_u64_sgt(left, &aux);
+}
+
 tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
