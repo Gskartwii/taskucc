@@ -1,3 +1,4 @@
+#include "soft_float.h"
 #include "soft_u64.h"
 #include "util.h"
 #include <stdio.h>
@@ -10,11 +11,22 @@
     tacc_u64_zero(&exp_x); \
     tacc_u64_zero(&exp_y);
 
+#define ZERO_F128           \
+    tacc_f128_zero(&a_f);   \
+    tacc_f128_zero(&b_f);   \
+    tacc_f128_zero(&c_f);   \
+    tacc_f128_zero(&exp_f);
+
 #define READ4                           \
     data = read_test_val(data, &a);     \
     data = read_test_val(data, &b);     \
     data = read_test_val(data, &exp_x); \
     data = read_test_val(data, &exp_y);
+
+#define READ3_F128                           \
+    data = read_test_val_f128(data, &a_f);   \
+    data = read_test_val_f128(data, &b_f);   \
+    data = read_test_val_f128(data, &exp_f);
 
 #define PRINT4(suite)                            \
     printf("[%s] %x:%x ~ %x:%x = %x:%x ~ %x:%x", \
@@ -28,9 +40,36 @@
            exp_y.high,                           \
            exp_y.low)
 
+#define PRINT3_F128(suite)                                                                                   \
+    printf(                                                                                                  \
+        "[%s] (-1)^%d * %x:%x:%x:%x * 2^%d ~ (-1)^%d * %x:%x:%x:%x * 2^%d = (-1)^%d * %x:%x:%x:%x * 2^%d  ", \
+        suite,                                                                                               \
+        a_f.sign,                                                                                            \
+        a_f.mant_a,                                                                                          \
+        a_f.mant_b,                                                                                          \
+        a_f.mant_c,                                                                                          \
+        a_f.mant_d,                                                                                          \
+        a_f.exponent,                                                                                        \
+        b_f.sign,                                                                                            \
+        b_f.mant_a,                                                                                          \
+        b_f.mant_b,                                                                                          \
+        b_f.mant_c,                                                                                          \
+        b_f.mant_d,                                                                                          \
+        b_f.exponent,                                                                                        \
+        exp_f.sign,                                                                                          \
+        exp_f.mant_a,                                                                                        \
+        exp_f.mant_b,                                                                                        \
+        exp_f.mant_c,                                                                                        \
+        exp_f.mant_d,                                                                                        \
+        exp_f.exponent)
+
 #define CHECK2                      \
     ok = ok & check_eq(&c, &exp_x); \
     ok = ok & check_eq(&d, &exp_y); \
+    printf("\n");
+
+#define CHECK_F128                         \
+    ok = ok & check_eq_f128(&c_f, &exp_f); \
     printf("\n");
 
 /* clang-format off */
@@ -49,6 +88,16 @@ uint32_t sdiv_test_data[] = {
 };
 /* clang-format on */
 
+/* clang-format off */
+uint32_t f128add_test_data[] = {
+    /* 0 + 0 = 0 */     0, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
+    /* -0 + 0 = 0 */    0x80000000, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
+    /* -0 + -0 = -0 */  0x80000000, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0,
+    /* 1 + 2 = 3 */     0x3FFF0000, 0, 0, 0, /*,*/ 0x40000000, 0, 0, 0, /*,*/ 0x40008000, 0, 0, 0,
+};
+size_t count_f128add_data = 4;
+/* clang-format on */
+
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
     if ((a->high != exp->high) || (a->low != exp->low)) {
         printf("  %x:%x != %x:%x (expected)",
@@ -56,6 +105,35 @@ int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
                a->low,
                exp->high,
                exp->low);
+        return 0;
+    }
+    return 1;
+}
+
+int check_eq_f128(struct tacc_f128 *a, struct tacc_f128 *exp) {
+    if ((a->mant_a != exp->mant_a) || (a->mant_b != exp->mant_b) ||
+        (a->mant_c != exp->mant_c) || (a->mant_d != exp->mant_d)) {
+        printf("  mantissa %x:%x:%x:%x != %x:%x:%x:%x (expected)",
+               a->mant_a,
+               a->mant_b,
+               a->mant_c,
+               a->mant_d,
+               exp->mant_a,
+               exp->mant_b,
+               exp->mant_c,
+               exp->mant_d);
+        return 0;
+    }
+    if (a->exponent != exp->exponent) {
+        printf("  exponent %x != %x (expected)",
+               (uint32_t) (a->exponent),
+               (uint32_t) (exp->exponent));
+        return 0;
+    }
+    if (a->sign != exp->sign) {
+        printf("  sign %x != %x (expected)",
+               (uint32_t) (a->sign),
+               (uint32_t) (exp->sign));
         return 0;
     }
     return 1;
@@ -76,6 +154,45 @@ uint32_t *read_test_val(uint32_t *data, struct tacc_u64 *out) {
     return (uint32_t *) out_data;
 }
 
+uint32_t *read_test_val_f128(uint32_t *data, struct tacc_f128 *out) {
+    char *out_data;
+    uint32_t *out_data_x;
+    uint32_t word;
+
+    out_data = (char *) data;
+
+    tacc_f128_zero(out);
+
+    word = *data;
+    if ((word >> 31) != 0) {
+        out->sign = 1;
+    }
+    out->exponent = (word >> 16) & 0x7FFF;
+    out->mant_a = word << 16;
+
+    out_data = ((char *) data) + 4;
+    out_data_x = (uint32_t *) out_data;
+    word = *out_data_x;
+    out->mant_a = out->mant_a | (word >> ((unsigned) 16));
+    out->mant_b = word << 16;
+
+    out_data = out_data + 4;
+    out_data_x = (uint32_t *) out_data;
+    word = *out_data_x;
+    out->mant_b = out->mant_b | (word >> ((unsigned) 16));
+    out->mant_c = word << 16;
+
+    out_data = out_data + 4;
+    out_data_x = (uint32_t *) out_data;
+    word = *out_data_x;
+    out->mant_c = out->mant_c | (word >> ((unsigned) 16));
+    out->mant_d = word << 16;
+
+    out_data = out_data + 4;
+
+    return (uint32_t *) out_data;
+}
+
 int run_tests(void) {
     struct tacc_u64 a;
     struct tacc_u64 b;
@@ -83,6 +200,11 @@ int run_tests(void) {
     struct tacc_u64 d;
     struct tacc_u64 exp_x;
     struct tacc_u64 exp_y;
+    struct tacc_f128 a_f;
+    struct tacc_f128 b_f;
+    struct tacc_f128 c_f;
+    struct tacc_f128 exp_f;
+
     size_t i;
     tacc_bool ok;
     uint32_t *data;
@@ -93,6 +215,13 @@ int run_tests(void) {
         ZERO READ4 PRINT4("sdiv");
         tacc_u64_sdiv(&c, &d, &a, &b);
         CHECK2
+    }
+
+    data = (uint32_t *) f128add_test_data;
+    for (i = 0; i < count_f128add_data; i = i + 1) {
+        ZERO_F128 READ3_F128 PRINT3_F128("f128_add");
+        tacc_f128_addl(&c_f, &a_f, &b_f);
+        CHECK_F128
     }
 
     return !ok;
