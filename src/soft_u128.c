@@ -44,12 +44,28 @@ int tacc_u128_clz(struct tacc_u128 *n) {
     return 96 + tacc_clz(n->a);
 }
 
+static uint32_t tacc_rsh_or_trunc(uint32_t in, unsigned int n) {
+    if (n == 32) {
+        return 0;
+    } else {
+        return in >> n;
+    }
+}
+
+static uint32_t tacc_lsh_or_trunc(uint32_t in, unsigned int n) {
+    if (n == 32) {
+        return 0;
+    } else {
+        return in << n;
+    }
+}
+
 void tacc_u128_lsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n) {
     unsigned count;
 
     count = n & 127;
 
-    if (count > 96) {
+    if (count >= 96) {
         count = count - 96;
         dst->a = src->d << count;
         dst->b = 0;
@@ -57,25 +73,25 @@ void tacc_u128_lsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n) {
         dst->d = 0;
         return;
     }
-    if (count > 64) {
+    if (count >= 64) {
         count = count - 64;
-        dst->a = src->c << count | (dst->d >> (32 - count));
+        dst->a = src->c << count | tacc_rsh_or_trunc(dst->d, 32 - count);
         dst->b = src->d << count;
         dst->c = 0;
         dst->d = 0;
         return;
     }
-    if (count > 32) {
+    if (count >= 32) {
         count = count - 32;
-        dst->a = src->b << count | (dst->c >> (32 - count));
-        dst->b = src->c << count | (dst->d >> (32 - count));
+        dst->a = src->b << count | tacc_rsh_or_trunc(dst->c, 32 - count);
+        dst->b = src->c << count | tacc_rsh_or_trunc(dst->d, 32 - count);
         dst->c = src->d << count;
         dst->d = 0;
         return;
     }
-    dst->a = src->a << count | (dst->b >> (32 - count));
-    dst->b = src->b << count | (dst->c >> (32 - count));
-    dst->c = src->c << count | (dst->d >> (32 - count));
+    dst->a = src->a << count | tacc_rsh_or_trunc(dst->b, 32 - count);
+    dst->b = src->b << count | tacc_rsh_or_trunc(dst->c, 32 - count);
+    dst->c = src->c << count | tacc_rsh_or_trunc(dst->d, 32 - count);
     dst->d = src->d << count;
 }
 
@@ -84,7 +100,7 @@ void tacc_u128_rsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n) {
 
     count = n & 127;
 
-    if (count > 96) {
+    if (count >= 96) {
         count = count - 96;
         dst->d = src->a >> count;
         dst->c = 0;
@@ -92,25 +108,25 @@ void tacc_u128_rsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n) {
         dst->a = 0;
         return;
     }
-    if (count > 64) {
+    if (count >= 64) {
         count = count - 64;
-        dst->d = src->b >> count | (dst->a << (32 - count));
+        dst->d = src->b >> count | tacc_lsh_or_trunc(dst->a, 32 - count);
         dst->c = src->a >> count;
         dst->b = 0;
         dst->a = 0;
         return;
     }
-    if (count > 32) {
+    if (count >= 32) {
         count = count - 32;
-        dst->d = src->c >> count | (dst->b << (32 - count));
-        dst->c = src->b >> count | (dst->a << (32 - count));
+        dst->d = src->c >> count | tacc_lsh_or_trunc(dst->b, 32 - count);
+        dst->c = src->b >> count | tacc_lsh_or_trunc(dst->a, 32 - count);
         dst->b = src->a >> count;
         dst->a = 0;
         return;
     }
-    dst->d = src->d >> count | (dst->c << (32 - count));
-    dst->c = src->c >> count | (dst->b << (32 - count));
-    dst->b = src->b >> count | (dst->a << (32 - count));
+    dst->d = src->d >> count | tacc_lsh_or_trunc(dst->c, 32 - count);
+    dst->c = src->c >> count | tacc_lsh_or_trunc(dst->b, 32 - count);
+    dst->b = src->b >> count | tacc_lsh_or_trunc(dst->a, 32 - count);
     dst->a = src->a >> count;
 }
 
