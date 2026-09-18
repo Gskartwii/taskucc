@@ -571,9 +571,7 @@ static void decfloat(struct tacc_file_iter *f,
         tacc_f128_scalbn(&bias, &bias, 2 * ldbl_mant_dig - bits - 1);
         tacc_f128_copysignl(&bias, &bias, &y);
 
-        tacc_f128_from_u32(&frac, 1);
-        tacc_f128_scalbn(&frac, &frac, ldbl_mant_dig - bits);
-        tacc_f128_fmodl(&frac, &y, &frac);
+        tacc_f128_fmodl_p2(&frac, &y, ldbl_mant_dig - bits);
         tacc_f128_subl(&y, &y, &frac);
         tacc_f128_addl(&y, &y, &bias);
     }
@@ -603,8 +601,7 @@ static void decfloat(struct tacc_file_iter *f,
             }
         }
         if (ldbl_mant_dig - bits >= 2) {
-            tacc_f128_from_u32(&aux_f, 1);
-            tacc_f128_fmodl(&aux_f, &frac, &aux_f);
+            tacc_f128_fmodl_p2(&aux_f, &frac, 0);
             if (!tacc_f128_is_zero(&aux_f)) {
                 tacc_f128_addl_u32(&frac, &frac, 1);
             }

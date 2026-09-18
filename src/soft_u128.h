@@ -19,12 +19,17 @@ int tacc_u128_clz(struct tacc_u128 *n);
 void tacc_u128_lsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n);
 void tacc_u128_rsh_n(struct tacc_u128 *dst, struct tacc_u128 *src, int n);
 void tacc_u128_or_u32(struct tacc_u128 *dst, struct tacc_u128 *a, uint32_t b);
-void tacc_u128_add(struct tacc_u128 *dst,
-                   struct tacc_u128 *a,
-                   struct tacc_u128 *b);
+tacc_bool tacc_u128_add(struct tacc_u128 *dst,
+                        struct tacc_u128 *a,
+                        struct tacc_u128 *b);
 void tacc_u128_add_u32(struct tacc_u128 *dst, struct tacc_u128 *a, uint32_t b);
 void tacc_u128_sub(struct tacc_u128 *dst,
                    struct tacc_u128 *a,
                    struct tacc_u128 *b);
+void tacc_u128_mul_widening(struct tacc_u128 *dst_high,
+                            struct tacc_u128 *dst_low,
+                            struct tacc_u128 *a,
+                            struct tacc_u128 *b);
+tacc_bool tacc_u128_uge(struct tacc_u128 *left, struct tacc_u128 *right);
 
 #endif

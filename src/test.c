@@ -1,3 +1,4 @@
+#include "3rdparty/floatscan.h"
 #include "soft_float.h"
 #include "soft_u64.h"
 #include "util.h"
@@ -22,6 +23,8 @@
     data = read_test_val(data, &b);     \
     data = read_test_val(data, &exp_x); \
     data = read_test_val(data, &exp_y);
+
+#define READ_F128(x_f) data = read_test_val_f128(data, &x_f)
 
 #define READ3_F128                           \
     data = read_test_val_f128(data, &a_f);   \
@@ -86,9 +89,7 @@ uint32_t sdiv_test_data[] = {
     0x80000000, 0x00000000, /*,*/ 0xFFFFFFFF, 0xFFFFFFFE, /*,*/  0x40000000, 0x00000000, /*,*/ 0x00000000, 0x00000000,
     0x80000000, 0x00000000, /*,*/ 0x00000000, 0x00000002, /*,*/  0xC0000000, 0x00000000, /*,*/ 0x00000000, 0x00000000,
 };
-/* clang-format on */
 
-/* clang-format off */
 uint32_t f128add_test_data[] = {
     /* 0 + 0 = 0 */     0, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
     /* -0 + 0 = 0 */    0x80000000, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
@@ -96,6 +97,16 @@ uint32_t f128add_test_data[] = {
     /* 1 + 2 = 3 */     0x3FFF0000, 0, 0, 0, /*,*/ 0x40000000, 0, 0, 0, /*,*/ 0x40008000, 0, 0, 0,
 };
 size_t count_f128add_data = 4;
+
+uint32_t fparse_test_data[] = {
+    /* 0.0 */ 0, 0, 0, 0,
+    /* 1.0 */ 0x3FFF0000, 0, 0, 0,
+};
+char *fparse_test_cases[] = {
+    "0.0",
+    "1.0",
+};
+size_t count_fparse_data = 2;
 /* clang-format on */
 
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
@@ -204,6 +215,10 @@ int run_tests(void) {
     struct tacc_f128 b_f;
     struct tacc_f128 c_f;
     struct tacc_f128 exp_f;
+    struct tacc_file_iter *iter;
+    char *fstr;
+    char *f_strs;
+    char **f_strs_2;
 
     size_t i;
     tacc_bool ok;
@@ -221,6 +236,23 @@ int run_tests(void) {
     for (i = 0; i < count_f128add_data; i = i + 1) {
         ZERO_F128 READ3_F128 PRINT3_F128("f128_add");
         tacc_f128_addl(&c_f, &a_f, &b_f);
+        CHECK_F128
+    }
+
+    data = (uint32_t *) fparse_test_data;
+    f_strs = (char *) fparse_test_cases;
+
+    for (i = 0; i < count_fparse_data; i = i + 1) {
+        f_strs_2 = (char **) f_strs;
+        fstr = *f_strs_2;
+        f_strs = f_strs + sizeof(char *);
+
+        ZERO_F128
+        printf("[fparse] %s ", fstr);
+        iter = tacc_file_iter_new_str(fstr, fstr + strlen(fstr));
+        floatscan(iter, 3, &c_f);
+        tacc_free(iter);
+        READ_F128(exp_f);
         CHECK_F128
     }
 

@@ -1,4 +1,5 @@
 #include "soft_float.h"
+#include "gcc_compat.h"
 #include "util.h"
 
 #define EXP_BIAS 16383
@@ -112,8 +113,9 @@ void tacc_f128_from_u32(struct tacc_f128 *f, uint32_t n) {
     int leading_zeroes;
     size_t i;
 
+    tacc_f128_zero(f);
+
     if (n == 0) {
-        tacc_f128_zero(f);
         return;
     }
 
@@ -121,13 +123,15 @@ void tacc_f128_from_u32(struct tacc_f128 *f, uint32_t n) {
 
     leading_zeroes = 0;
     for (i = 32; i > 0; i = i - 1) {
-        if (((n >> i) & 1) != 0) {
+        if (((n >> (i - 1)) & 1) != 0) {
             break;
         }
         leading_zeroes = leading_zeroes + 1;
     }
 
-    f->mant_a = n << (leading_zeroes + 1);
+    if (leading_zeroes < 31) {
+        f->mant_a = n << (leading_zeroes + 1);
+    }
     f->exponent = (uint16_t) (EXP_BIAS + 31 - leading_zeroes);
 }
 
@@ -231,6 +235,114 @@ void tacc_f128_scalbnl(struct tacc_f128 *dst, struct tacc_f128 *src, int exp) {
     tacc_f128_mull(dst, &intermediate, &aux);
 }
 
+static int tacc_f128_unpack(struct tacc_f128 *f,
+                            struct tacc_u128 *significand) {
+    int exponent_adjusted;
+
+    tacc_u128_from_limbs(
+        significand, f->mant_a, f->mant_b, f->mant_c, f->mant_d);
+    if (f->exponent == 0) {
+        exponent_adjusted = -tacc_u128_clz(significand);
+        tacc_u128_lsh_n(significand, significand, -exponent_adjusted);
+    } else {
+        exponent_adjusted = ((int) (f->exponent)) - EXP_BIAS;
+
+        /* set implicit bit */
+        tacc_u128_rsh_n(significand, significand, 1);
+        significand->a = significand->a | 0x80000000;
+    }
+
+    return exponent_adjusted;
+}
+
+static void tacc_f128_pack(struct tacc_f128 *f,
+                           struct tacc_u128 *significand,
+                           int exponent,
+                           tacc_bool sign) {
+    int final_exponent;
+    struct tacc_u128 lost;
+    tacc_bool is_subnormal;
+
+    final_exponent = exponent;
+
+    is_subnormal = 0;
+    if (final_exponent + EXP_BIAS < 0) {
+        is_subnormal = 1;
+        if (final_exponent + 128 + EXP_BIAS <= 0) {
+            f->exponent = 0;
+            f->mant_a = 0;
+            f->mant_b = 0;
+            f->mant_c = 0;
+            f->mant_d = 0;
+            f->sign = sign;
+            return;
+        }
+        tacc_u128_lsh_n(&lost, significand, 32 + final_exponent + EXP_BIAS);
+        tacc_u128_rsh_n(significand, significand, -(final_exponent + EXP_BIAS));
+        if (!tacc_u128_is_zero(&lost)) {
+            tacc_u128_or_u32(significand, significand, 1);
+        }
+    }
+
+    if ((significand->d & 0xFFFF) > 0x8000 ||
+        ((significand->d & 0xFFFF) == 0x8000 &&
+         (significand->d & 0x10000) != 0)) {
+        /* round up */
+
+        /* make space to catch overflow */
+        tacc_u128_rsh_n(significand, significand, 1);
+        tacc_u128_add_u32(significand, significand, 0x10000);
+        if ((significand->a >> 31) != 0) {
+            if (is_subnormal) {
+                /* overflow from subnormal to minimum normal number */
+                f->exponent = 1;
+                f->mant_a = 0;
+                f->mant_b = 0;
+                f->mant_c = 0;
+                f->mant_d = 0;
+                f->sign = sign;
+                return;
+            } else {
+                final_exponent = final_exponent + 1;
+            }
+        } else {
+            /* undo overflow guard */
+            tacc_u128_lsh_n(significand, significand, 1);
+        }
+    }
+
+    if (final_exponent > MAX_NORM_EXP) {
+        f->exponent = INF_EXPONENT;
+        f->mant_a = 0;
+        f->mant_b = 0;
+        f->mant_c = 0;
+        f->mant_d = 0;
+        f->sign = sign;
+        return;
+    }
+
+    if (is_subnormal) {
+        f->exponent = 0;
+        f->mant_a = significand->a;
+        f->mant_b = significand->b;
+        f->mant_c = significand->c;
+        f->mant_d = significand->d & 0xFFFF0000;
+        f->sign = sign;
+        return;
+    }
+
+    /* drop implicit bit */
+    tacc_u128_lsh_n(significand, significand, 1);
+
+    f->mant_a = significand->a;
+    f->mant_b = significand->b;
+    f->mant_c = significand->c;
+    f->mant_d = significand->d & 0xFFFF0000;
+    f->sign = sign;
+    f->exponent = (uint16_t) (final_exponent + EXP_BIAS);
+    f->sign = sign;
+}
+
 void tacc_f128_addl(struct tacc_f128 *dst,
                     struct tacc_f128 *a,
                     struct tacc_f128 *b) {
@@ -262,7 +374,7 @@ void tacc_f128_addl(struct tacc_f128 *dst,
         tacc_f128_copy(dst, a);
         if (b->exponent == INF_EXPONENT) {
             if (a->sign != b->sign) {
-                a->mant_a = ((unsigned) 1) << 31;
+                dst->mant_a = ((unsigned) 1) << 31;
             }
         }
         return;
@@ -299,56 +411,18 @@ void tacc_f128_addl(struct tacc_f128 *dst,
         near_f = a;
     }
 
-    tacc_u128_from_limbs(&far_f_significand,
-                         far_f->mant_a,
-                         far_f->mant_b,
-                         far_f->mant_c,
-                         far_f->mant_d);
-    tacc_u128_from_limbs(&near_f_significand,
-                         near_f->mant_a,
-                         near_f->mant_b,
-                         near_f->mant_c,
-                         near_f->mant_d);
-    if (near_f->exponent == 0) {
-        /* nonzero subnormal; shift to normalize */
-        near_exponent_adjusted = -tacc_u128_clz(&near_f_significand);
-        tacc_u128_lsh_n(
-            &near_f_significand, &near_f_significand, -near_exponent_adjusted);
-    } else {
-        near_exponent_adjusted = ((int) (near_f->exponent)) - EXP_BIAS;
-
-        /* set implicit bit */
-        tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 1);
-        near_f_significand.a = near_f_significand.a | 0x80000000;
-    }
-    if (far_f->exponent == 0) {
-        far_exponent_adjusted = -tacc_u128_clz(&far_f_significand);
-        tacc_u128_lsh_n(
-            &far_f_significand, &far_f_significand, -far_exponent_adjusted);
-    } else {
-        far_exponent_adjusted = ((int) (far_f->exponent)) - EXP_BIAS;
-
-        /* set implicit bit */
-        tacc_u128_rsh_n(&far_f_significand, &far_f_significand, 1);
-        far_f_significand.a = far_f_significand.a | 0x80000000;
-    }
+    far_exponent_adjusted = tacc_f128_unpack(far_f, &far_f_significand);
+    near_exponent_adjusted = tacc_f128_unpack(near_f, &near_f_significand);
     /*
      * Invariants:
      * - near_f_significand.a & (1<<31) is set, and the same holds for far.
      * - At most 113 MSBs of significands are set.
      */
 
-    /*
-     * Align significands such that guard, round and sticky are easily
-     * accessible at low 3 bits, and to contain overflow.
-     */
-    tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 128 - 113 - 3);
-    tacc_u128_rsh_n(&far_f_significand, &far_f_significand, 128 - 113 - 3);
-
     exponent_delta = far_exponent_adjusted - near_exponent_adjusted;
     if (exponent_delta >= 128) {
         /* underflow, set sticky and reset rest of bits */
-        tacc_u128_from_limbs(&near_f_significand, 0, 0, 0, 1);
+        tacc_u128_from_limbs(&near_f_significand, 0, 0, 0, 0x10000);
     } else {
         /* save the bits that will be lost... */
         tacc_u128_lsh_n(&u128_aux, &near_f_significand, 128 - exponent_delta);
@@ -358,7 +432,7 @@ void tacc_f128_addl(struct tacc_f128 *dst,
         /* lost bits? */
         if (!tacc_u128_is_zero(&u128_aux)) {
             /* ensure sticky bit is set to indicate underflow */
-            tacc_u128_or_u32(&near_f_significand, &near_f_significand, 1);
+            tacc_u128_or_u32(&near_f_significand, &near_f_significand, 0x10000);
         }
     }
 
@@ -371,35 +445,25 @@ void tacc_f128_addl(struct tacc_f128 *dst,
             return;
         }
     } else {
-        tacc_u128_add(&u128_aux, &far_f_significand, &near_f_significand);
-    }
+        /* make space for overflow. this rsh never loses precision */
+        tacc_u128_rsh_n(&far_f_significand, &far_f_significand, 1);
+        tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 1);
 
-    if ((u128_aux.d & 7) > 4) {
-        /* closer than halfway, round up */
-        tacc_u128_add_u32(&u128_aux, &u128_aux, 8);
-    } else if (((u128_aux.d & 7) == 4) && ((u128_aux.d & 8) != 0)) {
-        /* exactly halfway and final digit is odd; round up */
-        tacc_u128_add_u32(&u128_aux, &u128_aux, 8);
+        tacc_u128_add(&u128_aux, &far_f_significand, &near_f_significand);
+
+        if ((u128_aux.a >> 31) == 0) {
+            /* didn't overflow, normalize */
+            tacc_u128_lsh_n(&u128_aux, &u128_aux, 1);
+        } else {
+            /* overflowed, overall exponent becomes higher */
+            far_exponent_adjusted = far_exponent_adjusted + 1;
+        }
     }
 
     exponent_adjust = tacc_u128_clz(&u128_aux);
-    final_exponent = (exponent_adjust - 12) + far_exponent_adjusted;
+    final_exponent = exponent_adjust + far_exponent_adjusted;
 
-    if (final_exponent + EXP_BIAS < 0) {
-        /* subnormal, shift left the best we can */
-        tacc_u128_lsh_n(&u128_aux, &u128_aux, 13);
-        final_exponent = 0;
-    } else {
-        /* discard implicit bit */
-        tacc_u128_lsh_n(&u128_aux, &u128_aux, exponent_adjust + 1);
-    }
-
-    dst->mant_a = u128_aux.a;
-    dst->mant_b = u128_aux.b;
-    dst->mant_c = u128_aux.c;
-    dst->mant_d = u128_aux.d & 0xFFFF0000;
-    dst->exponent = (uint16_t) (final_exponent + EXP_BIAS);
-    dst->sign = far_f->sign;
+    tacc_f128_pack(dst, &u128_aux, final_exponent, far_f->sign);
 }
 
 void tacc_f128_subl(struct tacc_f128 *dst,
@@ -415,19 +479,168 @@ void tacc_f128_subl(struct tacc_f128 *dst,
 void tacc_f128_mull(struct tacc_f128 *dst,
                     struct tacc_f128 *a,
                     struct tacc_f128 *b) {
-    TACC_UNUSED(dst);
-    TACC_UNUSED(a);
-    TACC_UNUSED(b);
-    tacc_assert(ASSERT_TODO, 0, "multiply floats");
+    struct tacc_u128 a_significand;
+    struct tacc_u128 b_significand;
+    struct tacc_u128 product_high;
+    struct tacc_u128 product_low;
+    int a_exponent_adjusted;
+    int b_exponent_adjusted;
+    tacc_bool res_sign;
+
+    if (tacc_f128_is_nan(a)) {
+        tacc_f128_copy(dst, a);
+        return;
+    }
+    if (tacc_f128_is_nan(b)) {
+        tacc_f128_copy(dst, b);
+        return;
+    }
+    /* not NaN */
+
+    res_sign = 0;
+    if (a->sign != b->sign) {
+        res_sign = 1;
+    }
+
+    if (a->exponent == INF_EXPONENT) {
+        tacc_f128_copy(dst, a);
+        dst->sign = 0;
+        if (tacc_f128_is_zero(b)) {
+            dst->mant_a = ((unsigned) 1) << 31;
+            return;
+        }
+        dst->sign = res_sign;
+        return;
+    }
+    if (b->exponent == INF_EXPONENT) {
+        tacc_f128_copy(dst, b);
+        dst->sign = 0;
+        if (tacc_f128_is_zero(a)) {
+            dst->mant_a = ((unsigned) 1) << 31;
+        }
+        dst->sign = res_sign;
+        return;
+    }
+    /* not NaN or +-inf */
+
+    if (tacc_f128_is_zero(a)) {
+        tacc_f128_copy(dst, a);
+        dst->sign = res_sign;
+        return;
+    }
+    if (tacc_f128_is_zero(b)) {
+        tacc_f128_copy(dst, b);
+        dst->sign = res_sign;
+        return;
+    }
+    /* not NaN or +-inf or +-0 */
+
+    a_exponent_adjusted = tacc_f128_unpack(a, &a_significand);
+    b_exponent_adjusted = tacc_f128_unpack(b, &b_significand);
+
+    tacc_u128_mul_widening(
+        &product_high, &product_low, &a_significand, &b_significand);
+    if (!tacc_u128_is_zero(&product_low)) {
+        tacc_u128_or_u32(&product_high, &product_high, 1);
+    }
+    tacc_f128_pack(dst,
+                   &product_high,
+                   a_exponent_adjusted + b_exponent_adjusted,
+                   res_sign);
 }
 
 void tacc_f128_divl(struct tacc_f128 *dst,
                     struct tacc_f128 *a,
                     struct tacc_f128 *b) {
-    TACC_UNUSED(dst);
-    TACC_UNUSED(a);
-    TACC_UNUSED(b);
-    tacc_assert(ASSERT_TODO, 0, "divide floats");
+    tacc_bool res_sign;
+    struct tacc_u128 a_significand;
+    struct tacc_u128 b_significand;
+    struct tacc_u128 quotient_significand;
+    int exponent;
+    size_t i;
+    tacc_bool sign;
+
+    if (tacc_f128_is_nan(a)) {
+        tacc_f128_copy(dst, a);
+        return;
+    }
+    if (tacc_f128_is_nan(b)) {
+        tacc_f128_copy(dst, b);
+        return;
+    }
+    /* not NaN */
+
+    res_sign = 0;
+    if (a->sign != b->sign) {
+        res_sign = 1;
+    }
+
+    if (a->exponent == INF_EXPONENT) {
+        tacc_f128_copy(dst, a);
+        dst->sign = 0;
+        if (tacc_f128_is_zero(b)) {
+            dst->mant_a = ((unsigned) 1) << 31;
+            return;
+        }
+        dst->sign = res_sign;
+        return;
+    }
+    if (b->exponent == INF_EXPONENT) {
+        tacc_f128_zero(dst);
+        dst->sign = res_sign;
+        return;
+    }
+    /* not NaN or +-inf */
+
+    if (tacc_f128_is_zero(b)) {
+        dst->sign = res_sign;
+        dst->exponent = INF_EXPONENT;
+        dst->mant_a = 0;
+        dst->mant_b = 0;
+        dst->mant_c = 0;
+        dst->mant_d = 0;
+        if (tacc_f128_is_zero(a)) {
+            dst->mant_a = ((unsigned) 1) << 31;
+        }
+        return;
+    }
+    if (tacc_f128_is_zero(a)) {
+        tacc_f128_zero(dst);
+        dst->sign = res_sign;
+        return;
+    }
+
+    exponent = tacc_f128_unpack(a, &a_significand);
+    exponent = exponent - tacc_f128_unpack(b, &b_significand);
+
+    /*
+     * this does not reduce to simple division of integers because the decimal
+     * point is located at the start.
+     */
+    tacc_u128_rsh_n(&a_significand, &a_significand, 1);
+    tacc_u128_rsh_n(&b_significand, &b_significand, 1);
+    for (i = 0; i < 128; i = i + 1) {
+        tacc_u128_lsh_n(&quotient_significand, &quotient_significand, 1);
+        if (tacc_u128_uge(&a_significand, &b_significand)) {
+            /* remainder >= divisor */
+            tacc_u128_sub(&a_significand, &a_significand, &b_significand);
+            tacc_u128_or_u32(&quotient_significand, &quotient_significand, 1);
+        }
+        tacc_u128_lsh_n(&a_significand, &a_significand, 1);
+    }
+    if (!tacc_u128_is_zero(&a_significand)) {
+        /* nonzero remainder; consider this for rounding */
+        tacc_u128_or_u32(&quotient_significand, &quotient_significand, 1);
+    }
+    if ((quotient_significand.a >> 31) == 0) {
+        exponent = exponent - 1;
+        tacc_u128_lsh_n(&quotient_significand, &quotient_significand, 1);
+    }
+    sign = 0;
+    if (a->sign != b->sign) {
+        sign = 1;
+    }
+    tacc_f128_pack(dst, &quotient_significand, exponent, sign);
 }
 
 void tacc_f128_addl_u32(struct tacc_f128 *dst,
@@ -477,13 +690,52 @@ void tacc_f128_copysignl(struct tacc_f128 *dst,
     dst->sign = sign;
 }
 
-void tacc_f128_fmodl(struct tacc_f128 *dst,
-                     struct tacc_f128 *dividend,
-                     struct tacc_f128 *divisor) {
-    TACC_UNUSED(dst);
-    TACC_UNUSED(dividend);
-    TACC_UNUSED(divisor);
-    tacc_assert(ASSERT_TODO, 0, "fmod floats");
+void tacc_f128_fmodl_p2(struct tacc_f128 *dst,
+                        struct tacc_f128 *dividend,
+                        int modulus_p2) {
+    int exp;
+    int exp_delta;
+    int clz;
+    struct tacc_u128 significand;
+
+    if ((modulus_p2 + EXP_BIAS + SIGNIFICANT_DIGITS <= 0) ||
+        dividend->exponent == INF_EXPONENT) {
+        dst->exponent = INF_EXPONENT;
+        dst->mant_a = 0x80000000;
+        dst->mant_b = 0;
+        dst->mant_c = 0;
+        dst->mant_d = 0;
+        dst->sign = 0;
+        return;
+    }
+    if (tacc_f128_is_zero(dividend) || (modulus_p2 > MAX_NORM_EXP)) {
+        tacc_f128_copy(dst, dividend);
+        return;
+    }
+
+    exp = tacc_f128_unpack(dividend, &significand);
+    if (exp < modulus_p2) {
+        /* abs(N) completely within modulus */
+        tacc_f128_copy(dst, dividend);
+        return;
+    }
+    if (exp - SIGNIFICANT_DIGITS > modulus_p2) {
+        /* we are a multiple of the modulus */
+        dst->exponent = 0;
+        dst->mant_a = 0;
+        dst->mant_b = 0;
+        dst->mant_c = 0;
+        dst->mant_d = 0;
+        dst->sign = dividend->sign;
+        return;
+    }
+    /* TODO: signs correct? */
+    exp_delta = modulus_p2 - (exp - SIGNIFICANT_DIGITS);
+    tacc_u128_lsh_n(&significand, &significand, exp_delta);
+    clz = tacc_u128_clz(&significand);
+    tacc_u128_lsh_n(&significand, &significand, clz);
+
+    tacc_f128_pack(dst, &significand, exp - exp_delta - clz, dividend->sign);
 }
 
 /* rounds to nearest, ties to even */

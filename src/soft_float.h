@@ -47,9 +47,9 @@ void tacc_f128_absl(struct tacc_f128 *dst, struct tacc_f128 *src);
 void tacc_f128_copysignl(struct tacc_f128 *dst,
                          struct tacc_f128 *orig,
                          struct tacc_f128 *sign_src);
-void tacc_f128_fmodl(struct tacc_f128 *dst,
-                     struct tacc_f128 *dividend,
-                     struct tacc_f128 *divisor);
+void tacc_f128_fmodl_p2(struct tacc_f128 *dst,
+                        struct tacc_f128 *dividend,
+                        int modulus_p2);
 void tacc_f128_round_f64(struct tacc_f128 *dst, struct tacc_f128 *src);
 
 #endif
