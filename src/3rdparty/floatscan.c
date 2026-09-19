@@ -765,7 +765,6 @@ static void hexfloat(struct tacc_file_iter *f,
     } else {
         shunget(f);
     }
-    tacc_u64_add_u32(&e2, &e2, 4);
     tacc_u64_add_s32(&e2, &e2, 4 * rp - 32);
 
     if (!x) {
