@@ -780,7 +780,7 @@ static void hexfloat(struct tacc_file_iter *f,
                 !(tacc_u64_slt_s32(&e2, emin - 2 * 113 /* LDBL_MANT_DIG */)),
                 "exponent out of range");
 
-    while ((x >> ((unsigned) 31)) != 0) {
+    while ((x >> ((unsigned) 31)) == 0) {
         tacc_f128_mull_u32(&aux_f, &y, 2);
         if (tacc_f128_ge_s32(&aux_f, 1)) {
             x = x + x + 1;
