@@ -163,7 +163,7 @@ static void tacc_f128_normalize(struct tacc_f128 *f) {
         f->exponent = 32767;
     }
     /* drop excess precision */
-    f->mant_d &= ((unsigned) 0xFFFFFFFF) << (128 - 113);
+    f->mant_d &= 0xFFFF0000;
 }
 
 static void tacc_f128_ldexp1(struct tacc_f128 *f, int exp) {
