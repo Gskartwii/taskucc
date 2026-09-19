@@ -98,15 +98,30 @@ uint32_t f128add_test_data[] = {
 };
 size_t count_f128add_data = 4;
 
+uint32_t f128mul_test_data[] = {
+    /* 0 * 0 = 0 */     0, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
+    /* -0 * 0 = -0 */    0x80000000, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0,
+    /* -0 * -0 = 0 */  0x80000000, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0, /*,*/ 0, 0, 0, 0,
+    /* 1 * 2 = 2 */     0x3FFF0000, 0, 0, 0, /*,*/ 0x40000000, 0, 0, 0, /*,*/ 0x40000000, 0, 0, 0,
+    /* 10 * 1000000000 = 10000000000 */ 0x40024000, 0, 0, 0, /*,*/ 0x401CDCD6, 0x50000000, 0, 0, /*,*/ 0x40202A05, 0xF2000000, 0, 0,
+};
+size_t count_f128mul_data = 5;
+
 uint32_t fparse_test_data[] = {
     /* 0.0 */ 0, 0, 0, 0,
     /* 1.0 */ 0x3FFF0000, 0, 0, 0,
+    /* 1.5 */ 0x3FFF8000, 0, 0, 0,
+    /* 2.0 */ 0x40000000, 0, 0, 0,
+    /* 0x2.0 */ 0x40000000, 0, 0, 0,
 };
 char *fparse_test_cases[] = {
     "0.0",
     "1.0",
+    "1.5",
+    "2.0",
+    "0x2.0",
 };
-size_t count_fparse_data = 2;
+size_t count_fparse_data = 5;
 /* clang-format on */
 
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
@@ -236,6 +251,12 @@ int run_tests(void) {
     for (i = 0; i < count_f128add_data; i = i + 1) {
         ZERO_F128 READ3_F128 PRINT3_F128("f128_add");
         tacc_f128_addl(&c_f, &a_f, &b_f);
+        CHECK_F128
+    }
+    data = (uint32_t *) f128mul_test_data;
+    for (i = 0; i < count_f128mul_data; i = i + 1) {
+        ZERO_F128 READ3_F128 PRINT3_F128("f128_mul");
+        tacc_f128_mull(&c_f, &a_f, &b_f);
         CHECK_F128
     }
 
