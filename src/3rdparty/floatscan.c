@@ -507,7 +507,8 @@ static void decfloat(struct tacc_file_iter *f,
             tacc_u64_from_u32(&aux, decbuf_val(decbuf_i));
             tacc_u64_lsh_n(&aux, &aux, 29);
             tacc_u64_add_u32(&aux, &aux, carry);
-            if (aux.high != 0 || aux.low > 1000000000) {
+            tacc_u64_from_u32(&aux_2, 1000000000);
+            if (tacc_u64_ugt(&aux, &aux_2)) {
                 tacc_u64_from_u32(&aux_2, 1000000000);
                 tacc_u64_udiv(&aux, &aux_2, &aux, &aux_2);
                 carry = aux.low;
