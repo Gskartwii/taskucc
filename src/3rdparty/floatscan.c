@@ -562,7 +562,8 @@ static void decfloat(struct tacc_file_iter *f,
         for (decbuf_i = a; decbuf_i != decbuf_end;
              decbuf_i = (decbuf_i + 1) & DECBUF_LIMIT) {
             tmp = decbuf_val(decbuf_i) & ((uint32_t) ((1 << shift) - 1));
-            decbuf_set(decbuf_i, (decbuf_val(decbuf_i) >> shift) + carry);
+            decbuf_set(decbuf_i,
+                       (decbuf_val(decbuf_i) >> ((unsigned) shift)) + carry);
             carry = ((uint32_t) (1000000000 >> shift)) * tmp;
             if (decbuf_i == a && !decbuf_val(decbuf_i)) {
                 a = (a + 1) & DECBUF_LIMIT;
