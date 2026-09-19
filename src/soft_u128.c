@@ -321,8 +321,8 @@ void tacc_u128_mul_widening(struct tacc_u128 *dst_high,
     b_48 = (b->c >> 16) & 0xFFFF;
     b_64 = b->b & 0xFFFF;
     b_80 = (b->b >> 16) & 0xFFFF;
-    b_96 = b->b & 0xFFFF;
-    b_112 = (b->b >> 16) & 0xFFFF;
+    b_96 = b->a & 0xFFFF;
+    b_112 = (b->a >> 16) & 0xFFFF;
 
     tacc_u128_from_limbs(dst_high, 0, 0, 0, 0);
     tacc_u128_from_limbs(dst_low, 0, 0, 0, 0);
