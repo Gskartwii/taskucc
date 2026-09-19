@@ -496,7 +496,8 @@ static void decfloat(struct tacc_file_iter *f,
             decbuf_set(decbuf_end, carry);
             decbuf_end = decbuf_end + 1;
         }
-        offset_first_sd_from_decpoint += 9 - rpm9;
+        offset_first_sd_from_decpoint =
+            offset_first_sd_from_decpoint + 9 - rpm9;
     }
 
     ld_b1b_dig = 4;
