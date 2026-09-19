@@ -80,6 +80,8 @@
     "format.h"
     "tasku_pp.h"
     "compile.h"
+    "testdata/floatscan_in.inc"
+    "testdata/floatscan_out.inc"
     "test.h"
   ];
   m2-all = includes ++ local_hdrs ++ srcFiles;

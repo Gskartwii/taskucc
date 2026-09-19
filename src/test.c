@@ -127,6 +127,10 @@ char *fparse_test_cases[] = {
 size_t count_fparse_data = 6;
 /* clang-format on */
 
+#include "testdata/floatscan_in.inc"
+#include "testdata/floatscan_out.inc"
+size_t count_fparse_musl = 1840;
+
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
     if ((a->high != exp->high) || (a->low != exp->low)) {
         printf("  %x:%x != %x:%x (expected)",
@@ -275,6 +279,23 @@ int run_tests(void) {
 
         ZERO_F128
         printf("[fparse] %s ", fstr);
+        iter = tacc_file_iter_new_str(fstr, fstr + strlen(fstr));
+        floatscan(iter, 3, &c_f);
+        tacc_free(iter);
+        READ_F128(exp_f);
+        CHECK_F128
+    }
+
+    data = (uint32_t *) fparse_musl_test_data;
+    f_strs = (char *) fparse_musl_test_cases;
+
+    for (i = 0; i < count_fparse_musl; i = i + 1) {
+        f_strs_2 = (char **) f_strs;
+        fstr = *f_strs_2;
+        f_strs = f_strs + sizeof(char *);
+
+        ZERO_F128
+        printf("[fparse-musl] %s ", fstr);
         iter = tacc_file_iter_new_str(fstr, fstr + strlen(fstr));
         floatscan(iter, 3, &c_f);
         tacc_free(iter);
