@@ -224,6 +224,8 @@ static void scanexp(struct tacc_file_iter *f, struct tacc_u64 *out) {
     struct tacc_u64 llong_max_div100;
     int neg = 0;
 
+    tacc_u64_zero(&y);
+
     llong_max_div100.low = 0x7ae147ae;
     llong_max_div100.high = 0x0147ae14;
 
@@ -233,7 +235,8 @@ static void scanexp(struct tacc_file_iter *f, struct tacc_u64 *out) {
         tacc_file_iter_accept_ch(f, '+');
     }
     c = shgetc(f);
-    tacc_assert(ASSERT_DIAG, (unsigned) (c - '0') >= 10, "invalid exponent");
+    tacc_assert(
+        ASSERT_DIAG, (unsigned) (c - '0') < 10, "invalid exponent %d", c);
     for (x = 0; (unsigned) (c - '0') < 10 && x < INTMAX_DIV_10; c = shgetc(f)) {
         x = 10 * x + (int) (c - '0');
     }
@@ -411,11 +414,18 @@ static void decfloat(struct tacc_file_iter *f,
 
     if (seen_digits && (c | 32) == 'e') {
         scanexp(f, &exp_as_written);
-        tacc_assert(
-            ASSERT_DIAG, exp_as_written.high == 0, "exponent out of range");
+        tacc_u64_from_i32(&aux, emin);
+        tacc_u64_from_u32(&aux_2, 0xFFFFFFFF);
         tacc_assert(ASSERT_DIAG,
-                    (int) (exp_as_written.low) < emin,
-                    "exponent out of range");
+                    tacc_u64_sle(&exp_as_written, &aux_2),
+                    "exponent too high: %x:%x > %x:%x",
+                    exp_as_written.high,
+                    exp_as_written.low,
+                    aux_2.high,
+                    aux_2.low);
+        tacc_assert(ASSERT_DIAG,
+                    tacc_u64_sge(&exp_as_written, &aux),
+                    "exponent too low");
         exponent_of_10 = exponent_of_10 + (int) (exp_as_written.low);
     } else if (c >= 0) {
         shunget(f);
@@ -439,10 +449,6 @@ static void decfloat(struct tacc_file_iter *f,
         out->sign = 1;
         return;
     }
-    tacc_assert(
-        ASSERT_DIAG, !(exponent_of_10 > (-emin / 2)), "exponent too large");
-    tacc_assert(
-        ASSERT_DIAG, !(exponent_of_10 < (emin - 2)), "exponent too small");
 
     /* Align incomplete final B1B digit */
     if (decbuf_curr_pow10) {
@@ -666,10 +672,6 @@ static void decfloat(struct tacc_file_iter *f,
             tacc_f128_from_frac(&aux_f, 1, 2);
             tacc_f128_mull(&y, &y, &aux_f);
             exp_adjustment++;
-        }
-        if (exp_adjustment + ldbl_mant_dig > emax ||
-            (denormal && tacc_f128_is_zero(&frac))) {
-            tacc_assert(ASSERT_DIAG, 0, "float out of range");
         }
     }
 
