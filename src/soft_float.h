@@ -1,7 +1,6 @@
 #ifndef TACC_SOFT_FLOAT_H
 #define TACC_SOFT_FLOAT_H
 
-#include "soft_u128.h"
 #include "util.h"
 #include <stdint.h>
 
@@ -51,5 +50,6 @@ void tacc_f128_fmodl_p2(struct tacc_f128 *dst,
                         struct tacc_f128 *dividend,
                         int modulus_p2);
 void tacc_f128_round_f64(struct tacc_f128 *dst, struct tacc_f128 *src);
+void tacc_f128_dump(struct tacc_f128 *f, char *name);
 
 #endif

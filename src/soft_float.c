@@ -1,5 +1,5 @@
 #include "soft_float.h"
-#include "gcc_compat.h"
+#include "soft_u128.h"
 #include "util.h"
 
 #define EXP_BIAS 16383
@@ -887,4 +887,15 @@ void tacc_f128_round_f64(struct tacc_f128 *dst, struct tacc_f128 *src) {
          * the uniquely closest rounding (rounded down)
          */
     }
+}
+
+void tacc_f128_dump(struct tacc_f128 *f, char *name) {
+    printf("%s = %d; %04x; %08x%08x%08x%08x\n",
+           name,
+           f->sign,
+           f->exponent,
+           f->mant_a,
+           f->mant_b,
+           f->mant_c,
+           f->mant_d);
 }
