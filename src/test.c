@@ -124,7 +124,7 @@ char *fparse_test_cases[] = {
     "10000.345",
     "0x2.0",
 };
-size_t count_fparse_data = 5;
+size_t count_fparse_data = 6;
 /* clang-format on */
 
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {

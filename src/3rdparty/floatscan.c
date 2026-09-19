@@ -822,7 +822,7 @@ static void hexfloat(struct tacc_file_iter *f,
     tacc_f128_subl(&y, &y, &bias);
 
     tacc_assert(ASSERT_DIAG,
-                tacc_f128_is_zero(&y),
+                !tacc_f128_is_zero(&y),
                 "subnormal hexadecimal floating-point number");
 
     tacc_f128_scalbnl(out, &y, (int) e2.low);
