@@ -462,7 +462,8 @@ static void decfloat(struct tacc_file_iter *f,
 
     /* Drop trailing zeros */
     /* exp_adjustment = 0 here is a no-op for M2 compat */
-    for (exp_adjustment = 0; !decbuf_val(decbuf_end - 1); decbuf_end--) {
+    for (exp_adjustment = 0; !decbuf_val(decbuf_end - 1);
+         decbuf_end = decbuf_end - 1) {
     }
 
     /* Align radix point to B1B digit boundary */
