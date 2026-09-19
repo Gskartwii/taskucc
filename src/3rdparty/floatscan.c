@@ -654,7 +654,7 @@ static void hexfloat(struct tacc_file_iter *f,
 
     tacc_u64_zero(&e2);
     tacc_f128_zero(&y);
-    tacc_f128_zero(&scale);
+    tacc_f128_from_u32(&scale, 1);
     tacc_f128_zero(&bias);
     rp = 0;
     dc = 0;
