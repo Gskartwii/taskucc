@@ -543,6 +543,11 @@ void tacc_f128_mull(struct tacc_f128 *dst,
     if (!tacc_u128_is_zero(&product_low)) {
         tacc_u128_or_u32(&product_high, &product_high, 1);
     }
+    if ((product_high.a >> 31) == 0) {
+        tacc_u128_lsh_n(&product_high, &product_high, 1);
+    } else {
+        a_exponent_adjusted = a_exponent_adjusted + 1;
+    }
     tacc_f128_pack(dst,
                    &product_high,
                    a_exponent_adjusted + b_exponent_adjusted,
