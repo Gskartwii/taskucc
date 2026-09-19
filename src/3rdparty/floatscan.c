@@ -741,10 +741,10 @@ static void hexfloat(struct tacc_file_iter *f,
     while ((x >> ((unsigned) 31)) != 0) {
         tacc_f128_mull_u32(&aux_f, &y, 2);
         if (tacc_f128_ge_s32(&aux_f, 1)) {
-            x += x + 1;
+            x = x + x + 1;
             tacc_f128_subl_u32(&y, &y, 1);
         } else {
-            x += x;
+            x = x + x;
             tacc_f128_addl(&y, &y, &y);
         }
         tacc_u64_add_s32(&e2, &e2, -1);
