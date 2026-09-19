@@ -427,7 +427,7 @@ void tacc_f128_addl(struct tacc_f128 *dst,
     if (exponent_delta >= 128) {
         /* underflow, set sticky and reset rest of bits */
         tacc_u128_from_limbs(&near_f_significand, 0, 0, 0, 1);
-    } else {
+    } else if (exponent_delta != 0) {
         /* save the bits that will be lost... */
         tacc_u128_lsh_n(&u128_aux, &near_f_significand, 128 - exponent_delta);
         tacc_u128_rsh_n(
