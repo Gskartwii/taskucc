@@ -129,7 +129,7 @@ size_t count_fparse_data = 6;
 
 #include "testdata/floatscan_in.inc"
 #include "testdata/floatscan_out.inc"
-size_t count_fparse_musl = 1840;
+size_t count_fparse_musl = 3658;
 
 int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
     if ((a->high != exp->high) || (a->low != exp->low)) {
