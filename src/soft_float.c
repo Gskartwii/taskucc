@@ -284,14 +284,17 @@ static void tacc_f128_pack(struct tacc_f128 *f,
         }
     }
 
-    if ((significand->d & 0xFFFF) > 0x8000 ||
-        ((significand->d & 0xFFFF) == 0x8000 &&
-         (significand->d & 0x10000) != 0)) {
+    /* implicit bit is still present, so rounding boundary is at 0x4000 */
+    if ((significand->d & 0x7FFF) > 0x4000 ||
+        ((significand->d & 0x7FFF) == 0x4000 &&
+         (significand->d & 0x8000) != 0)) {
         /* round up */
 
         /* make space to catch overflow */
         tacc_u128_rsh_n(significand, significand, 1);
-        tacc_u128_add_u32(significand, significand, 0x10000);
+
+        /* add 1 to last digit, AT THE LOWER position due to rsh */
+        tacc_u128_add_u32(significand, significand, 0x4000);
         if ((significand->a >> 31) != 0) {
             if (is_subnormal) {
                 /* overflow from subnormal to minimum normal number */
@@ -340,7 +343,6 @@ static void tacc_f128_pack(struct tacc_f128 *f,
     f->mant_d = significand->d & 0xFFFF0000;
     f->sign = sign;
     f->exponent = (uint16_t) (final_exponent + EXP_BIAS);
-    f->sign = sign;
 }
 
 void tacc_f128_addl(struct tacc_f128 *dst,
@@ -422,7 +424,7 @@ void tacc_f128_addl(struct tacc_f128 *dst,
     exponent_delta = far_exponent_adjusted - near_exponent_adjusted;
     if (exponent_delta >= 128) {
         /* underflow, set sticky and reset rest of bits */
-        tacc_u128_from_limbs(&near_f_significand, 0, 0, 0, 0x10000);
+        tacc_u128_from_limbs(&near_f_significand, 0, 0, 0, 1);
     } else {
         /* save the bits that will be lost... */
         tacc_u128_lsh_n(&u128_aux, &near_f_significand, 128 - exponent_delta);
@@ -432,7 +434,7 @@ void tacc_f128_addl(struct tacc_f128 *dst,
         /* lost bits? */
         if (!tacc_u128_is_zero(&u128_aux)) {
             /* ensure sticky bit is set to indicate underflow */
-            tacc_u128_or_u32(&near_f_significand, &near_f_significand, 0x10000);
+            tacc_u128_or_u32(&near_f_significand, &near_f_significand, 1);
         }
     }
 
@@ -445,9 +447,15 @@ void tacc_f128_addl(struct tacc_f128 *dst,
             return;
         }
     } else {
-        /* make space for overflow. this rsh never loses precision */
+        /* make space for overflow. far rsh never loses precision */
         tacc_u128_rsh_n(&far_f_significand, &far_f_significand, 1);
-        tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 1);
+
+        if ((near_f_significand.d & 1) != 0) {
+            tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 1);
+            tacc_u128_or_u32(&near_f_significand, &near_f_significand, 1);
+        } else {
+            tacc_u128_rsh_n(&near_f_significand, &near_f_significand, 1);
+        }
 
         tacc_u128_add(&u128_aux, &far_f_significand, &near_f_significand);
 
