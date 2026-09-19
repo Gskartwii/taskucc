@@ -301,7 +301,7 @@ int calc_p10(int index) {
     int *p10_pos;
 
     p10 = (char *) powers_of_10;
-    p10 = p10 + ((size_t) index) * (sizeof(uint32_t));
+    p10 = p10 + ((size_t) index) * (sizeof(int));
     p10_pos = (int *) p10;
 
     return *p10_pos;
