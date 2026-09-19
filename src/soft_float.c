@@ -448,6 +448,9 @@ void tacc_f128_addl(struct tacc_f128 *dst,
             tacc_f128_zero(dst);
             return;
         }
+        exponent_adjust = tacc_u128_clz(&u128_aux);
+        tacc_u128_lsh_n(&u128_aux, &u128_aux, exponent_adjust);
+        final_exponent = far_exponent_adjusted - exponent_adjust;
     } else {
         /* make space for overflow. far rsh never loses precision */
         tacc_u128_rsh_n(&far_f_significand, &far_f_significand, 1);
@@ -468,10 +471,8 @@ void tacc_f128_addl(struct tacc_f128 *dst,
             /* overflowed, overall exponent becomes higher */
             far_exponent_adjusted = far_exponent_adjusted + 1;
         }
+        final_exponent = far_exponent_adjusted;
     }
-
-    exponent_adjust = tacc_u128_clz(&u128_aux);
-    final_exponent = exponent_adjust + far_exponent_adjusted;
 
     tacc_f128_pack(dst, &u128_aux, final_exponent, far_f->sign);
 }

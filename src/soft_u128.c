@@ -36,12 +36,12 @@ int tacc_u128_clz(struct tacc_u128 *n) {
         return tacc_clz(n->a);
     }
     if (n->b != 0) {
-        return 32 + tacc_clz(n->a);
+        return 32 + tacc_clz(n->b);
     }
     if (n->c != 0) {
-        return 64 + tacc_clz(n->a);
+        return 64 + tacc_clz(n->c);
     }
-    return 96 + tacc_clz(n->a);
+    return 96 + tacc_clz(n->d);
 }
 
 static uint32_t tacc_rsh_or_trunc(uint32_t in, unsigned int n) {
