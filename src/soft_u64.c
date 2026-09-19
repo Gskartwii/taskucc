@@ -309,10 +309,14 @@ tacc_bool tacc_u64_uge(struct tacc_u64 *left, struct tacc_u64 *right) {
 tacc_bool tacc_u64_slt(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
-    int32_t l_lo = (int32_t) (left->low);
-    int32_t r_lo = (int32_t) (right->low);
 
-    return l_hi < r_hi || (l_hi == r_hi && l_lo < r_lo);
+    if (l_hi < r_hi) {
+        return 1;
+    }
+    if (l_hi > r_hi) {
+        return 0;
+    }
+    return left->low < right->low;
 }
 
 tacc_bool tacc_u64_slt_s32(struct tacc_u64 *left, int32_t right) {
@@ -324,10 +328,14 @@ tacc_bool tacc_u64_slt_s32(struct tacc_u64 *left, int32_t right) {
 tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
-    int32_t l_lo = (int32_t) (left->low);
-    int32_t r_lo = (int32_t) (right->low);
 
-    return l_hi > r_hi || (l_hi == r_hi && l_lo > r_lo);
+    if (l_hi < r_hi) {
+        return 0;
+    }
+    if (l_hi > r_hi) {
+        return 1;
+    }
+    return left->low > right->low;
 }
 
 tacc_bool tacc_u64_sgt_s32(struct tacc_u64 *left, int32_t right) {
@@ -339,18 +347,26 @@ tacc_bool tacc_u64_sgt_s32(struct tacc_u64 *left, int32_t right) {
 tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
-    int32_t l_lo = (int32_t) (left->low);
-    int32_t r_lo = (int32_t) (right->low);
 
-    return l_hi < r_hi || (l_hi == r_hi && l_lo <= r_lo);
+    if (l_hi < r_hi) {
+        return 1;
+    }
+    if (l_hi > r_hi) {
+        return 0;
+    }
+    return left->low <= right->low;
 }
 tacc_bool tacc_u64_sge(struct tacc_u64 *left, struct tacc_u64 *right) {
     int32_t l_hi = (int32_t) (left->high);
     int32_t r_hi = (int32_t) (right->high);
-    int32_t l_lo = (int32_t) (left->low);
-    int32_t r_lo = (int32_t) (right->low);
 
-    return l_hi < r_hi || (l_hi == r_hi && l_lo >= r_lo);
+    if (l_hi < r_hi) {
+        return 0;
+    }
+    if (l_hi > r_hi) {
+        return 1;
+    }
+    return left->low >= right->low;
 }
 
 tacc_bool tacc_u64_sign(struct tacc_u64 *src) {
