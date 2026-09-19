@@ -393,11 +393,10 @@ static void decfloat(struct tacc_file_iter *f,
             } else {
                 decbuf_set(decbuf_i, (uint32_t) (c - '0'));
             }
+            decbuf_curr_pow10 = decbuf_curr_pow10 + 1;
             if (decbuf_curr_pow10 == 9) {
                 decbuf_i = decbuf_i + 1;
                 decbuf_curr_pow10 = 0;
-            } else {
-                decbuf_curr_pow10 = decbuf_curr_pow10 + 1;
             }
             seen_digits = 1;
         } else {
