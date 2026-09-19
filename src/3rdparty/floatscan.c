@@ -266,6 +266,47 @@ uint32_t th_f128[4] = {10384593, 717069655, 257060992, 658440191};
 int powers_of_10[8] = {
     10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000};
 
+uint32_t decbuf_val(int index) {
+    char *decbuf;
+    uint32_t *decbuf_pos;
+
+    decbuf = (char *) decimal_buffer;
+    decbuf = decbuf + ((size_t) index) * (sizeof(uint32_t));
+    decbuf_pos = (uint32_t *) decbuf;
+
+    return *decbuf_pos;
+}
+void decbuf_set(int index, uint32_t val) {
+    char *decbuf;
+    uint32_t *decbuf_pos;
+
+    decbuf = (char *) decimal_buffer;
+    decbuf = decbuf + ((size_t) index) * (sizeof(uint32_t));
+    decbuf_pos = (uint32_t *) decbuf;
+
+    *decbuf_pos = val;
+}
+uint32_t th_val(int index) {
+    char *th;
+    uint32_t *th_pos;
+
+    th = (char *) th_f128;
+    th = th + ((size_t) index) * (sizeof(uint32_t));
+    th_pos = (uint32_t *) th;
+
+    return *th_pos;
+}
+int calc_p10(int index) {
+    char *p10;
+    int *p10_pos;
+
+    p10 = (char *) powers_of_10;
+    p10 = p10 + ((size_t) index) * (sizeof(uint32_t));
+    p10_pos = (int *) p10;
+
+    return *p10_pos;
+}
+
 static void decfloat(struct tacc_file_iter *f,
                      int bits,
                      int emin,
@@ -297,7 +338,6 @@ static void decfloat(struct tacc_file_iter *f,
     uint32_t tmp;
     int ld_b1b_dig;
     int ldbl_mant_dig;
-    uint32_t *th;
     int shift;
     uint32_t tail_begin;
     struct tacc_f128 aux_f;
@@ -334,7 +374,7 @@ static void decfloat(struct tacc_file_iter *f,
         }
     }
 
-    decimal_buffer[0] = 0;
+    decbuf_set(0, 0);
     for (c = shgetc(f); (unsigned) (c - '0') < 10 || c == '.'; c = shgetc(f)) {
         if (c == '.') {
             if (seen_decimal_point) {
@@ -345,10 +385,10 @@ static void decfloat(struct tacc_file_iter *f,
         } else if (decbuf_i < DECIMAL_BUFFER_SIZE - 3) {
             num_significant_digits = num_significant_digits + 1;
             if (decbuf_curr_pow10) {
-                decimal_buffer[decbuf_i] =
-                    decimal_buffer[decbuf_i] * 10 + (uint32_t) (c - '0');
+                decbuf_set(decbuf_i,
+                           decbuf_val(decbuf_i) * 10 + (uint32_t) (c - '0'));
             } else {
-                decimal_buffer[decbuf_i] = (uint32_t) (c - '0');
+                decbuf_set(decbuf_i, (uint32_t) (c - '0'));
             }
             if (decbuf_curr_pow10 == 9) {
                 decbuf_i = decbuf_i + 1;
@@ -360,8 +400,8 @@ static void decfloat(struct tacc_file_iter *f,
         } else {
             num_significant_digits = num_significant_digits + 1;
             if (c != '0') {
-                decimal_buffer[DECIMAL_BUFFER_SIZE - 4] =
-                    decimal_buffer[DECIMAL_BUFFER_SIZE - 4] | 1;
+                decbuf_set(DECIMAL_BUFFER_SIZE - 4,
+                           decbuf_val(DECIMAL_BUFFER_SIZE - 4) | 1);
             }
         }
     }
@@ -383,7 +423,7 @@ static void decfloat(struct tacc_file_iter *f,
     tacc_assert(ASSERT_DIAG, seen_digits, "invalid floating literal");
 
     /* Handle zero specially to avoid nasty special cases later */
-    if (decimal_buffer[0] == 0) {
+    if (decbuf_val(0) == 0) {
         tacc_f128_zero(out);
         if (sign < 0) {
             out->sign = 1;
@@ -394,8 +434,8 @@ static void decfloat(struct tacc_file_iter *f,
     /* Optimize small integers (w/no exponent) and over/under-flow */
     if (exponent_of_10 == (int) num_significant_digits &&
         num_significant_digits < 10 &&
-        (bits > 30 || decimal_buffer[0] >> ((unsigned) bits) == 0)) {
-        tacc_f128_from_u32(out, decimal_buffer[0]);
+        (bits > 30 || decbuf_val(0) >> ((unsigned) bits) == 0)) {
+        tacc_f128_from_u32(out, decbuf_val(0));
         out->sign = 1;
         return;
     }
@@ -409,7 +449,7 @@ static void decfloat(struct tacc_file_iter *f,
         /* out->sign nop operation to avoid M2 issues */
         for (out->sign = 0; decbuf_curr_pow10 < 9;
              decbuf_curr_pow10 = decbuf_curr_pow10 + 1) {
-            decimal_buffer[decbuf_i] = decimal_buffer[decbuf_i] * 10;
+            decbuf_set(decbuf_i, decbuf_val(decbuf_i) * 10);
         }
         decbuf_i = decbuf_i + 1;
         decbuf_curr_pow10 = 0;
@@ -422,7 +462,7 @@ static void decfloat(struct tacc_file_iter *f,
 
     /* Drop trailing zeros */
     /* exp_adjustment = 0 here is a no-op for M2 compat */
-    for (exp_adjustment = 0; !decimal_buffer[decbuf_end - 1]; decbuf_end--) {
+    for (exp_adjustment = 0; !decbuf_val(decbuf_end - 1); decbuf_end--) {
     }
 
     /* Align radix point to B1B digit boundary */
@@ -432,21 +472,21 @@ static void decfloat(struct tacc_file_iter *f,
         } else {
             rpm9 = (offset_first_sd_from_decpoint % 9) + 9;
         }
-        power_of_10 = powers_of_10[8 - rpm9];
+        power_of_10 = calc_p10(8 - rpm9);
         carry = 0;
         /* Why decbuf_i=a? Why not decbuf_i=0 ??? */
         for (decbuf_i = a; decbuf_i != decbuf_end; decbuf_i = decbuf_i + 1) {
-            tmp = decimal_buffer[decbuf_i] % (uint32_t) power_of_10;
-            decimal_buffer[decbuf_i] =
-                decimal_buffer[decbuf_i] / (uint32_t) power_of_10 + carry;
+            tmp = decbuf_val(decbuf_i) % (uint32_t) power_of_10;
+            decbuf_set(decbuf_i,
+                       decbuf_val(decbuf_i) / (uint32_t) power_of_10 + carry);
             carry = (uint32_t) (1000000000 / power_of_10) * tmp;
-            if (decbuf_i == a && !decimal_buffer[decbuf_i]) {
+            if (decbuf_i == a && !decbuf_val(decbuf_i)) {
                 a = (a + 1) & DECBUF_LIMIT;
                 offset_first_sd_from_decpoint -= 9;
             }
         }
         if (carry) {
-            decimal_buffer[decbuf_end] = carry;
+            decbuf_set(decbuf_end, carry);
             decbuf_end = decbuf_end + 1;
         }
         offset_first_sd_from_decpoint += 9 - rpm9;
@@ -454,30 +494,29 @@ static void decfloat(struct tacc_file_iter *f,
 
     ld_b1b_dig = 4;
     ldbl_mant_dig = 113;
-    th = th_f128;
 
     /* Upscale until desired number of bits are left of radix point */
     while (offset_first_sd_from_decpoint < 9 * ld_b1b_dig ||
            (offset_first_sd_from_decpoint == 9 * ld_b1b_dig &&
-            decimal_buffer[a] < th[0])) {
+            decbuf_val(a) < th_val(0))) {
         carry = 0;
         exp_adjustment -= 29;
         for (decbuf_i = (decbuf_end - 1) & DECBUF_LIMIT; 1;
              decbuf_i = (decbuf_i - 1) & DECBUF_LIMIT) {
-            tacc_u64_from_u32(&aux, decimal_buffer[decbuf_i]);
+            tacc_u64_from_u32(&aux, decbuf_val(decbuf_i));
             tacc_u64_lsh_n(&aux, &aux, 29);
             tacc_u64_add_u32(&aux, &aux, carry);
             if (aux.high != 0 || aux.low > 1000000000) {
                 tacc_u64_from_u32(&aux_2, 1000000000);
                 tacc_u64_udiv(&aux, &aux_2, &aux, &aux_2);
                 carry = aux.low;
-                decimal_buffer[decbuf_i] = aux_2.low;
+                decbuf_set(decbuf_i, aux_2.low);
             } else {
                 carry = 0;
-                decimal_buffer[decbuf_i] = aux.low;
+                decbuf_set(decbuf_i, aux.low);
             }
             if (decbuf_i == ((decbuf_end - 1) & DECBUF_LIMIT) &&
-                decbuf_i != a && !decimal_buffer[decbuf_i]) {
+                decbuf_i != a && !decbuf_val(decbuf_i)) {
                 decbuf_end = decbuf_i;
             }
             if (decbuf_i == a) {
@@ -489,10 +528,11 @@ static void decfloat(struct tacc_file_iter *f,
             a = (a - 1) & DECBUF_LIMIT;
             if (a == decbuf_end) {
                 decbuf_end = (decbuf_end - 1) & DECBUF_LIMIT;
-                decimal_buffer[(decbuf_end - 1) & DECBUF_LIMIT] |=
-                    decimal_buffer[decbuf_end];
+                decbuf_set((decbuf_end - 1) & DECBUF_LIMIT,
+                           decbuf_val((decbuf_end - 1) & DECBUF_LIMIT) |
+                               decbuf_val(decbuf_end));
             }
-            decimal_buffer[a] = carry;
+            decbuf_set(a, carry);
         }
     }
 
@@ -502,11 +542,11 @@ static void decfloat(struct tacc_file_iter *f,
         shift = 1;
         for (i = 0; i < ld_b1b_dig; i++) {
             decbuf_i = (a + i) & DECBUF_LIMIT;
-            if (decbuf_i == decbuf_end || decimal_buffer[decbuf_i] < th[i]) {
+            if (decbuf_i == decbuf_end || decbuf_val(decbuf_i) < th_val(i)) {
                 i = ld_b1b_dig;
                 break;
             }
-            if (decimal_buffer[(a + i) & DECBUF_LIMIT] > th[i]) {
+            if (decbuf_val((a + i) & DECBUF_LIMIT) > th_val(i)) {
                 break;
             }
         }
@@ -521,11 +561,10 @@ static void decfloat(struct tacc_file_iter *f,
         exp_adjustment += shift;
         for (decbuf_i = a; decbuf_i != decbuf_end;
              decbuf_i = (decbuf_i + 1) & DECBUF_LIMIT) {
-            tmp = decimal_buffer[decbuf_i] & ((uint32_t) ((1 << shift) - 1));
-            decimal_buffer[decbuf_i] =
-                (decimal_buffer[decbuf_i] >> shift) + carry;
+            tmp = decbuf_val(decbuf_i) & ((uint32_t) ((1 << shift) - 1));
+            decbuf_set(decbuf_i, (decbuf_val(decbuf_i) >> shift) + carry);
             carry = ((uint32_t) (1000000000 >> shift)) * tmp;
-            if (decbuf_i == a && !decimal_buffer[decbuf_i]) {
+            if (decbuf_i == a && !decbuf_val(decbuf_i)) {
                 a = (a + 1) & DECBUF_LIMIT;
                 i = i - 1;
                 offset_first_sd_from_decpoint -= 9;
@@ -533,10 +572,11 @@ static void decfloat(struct tacc_file_iter *f,
         }
         if (carry) {
             if (((decbuf_end + 1) & DECBUF_LIMIT) != a) {
-                decimal_buffer[decbuf_end] = carry;
+                decbuf_set(decbuf_end, carry);
                 decbuf_end = (decbuf_end + 1) & DECBUF_LIMIT;
             } else
-                decimal_buffer[(decbuf_end - 1) & DECBUF_LIMIT] |= 1;
+                decbuf_set((decbuf_end - 1) & DECBUF_LIMIT,
+                           decbuf_val((decbuf_end - 1) & DECBUF_LIMIT) | 1);
         }
     }
 
@@ -545,11 +585,11 @@ static void decfloat(struct tacc_file_iter *f,
     for (i = 0; i < ld_b1b_dig; i++) {
         if (((a + i) & DECBUF_LIMIT) == decbuf_end) {
             decbuf_end = (decbuf_end + 1) & DECBUF_LIMIT;
-            decimal_buffer[decbuf_end - 1] = 0;
+            decbuf_set(decbuf_end - 1, 0);
         }
         /* y *= 10^9 */
         tacc_f128_mull_u32(&y, &y, 1000000000);
-        tacc_f128_addl_u32(&y, &y, decimal_buffer[(a + i) & DECBUF_LIMIT]);
+        tacc_f128_addl_u32(&y, &y, decbuf_val((a + i) & DECBUF_LIMIT));
     }
 
     if (sign < 0) {
@@ -578,7 +618,7 @@ static void decfloat(struct tacc_file_iter *f,
 
     /* Process tail of decimal input so it can affect rounding */
     if (((a + i) & DECBUF_LIMIT) != decbuf_end) {
-        tail_begin = decimal_buffer[(a + i) & DECBUF_LIMIT];
+        tail_begin = decbuf_val((a + i) & DECBUF_LIMIT);
         /* tail_begin compared to 10^9 / 2 */
         if (tail_begin < 500000000 &&
             (tail_begin || ((a + i + 1) & DECBUF_LIMIT) != decbuf_end)) {
