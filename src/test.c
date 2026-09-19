@@ -95,8 +95,9 @@ uint32_t f128add_test_data[] = {
     /* -0 + 0 = 0 */    0x80000000, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
     /* -0 + -0 = -0 */  0x80000000, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0, /*,*/ 0x80000000, 0, 0, 0,
     /* 1 + 2 = 3 */     0x3FFF0000, 0, 0, 0, /*,*/ 0x40000000, 0, 0, 0, /*,*/ 0x40008000, 0, 0, 0,
+    /* 63384716708696863770552740000000000 + 208182927 */ 0x407286A3, 0x73333333, 0x33333333, 0x23B06D00, /*,*/ 0x401A8D13, 0xD1E00000, 0, 0, /*,*/ 0x407286A3, 0x73333333, 0x33333333, 0x253D80D2,
 };
-size_t count_f128add_data = 4;
+size_t count_f128add_data = 5;
 
 uint32_t f128mul_test_data[] = {
     /* 0 * 0 = 0 */     0, 0, 0, 0, /*,*/ 0, 0, 0, 0, /*,*/ 0, 0, 0, 0,
@@ -112,6 +113,7 @@ uint32_t fparse_test_data[] = {
     /* 1.0 */ 0x3FFF0000, 0, 0, 0,
     /* 1.5 */ 0x3FFF8000, 0, 0, 0,
     /* 2.0 */ 0x40000000, 0, 0, 0,
+    /* 10000.345 */ 0x400C3882, 0xC28F5C28, 0xF5C28F5C, 0x28F5C28F,
     /* 0x2.0 */ 0x40000000, 0, 0, 0,
 };
 char *fparse_test_cases[] = {
@@ -119,6 +121,7 @@ char *fparse_test_cases[] = {
     "1.0",
     "1.5",
     "2.0",
+    "10000.345",
     "0x2.0",
 };
 size_t count_fparse_data = 5;
@@ -137,6 +140,8 @@ int check_eq(struct tacc_u64 *a, struct tacc_u64 *exp) {
 }
 
 int check_eq_f128(struct tacc_f128 *a, struct tacc_f128 *exp) {
+    int ok;
+    ok = 1;
     if ((a->mant_a != exp->mant_a) || (a->mant_b != exp->mant_b) ||
         (a->mant_c != exp->mant_c) || (a->mant_d != exp->mant_d)) {
         printf("  mantissa %x:%x:%x:%x != %x:%x:%x:%x (expected)",
@@ -148,21 +153,21 @@ int check_eq_f128(struct tacc_f128 *a, struct tacc_f128 *exp) {
                exp->mant_b,
                exp->mant_c,
                exp->mant_d);
-        return 0;
+        ok = 0;
     }
     if (a->exponent != exp->exponent) {
         printf("  exponent %x != %x (expected)",
                (uint32_t) (a->exponent),
                (uint32_t) (exp->exponent));
-        return 0;
+        ok = 0;
     }
     if (a->sign != exp->sign) {
         printf("  sign %x != %x (expected)",
                (uint32_t) (a->sign),
                (uint32_t) (exp->sign));
-        return 0;
+        ok = 0;
     }
-    return 1;
+    return ok;
 }
 
 uint32_t *read_test_val(uint32_t *data, struct tacc_u64 *out) {
