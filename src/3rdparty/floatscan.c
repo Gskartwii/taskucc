@@ -310,38 +310,53 @@ int calc_p10(int index) {
     return *p10_pos;
 }
 
+static int32_t tacc_s32_mod(int32_t dividend, int32_t modulus) {
+    uint32_t intermediate;
+
+    if ((dividend >> 31) == 0) {
+        return dividend % modulus;
+    } else {
+        /* TODO: is this ok for dividend==INT_MIN? */
+
+        /* satisfy M2 */
+        intermediate = -((uint32_t) dividend);
+        intermediate = -(intermediate % (uint32_t) modulus);
+        return (int32_t) intermediate;
+    }
+}
+
 static void decfloat(struct tacc_file_iter *f,
                      int bits,
                      int emin,
                      int sign,
                      struct tacc_f128 *out) {
-    int c;
-    int i;
-    int decbuf_curr_pow10;
-    int decbuf_i;
-    int a;
-    int decbuf_end;
-    int exponent_of_10;
+    int32_t c;
+    int32_t i;
+    int32_t decbuf_curr_pow10;
+    int32_t decbuf_i;
+    int32_t a;
+    int32_t decbuf_end;
+    int32_t exponent_of_10;
     uint32_t num_significant_digits;
     struct tacc_u64 exp_as_written;
     struct tacc_u64 aux;
     struct tacc_u64 aux_2;
-    int seen_digits;
-    int seen_decimal_point;
-    int offset_first_sd_from_decpoint;
-    int exp_adjustment;
-    int emax;
-    int denormal;
+    int32_t seen_digits;
+    int32_t seen_decimal_point;
+    int32_t offset_first_sd_from_decpoint;
+    int32_t exp_adjustment;
+    int32_t emax;
+    int32_t denormal;
     struct tacc_f128 y;
     struct tacc_f128 frac;
     struct tacc_f128 bias;
-    int rpm9;
-    int power_of_10;
+    int32_t rpm9;
+    int32_t power_of_10;
     uint32_t carry;
     uint32_t tmp;
-    int ld_b1b_dig;
-    int ldbl_mant_dig;
-    int shift;
+    int32_t ld_b1b_dig;
+    int32_t ldbl_mant_dig;
+    int32_t shift;
     uint32_t tail_begin;
     struct tacc_f128 aux_f;
     struct tacc_f128 aux_f_2;
@@ -434,7 +449,7 @@ static void decfloat(struct tacc_file_iter *f,
     /* Handle zero specially to avoid nasty special cases later */
     if (decbuf_val(0) == 0) {
         tacc_f128_zero(out);
-        if (sign < 0) {
+        if ((sign >> 31) != 0) {
             out->sign = 1;
         }
         return;
@@ -442,7 +457,7 @@ static void decfloat(struct tacc_file_iter *f,
 
     /* Optimize small integers (w/no exponent) and over/under-flow */
     if (exponent_of_10 == (int) num_significant_digits &&
-        num_significant_digits < 10 &&
+        (num_significant_digits < 10 || (num_significant_digits >> 31 != 0)) &&
         (bits > 30 || decbuf_val(0) >> ((unsigned) bits) == 0)) {
         tacc_f128_from_u32(out, decbuf_val(0));
         out->sign = 1;
@@ -450,9 +465,10 @@ static void decfloat(struct tacc_file_iter *f,
     }
 
     /* Align incomplete final B1B digit */
-    if (decbuf_curr_pow10) {
+    if (decbuf_curr_pow10 != 0) {
         /* out->sign nop operation to avoid M2 issues */
-        for (out->sign = 0; decbuf_curr_pow10 < 9;
+        for (out->sign = 0;
+             decbuf_curr_pow10 < 9 || (decbuf_curr_pow10 >> 31) != 0;
              decbuf_curr_pow10 = decbuf_curr_pow10 + 1) {
             decbuf_set(decbuf_i, decbuf_val(decbuf_i) * 10);
         }
@@ -472,11 +488,11 @@ static void decfloat(struct tacc_file_iter *f,
     }
 
     /* Align radix point to B1B digit boundary */
-    if (offset_first_sd_from_decpoint % 9) {
-        if (offset_first_sd_from_decpoint >= 0) {
+    if (tacc_s32_mod(offset_first_sd_from_decpoint, 9) != 0) {
+        if ((offset_first_sd_from_decpoint >> 31) == 0) {
             rpm9 = offset_first_sd_from_decpoint % 9;
         } else {
-            rpm9 = (offset_first_sd_from_decpoint % 9) + 9;
+            rpm9 = tacc_s32_mod(offset_first_sd_from_decpoint, 9) + 9;
         }
         power_of_10 = calc_p10(8 - rpm9);
         carry = 0;
@@ -503,7 +519,8 @@ static void decfloat(struct tacc_file_iter *f,
     ldbl_mant_dig = 113;
 
     /* Upscale until desired number of bits are left of radix point */
-    while (offset_first_sd_from_decpoint < 9 * ld_b1b_dig ||
+    while ((((offset_first_sd_from_decpoint >> 31) != 0) ||
+            offset_first_sd_from_decpoint < 9 * ld_b1b_dig) ||
            (offset_first_sd_from_decpoint == 9 * ld_b1b_dig &&
             decbuf_val(a) < th_val(0))) {
         carry = 0;
@@ -531,7 +548,7 @@ static void decfloat(struct tacc_file_iter *f,
                 break;
             }
         }
-        if (carry) {
+        if (carry != 0) {
             offset_first_sd_from_decpoint += 9;
             a = (a - 1) & DECBUF_LIMIT;
             if (a == decbuf_end) {
@@ -563,7 +580,8 @@ static void decfloat(struct tacc_file_iter *f,
             break;
         }
         /* FIXME: find a way to compute optimal shift */
-        if (offset_first_sd_from_decpoint > 9 + 9 * ld_b1b_dig) {
+        if (offset_first_sd_from_decpoint > 9 + 9 * ld_b1b_dig &&
+            (offset_first_sd_from_decpoint >> 31 == 0)) {
             shift = 9;
         }
         exp_adjustment += shift;
@@ -576,7 +594,8 @@ static void decfloat(struct tacc_file_iter *f,
             if (decbuf_i == a && !decbuf_val(decbuf_i)) {
                 a = (a + 1) & DECBUF_LIMIT;
                 i = i - 1;
-                offset_first_sd_from_decpoint -= 9;
+                offset_first_sd_from_decpoint =
+                    offset_first_sd_from_decpoint - 9;
             }
         }
         if (carry) {
