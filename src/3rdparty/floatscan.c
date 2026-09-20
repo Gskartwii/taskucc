@@ -809,7 +809,7 @@ static void hexfloat(struct tacc_file_iter *f,
         }
     }
 
-    if (bits < 32 && tacc_f128_is_zero(&y) && !(x & 1)) {
+    if (bits < 32 && !tacc_f128_is_zero(&y) && !(x & 1)) {
         x = x + 1;
         tacc_f128_zero(&y);
     }
