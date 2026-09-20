@@ -816,7 +816,7 @@ static void hexfloat(struct tacc_file_iter *f,
 
     tacc_f128_from_u32(&aux_f, x);
     if (sign < 0) {
-        y.sign = 1;
+        y.sign = !y.sign;
         aux_f.sign = 1;
     }
     tacc_f128_addl(&aux_f, &bias, &aux_f);
