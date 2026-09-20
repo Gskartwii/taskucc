@@ -783,10 +783,11 @@ static void hexfloat(struct tacc_file_iter *f,
                 "exponent out of range");
 
     while ((x >> ((unsigned) 31)) == 0) {
-        tacc_f128_mull_u32(&aux_f, &y, 2);
-        if (tacc_f128_ge_s32(&aux_f, 1)) {
+        tacc_f128_from_frac(&aux_f, 1, 2);
+        if (tacc_f128_ge(&y, &aux_f)) {
             x = x + x + 1;
-            tacc_f128_subl_u32(&y, &y, 1);
+            tacc_f128_subl_u32(&aux_f, &y, 1);
+            tacc_f128_addl(&y, &y, &aux_f);
         } else {
             x = x + x;
             tacc_f128_addl(&y, &y, &y);
