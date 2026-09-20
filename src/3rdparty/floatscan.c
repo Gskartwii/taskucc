@@ -751,7 +751,7 @@ static void hexfloat(struct tacc_file_iter *f,
                 tacc_f128_addl(&y, &y, &aux_f);
                 gottail = 1;
             }
-            dc++;
+            dc = dc + 1;
         }
     }
     tacc_assert(ASSERT_DIAG, gotdig, "invalid hex floating point literal");
@@ -796,8 +796,9 @@ static void hexfloat(struct tacc_file_iter *f,
 
     if (bits > 32 + ((int) e2.low) - emin) {
         bits = 32 + ((int) e2.low) - emin;
-        if (bits < 0)
+        if (bits < 0) {
             bits = 0;
+        }
     }
 
     if (bits < 113) {
