@@ -204,18 +204,7 @@ void tacc_f128_scalbnl(struct tacc_f128 *dst, struct tacc_f128 *src, int exp) {
 
     exp_mod = exp;
     exp_biased = (uint32_t) (exp + EXP_BIAS);
-    if (exp_biased >= INF_EXPONENT) {
-        tacc_f128_ldexp1(&aux, MAX_NORM_EXP);
-        tacc_f128_mull(&intermediate, src, &aux);
-        exp_mod = exp_mod - MAX_NORM_EXP;
-        if (exp_mod > MAX_NORM_EXP) {
-            tacc_f128_mull(&intermediate, &intermediate, &aux);
-            exp_mod = exp_mod - MAX_NORM_EXP;
-            if (exp_mod > MAX_NORM_EXP) {
-                exp_mod = MAX_NORM_EXP;
-            }
-        }
-    } else if ((exp_biased >> 31) != 0) {
+    if ((exp_biased >> 31) != 0) {
         tacc_f128_ldexp1(&aux, MIN_NORM_EXP);
         tacc_f128_ldexp1(&aux_2, 113);
         tacc_f128_mull(&aux, &aux, &aux_2);
@@ -226,6 +215,17 @@ void tacc_f128_scalbnl(struct tacc_f128 *dst, struct tacc_f128 *src, int exp) {
             exp_mod = exp_mod + (-MIN_NORM_EXP - 113);
             if (exp_mod < MIN_NORM_EXP) {
                 exp_mod = MIN_NORM_EXP;
+            }
+        }
+    } else if (exp_biased >= INF_EXPONENT) {
+        tacc_f128_ldexp1(&aux, MAX_NORM_EXP);
+        tacc_f128_mull(&intermediate, src, &aux);
+        exp_mod = exp_mod - MAX_NORM_EXP;
+        if (exp_mod > MAX_NORM_EXP) {
+            tacc_f128_mull(&intermediate, &intermediate, &aux);
+            exp_mod = exp_mod - MAX_NORM_EXP;
+            if (exp_mod > MAX_NORM_EXP) {
+                exp_mod = MAX_NORM_EXP;
             }
         }
     } else {
