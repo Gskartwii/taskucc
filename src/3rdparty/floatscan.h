@@ -1,5 +1,5 @@
-#ifndef THIRDPARTY_INTSCAN_H
-#define THIRDPARTY_INTSCAN_H
+#ifndef THIRDPARTY_FLOATSCAN_H
+#define THIRDPARTY_FLOATSCAN_H
 
 #include "../soft_float.h"
 #include "../tasku_pp.h"

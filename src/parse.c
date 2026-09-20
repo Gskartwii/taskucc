@@ -1,13 +1,16 @@
 #include "parse.h"
+#include "3rdparty/floatscan.h"
 #include "3rdparty/intscan.h"
 #include "attribute.h"
 #include "decl.h"
 #include "dynarray.h"
 #include "dynstring.h"
+#include "expr.h"
 #include "statement.h"
 #include "tasku_pp.h"
 #include <memory.h>
 #include <stdarg.h>
+#include <string.h>
 
 enum tacc_declaration_context {
     DECL_CONTEXT_TOP_LEVEL,
@@ -277,9 +280,40 @@ static tacc_bool tacc_tok_non_kw_ident(struct pp_tok *tok) {
     return tok->kind == TOK_IDENT && tok->ident_kind == ID_OTHER;
 }
 
-static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
+/* cstr is owning */
+static void tacc_parse_floatlit(char *cstr,
+                                char *cstr_last,
+                                struct tacc_expr *out_expr) {
+    struct tacc_float_literal *literal;
+    struct tacc_f128 *value;
+    struct tacc_file_iter *iter;
+    int precision;
+
+    literal = tacc_float_literal_new();
+    value = tacc_malloc(sizeof(struct tacc_f128));
+    precision = 1;
+    if (*cstr_last == 'f' || *cstr_last == 'F') {
+        precision = 0;
+        cstr_last = cstr_last - 1;
+        literal->suffix_f = 1;
+    } else if (*cstr_last == 'l' || *cstr_last == 'L') {
+        precision = 2;
+        cstr_last = cstr_last - 1;
+        literal->suffix_l = 1;
+    }
+
+    iter = tacc_file_iter_new_str(cstr, cstr_last);
+    floatscan(iter, precision, value);
+    tacc_file_iter_free(iter);
+    literal->number = value;
+    out_expr->kind = EX_FLOAT_LIT;
+    out_expr->extra.float_literal = literal;
+}
+
+static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     struct tacc_int_literal *literal;
     char *cstr;
+    char *cstr_orig;
     char *cstr_last;
     size_t len;
     unsigned int base;
@@ -292,6 +326,7 @@ static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
     tacc_assert(ASSERT_ICE, tok->str != NULL, "need str to parse numlit");
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
+    cstr_orig = cstr;
     tok = NULL;
 
     tacc_assert(ASSERT_ICE, len > 0, "invalid empty ppnumber");
@@ -299,9 +334,31 @@ static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
         tacc_u64_add_u32(
             literal->number, literal->number, (uint32_t) (*cstr - '0'));
         tacc_free(cstr);
-        return literal;
+        out_expr->kind = EX_INT_LIT;
+        out_expr->extra.int_literal = literal;
+        return;
     }
     cstr_last = cstr + len - 1;
+
+    if (strchr(cstr, '.') != NULL || strchr(cstr, 'p') != NULL ||
+        strchr(cstr, 'f')) {
+        tacc_parse_floatlit(cstr_orig, cstr_last, out_expr);
+        return;
+    }
+
+    base = 10;
+    if (*cstr == '0') {
+        base = 8;
+        cstr = cstr + 1;
+        if (*cstr == 'x') {
+            base = 16;
+            cstr = cstr + 1;
+        }
+    }
+    if (base != 16 && strchr(cstr, 'e') != NULL) {
+        tacc_parse_floatlit(cstr_orig, cstr_last, out_expr);
+        return;
+    }
 
     specified_u = 0;
     count_l = 0;
@@ -324,17 +381,7 @@ static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
     cstr_last = cstr_last + 1;
     *cstr_last = 0;
 
-    iter = tacc_file_iter_new_str(cstr, cstr_last);
-
-    base = 10;
-    if (tacc_file_iter_accept_ch(iter, '0')) {
-        base = 8;
-        if (tacc_file_iter_accept_ch(iter, 'x')) {
-            base = 16;
-        } else if (tacc_file_iter_accept_ch(iter, 'X')) {
-            base = 16;
-        }
-    }
+    iter = tacc_file_iter_new_str(cstr_orig, cstr_last);
 
     limit.high = 0xFFFFFFFF;
     limit.low = 0xFFFFFFFF;
@@ -348,7 +395,8 @@ static struct tacc_int_literal *tacc_parse_numlit(struct pp_tok *tok) {
         literal->suffix_l = 1;
     }
     literal->suffix_u = specified_u;
-    return literal;
+    out_expr->kind = EX_INT_LIT;
+    out_expr->extra.int_literal = literal;
 }
 
 /*static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
@@ -496,8 +544,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                 tacc_pp_tok_free(tacc_tok_iter_next(iter));
             }
         } else if (tok->kind == TOK_PPNUM) {
-            expr->kind = EX_INT_LIT;
-            expr->extra.int_literal = tacc_parse_numlit(tok);
+            tacc_parse_numlit(tok, expr);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;

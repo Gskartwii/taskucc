@@ -1,6 +1,7 @@
 #include "expr.h"
 #include "decl.h"
 #include "dynstring.h"
+#include "soft_float.h"
 #include "soft_u64.h"
 #include "util.h"
 #include <stdarg.h>
@@ -30,6 +31,16 @@ struct tacc_int_literal *tacc_int_literal_new(void) {
     int_literal->suffix_u = 0;
 
     return int_literal;
+}
+struct tacc_float_literal *tacc_float_literal_new(void) {
+    struct tacc_float_literal *float_literal;
+
+    float_literal = tacc_malloc(sizeof(struct tacc_float_literal));
+    float_literal->number = tacc_malloc(sizeof(struct tacc_f128));
+    float_literal->suffix_l = 0;
+    float_literal->suffix_f = 0;
+
+    return float_literal;
 }
 
 struct tacc_type_name *tacc_type_name_new(void) {

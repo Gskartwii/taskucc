@@ -109,7 +109,7 @@ struct tacc_char_literal {
 };
 
 struct tacc_float_literal {
-    struct tacc_float *number;
+    struct tacc_f128 *number;
     tacc_bool suffix_f;
     tacc_bool suffix_l;
 };
@@ -134,6 +134,7 @@ struct tacc_expr {
 
 struct tacc_expr *tacc_expr_new(void);
 struct tacc_int_literal *tacc_int_literal_new(void);
+struct tacc_float_literal *tacc_float_literal_new(void);
 struct tacc_type_name *tacc_type_name_new(void);
 void tacc_expr_init(struct tacc_expr *expr);
 void tacc_int_literal_free(struct tacc_int_literal *int_literal);
