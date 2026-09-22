@@ -34,5 +34,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
 void tacc_target_cg_store_int(struct tacc_cg_state *state,
                               struct tacc_type *int_type);
 void tacc_target_cg_finalize(struct tacc_cg_state *state);
+void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
+                               struct tacc_global_object *object);
 
 #endif

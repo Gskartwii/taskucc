@@ -84,6 +84,7 @@ struct tacc_local_var *tacc_cg_resolve_local(struct tacc_cg_state *state,
 static void tacc_cg_compile_lval(struct tacc_cg_state *state,
                                  struct tacc_expr *expr) {
     struct tacc_local_var *var;
+    struct tacc_global_object *object;
 
     switch (expr->kind) {
     case EX_UNINIT:
@@ -145,7 +146,17 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
                         "load non-integral value");
             tacc_target_cg_addrof_var(state, var);
         } else {
-            tacc_assert(ASSERT_TODO, 0, "resolve non-local names");
+            object = tacc_compile_resolve_global(state->compiler,
+                                                 expr->extra.name_ref);
+            tacc_assert(ASSERT_DIAG,
+                        object != NULL,
+                        "no declaration visible: %s",
+                        tacc_dynstring_as_str(tacc_compile_get_name(
+                            state->compiler, expr->extra.name_ref)));
+            tacc_assert(ASSERT_DIAG,
+                        !object->is_enumerator,
+                        "cannot take address of enumerator");
+            tacc_target_cg_addrof_obj(state, object);
         }
         break;
 
@@ -201,6 +212,7 @@ static void tacc_cg_convert_top(struct tacc_cg_state *state,
 
 void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     struct tacc_val *val;
+    struct tacc_global_object *global_object;
     struct tacc_slot *slot;
 
     switch (expr->kind) {
@@ -214,6 +226,20 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         break;
 
     case EX_IDENT:
+        /* if this is an enumerator, do not try to take its address */
+        if (tacc_cg_resolve_local(state, expr->extra.name_ref) == NULL) {
+            global_object = tacc_compile_resolve_global(state->compiler,
+                                                        expr->extra.name_ref);
+            if (global_object != NULL) {
+                if (global_object->is_enumerator) {
+                    tacc_target_cg_int(state,
+                                       global_object->extra.enumerator_value);
+                    slot = tacc_cg_get_top(state);
+                    slot->ty = global_object->extra.enumerator_value->type;
+                    break;
+                }
+            }
+        }
         tacc_cg_compile_lval(state, expr);
         tacc_cg_deref(state);
         break;

@@ -235,6 +235,7 @@ static void tacc_compile_ast(struct tacc_string_list *names,
     compiler.basic_types = tacc_type_list_new();
     compiler.named_types = tacc_type_list_new();
     compiler.anonymous_types = tacc_type_list_new();
+    compiler.global_objects = tacc_global_object_map_new(4096);
     compiler.names = names;
     tacc_gen_basic_types(target, compiler.basic_types);
 
@@ -244,9 +245,11 @@ static void tacc_compile_ast(struct tacc_string_list *names,
         tacc_compile_top_decl(&compiler, entry->content);
     }
 
+    tacc_global_object_map_free(compiler.global_objects);
     tacc_type_list_free(compiler.basic_types);
     tacc_type_list_free(compiler.named_types);
     tacc_type_list_free(compiler.anonymous_types);
+    tacc_free(compiler.global_objects);
     tacc_free(compiler.anonymous_types);
     tacc_free(compiler.basic_types);
     tacc_free(compiler.named_types);

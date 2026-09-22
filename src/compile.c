@@ -11,6 +11,13 @@
 
 static void tacc_ident_free(uint32_t ident) { TACC_UNUSED(ident); }
 
+static void tacc_global_object_free(struct tacc_global_object *obj) {
+    if (obj->is_enumerator) {
+        tacc_val_free(obj->extra.enumerator_value);
+    }
+    tacc_free(obj);
+}
+
 MK_DYNARRAY_OVER(tacc_ident_list,
                  tacc_ident_list_entry,
                  uint32_t,
@@ -22,6 +29,48 @@ MK_DYNARRAY_OVER(tacc_ident_list,
                  tacc_ident_list_len,
                  tacc_ident_free,
                  tacc_ident_list_free)
+
+MK_DYNHASH_OVER_U32(tacc_global_object_map,
+                    name_ref,
+                    tacc_global_object_map_entry,
+                    struct tacc_global_object *,
+                    tacc_global_object_map_new,
+                    tacc_global_object_map_init,
+                    tacc_global_object_map_get,
+                    tacc_global_object_map_insert,
+                    tacc_global_object_map_fill_count,
+                    tacc_global_object_free,
+                    tacc_global_object_map_free)
+
+struct tacc_global_object *tacc_global_object_new(void) {
+    struct tacc_global_object *obj;
+
+    obj = tacc_malloc(sizeof(struct tacc_global_object));
+    obj->is_enumerator = 0;
+    obj->name_ref = 0;
+
+    return obj;
+}
+
+static void tacc_compile_add_global_object(struct tacc_compiler *compiler,
+                                           struct tacc_global_object *obj) {
+    struct tacc_global_object *old_object;
+    old_object = tacc_compile_resolve_global(compiler, obj->name_ref);
+    if (old_object != NULL) {
+        tacc_assert(ASSERT_DIAG,
+                    old_object->is_enumerator && !obj->is_enumerator,
+                    "%s redefined",
+                    tacc_dynstring_as_str(
+                        tacc_compile_get_name(compiler, obj->name_ref)));
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_compatible(old_object->extra.obj_type,
+                                            obj->extra.obj_type),
+                    "%s redefined with incompatible type",
+                    tacc_dynstring_as_str(
+                        tacc_compile_get_name(compiler, obj->name_ref)));
+    }
+    tacc_global_object_map_insert(compiler->global_objects, obj);
+}
 
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
@@ -68,6 +117,12 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
                              struct tacc_string *name) {
     size_t bits;
     size_t alignment;
+
+    tacc_compile_output_directive(compiler, "data");
+    tacc_compile_output_directive(
+        compiler, "global %s", tacc_dynstring_as_str(name));
+    tacc_compile_output_directive(
+        compiler, "type %s, %%object", tacc_dynstring_as_str(name));
 
     if (tacc_type_is_integral(val->type)) {
         bits = tacc_type_bit_width(val->type);
@@ -653,11 +708,20 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     struct tacc_string *func_name;
     struct tacc_type *function_type;
     struct tacc_cg_state *state;
+    struct tacc_global_object *global_object;
 
     function_type = tacc_type_adjust_from_declarator(
         compiler,
         tacc_type_from_decl_type(compiler, function_def->base_type),
         function_def->extra.func_def->func_declaration);
+
+    global_object = tacc_global_object_new();
+    global_object->is_enumerator = 0;
+    global_object->name_ref =
+        tacc_declarator_name(function_def->extra.func_def->func_declaration);
+    global_object->extra.obj_type = function_type;
+    tacc_compile_add_global_object(compiler, global_object);
+
     tacc_assert(ASSERT_TODO,
                 function_def->extra.func_def->old_style_param_list == NULL,
                 "old-style function parameter types");
@@ -699,6 +763,7 @@ struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
                            struct tacc_decl *decl) {
     struct tacc_type *type;
+    struct tacc_global_object *global_object;
     size_t i;
     struct tacc_init_declarator_list_entry *entry;
     struct tacc_init_declarator *declarator;
@@ -720,6 +785,13 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         tacc_assert(ASSERT_TODO,
                     declarator->declarator->kind == DECLARATOR_PLAIN,
                     "non-plain declarator");
+
+        global_object = tacc_global_object_new();
+        global_object->is_enumerator = 0;
+        global_object->name_ref = data_name;
+        global_object->extra.obj_type = type;
+        tacc_compile_add_global_object(compiler, global_object);
+
         tacc_compile_data(compiler,
                           type,
                           tacc_compile_get_name(compiler, data_name),
@@ -728,11 +800,13 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
     tacc_compile_output(compiler, "\n");
 }
 
-struct tacc_enumerator *tacc_compile_resolve_enumerator(
-    struct tacc_compiler *compiler, uint32_t name_ref) {
-    TACC_UNUSED(compiler);
-    TACC_UNUSED(name_ref);
-    tacc_assert(ASSERT_TODO, 0, "resolve enumerators");
+struct tacc_global_object *
+tacc_compile_resolve_global(struct tacc_compiler *compiler, uint32_t name_ref) {
+    struct tacc_global_object_map_entry *entry;
 
+    entry = tacc_global_object_map_get(compiler->global_objects, name_ref);
+    if (entry != NULL) {
+        return entry->content;
+    }
     return NULL;
 }

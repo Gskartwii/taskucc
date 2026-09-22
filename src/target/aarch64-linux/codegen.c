@@ -489,3 +489,31 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
     reg_place->reg = new_reg;
     tacc_cg_push_reg(state, reg_place, slot->ty);
 }
+
+void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
+                               struct tacc_global_object *object) {
+    uint32_t reg;
+    struct tacc_target_place_register *reg_place;
+    char *reg_name;
+    struct tacc_string *symbol_name;
+
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg_name = tacc_target_register_as_64(reg);
+    symbol_name = tacc_compile_get_name(state->compiler, object->name_ref);
+    tacc_cg_output(state,
+                   "\n\t adrp %s, %s",
+                   reg_name,
+                   tacc_dynstring_as_str(symbol_name));
+    tacc_cg_output(state,
+                   "\n\t add %s, %s, :lo12:%s",
+                   reg_name,
+                   reg_name,
+                   tacc_dynstring_as_str(symbol_name));
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+    tacc_cg_push_reg(state,
+                     reg_place,
+                     tacc_type_to_pointer(state->compiler->target->pointer_ty,
+                                          object->extra.obj_type,
+                                          1));
+}
