@@ -10,22 +10,23 @@ void tacc_die(enum tacc_assertion_class class, char *err, ...) {
 
     va_start(args, err);
 
+    fputs("\n", stderr);
     switch (class) {
     case ASSERT_ICE:
-        fputs("Internal compiler error!", stderr);
+        fputs("Internal compiler error!\n", stderr);
         break;
     case ASSERT_DIAG:
-        fputs("Diagnostic:", stderr);
+        fputs("Diagnostic:\n", stderr);
         break;
     case ASSERT_TODO:
-        fputs("TODO! Cannot continue.", stderr);
+        fputs("TODO! Cannot continue.\n", stderr);
         break;
     }
 
     vfprintf(stderr, err, args);
     va_end(args);
 
-    fputs("", stderr);
+    fputs("\n", stderr);
     kill_io();
     exit(1);
 }
