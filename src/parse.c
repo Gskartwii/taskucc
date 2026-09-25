@@ -340,8 +340,7 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     }
     cstr_last = cstr + len - 1;
 
-    if (strchr(cstr, '.') != NULL || strchr(cstr, 'p') != NULL ||
-        strchr(cstr, 'f')) {
+    if (strchr(cstr, '.') != NULL || strchr(cstr, 'p') != NULL) {
         tacc_parse_floatlit(cstr_orig, cstr_last, out_expr);
         return;
     }
@@ -355,7 +354,7 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
             cstr = cstr + 1;
         }
     }
-    if (base != 16 && strchr(cstr, 'e') != NULL) {
+    if (base != 16 && (strchr(cstr, 'e') != NULL || strchr(cstr, 'f') != NULL)) {
         tacc_parse_floatlit(cstr_orig, cstr_last, out_expr);
         return;
     }

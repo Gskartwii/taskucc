@@ -891,6 +891,7 @@ void floatscan(struct tacc_file_iter *f, int prec, struct tacc_f128 *out) {
             hexfloat(f, bits, emin, sign, out);
             return;
         }
+        f->src = f->src - 1;
     }
 
     decfloat(f, bits, emin, sign, out);
