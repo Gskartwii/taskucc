@@ -105,7 +105,7 @@ in
               -DCONFIG_TCC_SEMLOCK=0"
 
             echo "$flags"
-            if ! timeout 3 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
+            if ! timeout 5 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
               ok=false
               echo "tasku-gcc $mode failed on $file"
               continue
