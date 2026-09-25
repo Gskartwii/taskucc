@@ -104,12 +104,13 @@ in
               -DTCC_VERSION=\"0.9.28\" \
               -DCONFIG_TCC_SEMLOCK=0"
 
-            if ! timeout 30 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
+            echo "$flags"
+            if ! timeout 3 tasku-gcc $flags | pv -r  > tasku-gcc-test; then
               ok=false
               echo "tasku-gcc $mode failed on $file"
               continue
             fi
-            if ! timeout 90 tasku-m2 $flags | pv -r > tasku-m2-test; then
+            if ! timeout 10 tasku-m2 $flags | pv -r > tasku-m2-test; then
               ok=false
               echo "tasku-m2 $mode failed on $file; timeout"
               continue
