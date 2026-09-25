@@ -15,7 +15,12 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
 
     part->ty = arg_type;
     part->place.kind = CALLITF_PLACE_STACK;
-    part->place.extra.stack_offset = (int) (state->used_stack);
+    part->place.extra.stack.offset = (int) (state->used_stack);
+    part->place.extra.stack.align_p2 = 2;
+    part->place.extra.stack.size = tacc_type_size(arg_type);
+    if (part->place.extra.stack.size < 4) {
+        part->place.extra.stack.size = 4;
+    }
     state->used_stack = state->used_stack +
                         (uint32_t) tacc_align_up(tacc_type_size(arg_type), 2);
 
@@ -32,6 +37,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     ret = tacc_callitf_new();
     /* args start at ebp + 8 */
     state.used_stack = 8;
+    ret->implicit_stack_use = 8;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_EAX;

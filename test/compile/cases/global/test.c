@@ -5,3 +5,5 @@ int set_global(int new) {
     global_val = new;
     return 0;
 }
+
+int indirect_access(void) { return get_global(); }

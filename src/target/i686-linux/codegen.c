@@ -226,7 +226,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                             struct tacc_type *type,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
-    struct tacc_target_place_register *top_place;
+    uint32_t top_place;
     enum tacc_target_register top_reg;
     enum tacc_target_register top_reg_2;
     size_t from_width;
@@ -252,16 +252,14 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_UINT),
             is_sext);
         slot = tacc_cg_get_top(state);
-        tacc_assert(ASSERT_ICE,
-                    slot->place_kind == PLACE_REGISTER,
-                    "top must be single when extending with from_width <= 32");
-        top_place = slot->place.reg;
+        top_place = tacc_cg_ensure_top_is_single(state, REG_ANY);
         top_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY);
         slot->place_kind = PLACE_REGISTER_PAIR;
-        slot->place.pair.reg = top_place;
+        slot->place.pair.reg = tacc_target_place_register_new();
+        slot->place.pair.reg->reg = top_place;
         slot->place.pair.reg_2 = tacc_target_place_register_new();
         slot->place.pair.reg_2->reg = top_reg_2;
-        reg_name = tacc_target_register_name(top_place->reg, 32);
+        reg_name = tacc_target_register_name(top_place, 32);
         reg_name_2 = tacc_target_register_name(top_reg_2, 32);
         if (is_sext) {
             tacc_cg_output(
@@ -280,7 +278,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
     }
     op_suff_from = tacc_target_op_suffix(from_width);
     op_suff_to = tacc_target_op_suffix(to_width);
-    top_reg = tacc_cg_ensure_top_is_single(state);
+    top_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
     reg_name = tacc_target_register_name(top_reg, from_width);
     reg_name_2 = tacc_target_register_name(top_reg, to_width);
     tacc_cg_output(state,
@@ -338,9 +336,9 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     uint32_t reg_2;
 
     load_width = tacc_type_bit_width(int_type);
-    reg = tacc_cg_ensure_top_is_single(state);
+    reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
     if (load_width > 32) {
-        reg_2 = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
+        reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
     }
     slot = tacc_cg_get_top(state);
 
@@ -385,13 +383,13 @@ void tacc_target_cg_store_int(struct tacc_cg_state *state,
     uint32_t addr_reg;
 
     store_width = tacc_type_bit_width(int_type);
-    reg = tacc_cg_ensure_top_is_single(state);
+    reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
     if (store_width > 32) {
         tacc_cg_ensure_top_is_pair(state, &reg, &reg_2);
     } else {
-        reg = tacc_cg_ensure_top_is_single(state);
+        reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
     }
-    addr_reg = tacc_cg_ensure_over_is_single(state);
+    addr_reg = tacc_cg_ensure_over_is_single(state, REG_ANY);
 
     switch (store_width) {
     case 8:
@@ -426,7 +424,7 @@ void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
     uint32_t reg;
     char *reg_name;
 
-    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg = tacc_target_cg_alloc_reg(state, REG_ANY);
     reg_place = tacc_target_place_register_new();
     reg_place->reg = reg;
 
@@ -436,6 +434,18 @@ void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
         state,
         reg_place,
         tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
+}
+
+static tacc_bool tacc_target_type_fits_in_single_reg(struct tacc_type *ty) {
+    if (ty->kind == TYK_PTR) {
+        return 1;
+    }
+    if (tacc_type_is_integral(ty)) {
+        if (tacc_type_bit_width(ty) <= 32) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void tacc_target_cg_dup(struct tacc_cg_state *state) {
@@ -448,9 +458,9 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
     uint32_t new_reg_2;
 
     slot = tacc_cg_get_top(state);
-    if (slot->place_kind == PLACE_REGISTER) {
-        reg = tacc_cg_ensure_top_is_single(state);
-        new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
+    if (tacc_target_type_fits_in_single_reg(slot->ty)) {
+        reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+        new_reg = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
         tacc_target_cg_move_reg_reg(state, reg, new_reg);
         reg_place = tacc_target_place_register_new();
         reg_place->reg = new_reg;
@@ -459,9 +469,8 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
     }
 
     tacc_cg_ensure_top_is_pair(state, &reg, &reg_2);
-    new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
-    new_reg_2 =
-        tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~(reg | new_reg));
+    new_reg = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
+    new_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~(reg | new_reg));
     tacc_target_cg_move_reg_reg(state, reg, new_reg);
     tacc_target_cg_move_reg_reg(state, reg_2, new_reg_2);
     reg_place = tacc_target_place_register_new();
@@ -478,7 +487,7 @@ void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
     char *reg_name;
     struct tacc_string *symbol_name;
 
-    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    reg = tacc_target_cg_alloc_reg(state, REG_ANY);
     reg_name = tacc_target_register_as_32(reg);
     symbol_name = tacc_compile_get_name(state->compiler, object->name_ref);
     tacc_cg_output(state,
@@ -492,4 +501,120 @@ void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                      tacc_type_to_pointer(state->compiler->target->pointer_ty,
                                           object->extra.obj_type,
                                           1));
+}
+
+void tacc_target_cg_alloc_stack(struct tacc_cg_state *state,
+                                size_t space,
+                                size_t align_p2) {
+    if (align_p2 > 3) {
+        tacc_cg_output(state, "\n\t andl $-%d, %%esp", 1 << align_p2);
+    }
+#ifdef __M2__
+    tacc_cg_output(state, "\n\t subl $%d, %%esp", space);
+#else
+    tacc_cg_output(state, "\n\t subl $%" PRIsz ", %%esp", space);
+#endif
+}
+
+void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
+                                      int offset,
+                                      uint32_t to_reg,
+                                      struct tacc_type *ty) {
+    size_t width;
+
+    width = tacc_type_bit_width(ty);
+    tacc_cg_output(state,
+                   "\n\t mov%s %d(%%ebp), %s",
+                   tacc_target_op_suffix(width),
+                   offset,
+                   tacc_target_register_name(to_reg, width));
+}
+
+void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
+                                          int from_fp_offset,
+                                          int to_sp_offset,
+                                          size_t size) {
+    size_t i;
+
+    tacc_assert(ASSERT_ICE,
+                (size & 3) == 0,
+                "move_scratch_to_stack: not a multiple of 4");
+    for (i = 0; i < size; i = i + 4) {
+        tacc_cg_output(
+            state, "\n\t movl %d(%%ebp), %%eax", from_fp_offset + (int) size);
+        tacc_cg_output(
+            state, "\n\t movl %%eax, %d(%%esp)", to_sp_offset + (int) size);
+    }
+}
+
+void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
+                                         int offset,
+                                         uint32_t reg,
+                                         struct tacc_type *ty) {
+    tacc_cg_output(state,
+                   "\n\t mov%s %s, %d(%%ebp)",
+                   tacc_target_op_suffix(tacc_type_bit_width(ty)),
+                   tacc_target_register_name(reg, tacc_type_bit_width(ty)),
+                   offset);
+}
+
+void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
+                                              int offset,
+                                              uint32_t reg,
+                                              uint32_t reg_2) {
+    tacc_cg_output(state,
+                   "\n\t movl %s, %d(%%ebp)",
+                   tacc_target_register_as_32(reg),
+                   offset);
+    tacc_cg_output(state,
+                   "\n\t movl %s, %d(%%ebp)",
+                   tacc_target_register_as_32(reg_2),
+                   offset + 4);
+}
+
+void tacc_target_cg_call_top(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+
+    tacc_assert(ASSERT_ICE,
+                slot->place_kind == PLACE_SCRATCH,
+                "expected callee pointer to be in scratch");
+    tacc_cg_output(state, "\n\t movl %d(%%ebp), %%eax", slot->place.offset);
+    tacc_cg_pop(state);
+    tacc_cg_output(state, "\n\t call %%eax");
+}
+
+void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
+                                     struct tacc_callitf *itf,
+                                     struct tacc_type *return_ty) {
+    struct tacc_target_place_register *reg_place;
+    struct tacc_target_place_register *reg_place_2;
+
+    switch (itf->retval_kind) {
+    case CALLITF_RETVAL_NONE:
+        tacc_cg_push_void(state);
+        break;
+    case CALLITF_RETVAL_REGISTER:
+        tacc_assert(ASSERT_TODO,
+                    itf->retval_reg_class <= REGC_INT_D,
+                    "returning non-integer register");
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = itf->retval_reg;
+        tacc_cg_push_reg(state, reg_place, return_ty);
+        break;
+    case CALLITF_RETVAL_REGISTER_PAIR:
+        tacc_assert(ASSERT_ICE,
+                    itf->retval_reg_class == REGC_INT_D,
+                    "returning non-integer register pair");
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = itf->retval_reg;
+        reg_place_2 = tacc_target_place_register_new();
+        reg_place_2->reg = itf->retval_reg_2;
+        tacc_cg_push_reg_pair(state, reg_place, reg_place_2, return_ty);
+        break;
+    case CALLITF_RETVAL_OUTPARAM:
+        tacc_assert(ASSERT_TODO, 0, "outparam returns");
+        break;
+    }
 }

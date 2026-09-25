@@ -81,6 +81,20 @@ struct tacc_local_var *tacc_cg_resolve_local(struct tacc_cg_state *state,
     return entry->content;
 }
 
+static void tacc_cg_deref(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+    struct tacc_type *pointed_ty;
+
+    slot = tacc_cg_get_top(state);
+    tacc_assert(ASSERT_DIAG,
+                slot->ty->kind == TYK_PTR,
+                "attempt to dereference non-pointer");
+    pointed_ty = slot->ty->extra.pointer.pointee;
+    tacc_assert(
+        ASSERT_TODO, tacc_type_is_integral(pointed_ty), "load of non-integer");
+    tacc_target_cg_deref_int(state, pointed_ty);
+}
+
 static void tacc_cg_compile_lval(struct tacc_cg_state *state,
                                  struct tacc_expr *expr) {
     struct tacc_local_var *var;
@@ -172,20 +186,6 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     }
 }
 
-static void tacc_cg_deref(struct tacc_cg_state *state) {
-    struct tacc_slot *slot;
-    struct tacc_type *pointed_ty;
-
-    slot = tacc_cg_get_top(state);
-    tacc_assert(ASSERT_DIAG,
-                slot->ty->kind == TYK_PTR,
-                "attempt to dereference non-pointer");
-    pointed_ty = slot->ty->extra.pointer.pointee;
-    tacc_assert(
-        ASSERT_TODO, tacc_type_is_integral(pointed_ty), "load of non-integer");
-    tacc_target_cg_deref_int(state, pointed_ty);
-}
-
 static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
     struct tacc_slot *slot_rval;
     struct tacc_slot *slot_lval;
@@ -210,7 +210,197 @@ static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
 static void tacc_cg_convert_top(struct tacc_cg_state *state,
                                 struct tacc_type *to_type);
 
-void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
+static void tacc_cg_compile_expr(struct tacc_cg_state *state,
+                                 struct tacc_expr *expr);
+
+static void tacc_cg_arg_promote_top(struct tacc_cg_state *state) {
+    struct tacc_type *ty;
+
+    ty = tacc_cg_top_type(state);
+    switch (ty->kind) {
+    case TYK_FLOAT:
+        tacc_cg_convert_top(
+            state,
+            tacc_get_basic_type(state->compiler->basic_types, TYK_DOUBLE));
+        break;
+    case TYK_BOOL:
+    case TYK_SCHAR:
+    case TYK_SSHORT:
+        tacc_cg_convert_top(
+            state, tacc_get_basic_type(state->compiler->basic_types, TYK_SINT));
+        break;
+    case TYK_UCHAR:
+    case TYK_USHORT:
+        tacc_cg_convert_top(
+            state, tacc_get_basic_type(state->compiler->basic_types, TYK_UINT));
+        break;
+    default:
+        break;
+    }
+}
+
+static void tacc_cg_function_params(struct tacc_cg_state *state,
+                                    struct tacc_type *fn_type,
+                                    struct tacc_expr_list *list) {
+    struct tacc_function_type *fn;
+    struct tacc_expr_list_entry *expr_entry;
+    struct tacc_type_list_entry *type_entry;
+    size_t i;
+
+    fn = fn_type->extra.function;
+    if (list == NULL) {
+        if (fn->param_types != NULL) {
+            tacc_assert(ASSERT_DIAG,
+                        tacc_type_list_len(fn->param_types) == 0,
+                        "need arguments to call this function");
+        }
+        return;
+    }
+    if (fn->param_types == NULL) {
+        /* no prototype. perform default argument promotions */
+        for (i = 0; i < tacc_expr_list_len(list); i = i + 1) {
+            expr_entry = tacc_expr_list_get(list, i);
+            tacc_cg_compile_expr(state, expr_entry->content);
+            tacc_cg_arg_promote_top(state);
+        }
+        return;
+    }
+    if (fn->is_vararg) {
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_list_len(fn->param_types) <=
+                        tacc_expr_list_len(list),
+                    "insufficient number of arguments for variadic function");
+    } else {
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_list_len(fn->param_types) ==
+                        tacc_expr_list_len(list),
+                    "wrong number of arguments for function");
+    }
+    for (i = 0; i < tacc_type_list_len(fn->param_types); i = i + 1) {
+        type_entry = tacc_type_list_get(fn->param_types, i);
+        expr_entry = tacc_expr_list_get(list, i);
+        tacc_cg_compile_expr(state, expr_entry->content);
+        tacc_cg_convert_top(state, type_entry->content);
+    }
+    for (TACC_UNUSED(0); i < tacc_expr_list_len(list); i = i + 1) {
+        /* process any varargs */
+        expr_entry = tacc_expr_list_get(list, i);
+        tacc_cg_compile_expr(state, expr_entry->content);
+        tacc_cg_arg_promote_top(state);
+    }
+}
+
+static void tacc_cg_call(struct tacc_cg_state *state,
+                         struct tacc_type *fn_type,
+                         size_t num_args) {
+    size_t i;
+    size_t needed_stack_space;
+    size_t needed_stack_alignment;
+    size_t part_end;
+    size_t current_param_idx;
+    struct tacc_slot_list_entry *slot_entry;
+    struct tacc_callitf *itf;
+    struct tacc_callitf_part_list_entry *itf_part_entry;
+    struct tacc_callitf_part *itf_part;
+    struct tacc_slot *current_param;
+
+    /*
+     * spill everything to stack to make it easier to handle calling convention;
+     * not only the current args but everything else as well
+     */
+    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
+        slot_entry = tacc_slot_list_get(state->stack, i);
+        tacc_cg_slot_spill(state, slot_entry->content);
+    }
+
+    itf = tacc_target_callitf_from_func_type(fn_type->extra.function);
+
+    /* need better support from callitf for variable-length argument lists... */
+    tacc_assert(ASSERT_TODO,
+                !fn_type->extra.function->is_vararg,
+                "varargs in call interface");
+    tacc_assert(ASSERT_TODO,
+                fn_type->extra.function->param_types != NULL,
+                "missing prototype in call interface");
+
+    needed_stack_space = 0;
+    needed_stack_alignment = 0;
+    for (i = 0; i < tacc_callitf_part_list_len(itf->param_parts); i = i + 1) {
+        itf_part_entry = tacc_callitf_part_list_get(itf->param_parts, i);
+        itf_part = itf_part_entry->content;
+        if (itf_part->place.kind == CALLITF_PLACE_STACK) {
+            if (itf_part->place.extra.stack.align_p2 > needed_stack_alignment) {
+                needed_stack_alignment = itf_part->place.extra.stack.align_p2;
+            }
+            part_end =
+                tacc_align_up(itf_part->place.extra.stack.size +
+                                  (size_t) (itf_part->place.extra.stack.offset),
+                              itf_part->place.extra.stack.align_p2) -
+                itf->implicit_stack_use;
+            if (part_end > needed_stack_space) {
+                needed_stack_space = part_end;
+            }
+        }
+    }
+    tacc_target_cg_alloc_stack(
+        state, needed_stack_space, needed_stack_alignment);
+
+    current_param = NULL;
+    current_param_idx = num_args;
+    for (i = tacc_callitf_part_list_len(itf->param_parts); i > 0; i = i - 1) {
+        itf_part_entry = tacc_callitf_part_list_get(itf->param_parts, i);
+        itf_part = itf_part_entry->content;
+
+        if (itf_part->param_idx == current_param_idx - 1) {
+            if (current_param != NULL) {
+                tacc_slot_free(current_param);
+            }
+            current_param = tacc_slot_list_pop(state->stack);
+            current_param_idx = itf_part->param_idx;
+            tacc_assert(ASSERT_ICE,
+                        current_param->place_kind == PLACE_SCRATCH,
+                        "argument not flushed to scratch?");
+        } else {
+            tacc_assert(ASSERT_ICE,
+                        current_param != NULL,
+                        "callitf mismatch, last param not found");
+            tacc_assert(ASSERT_ICE,
+                        current_param_idx == itf_part->param_idx,
+                        "callitf mismatch, params unordered or skipped");
+        }
+
+        if (itf_part->place.kind == CALLITF_PLACE_REGISTER) {
+            tacc_assert(ASSERT_TODO,
+                        tacc_type_is_scalar(current_param->ty),
+                        "non-scalar spill loads");
+            tacc_target_cg_load_scratch_part(state,
+                                             current_param->place.offset,
+                                             itf_part->place.extra.reg.reg,
+                                             current_param->ty);
+        } else {
+            tacc_target_cg_move_scratch_to_stack(
+                state,
+                current_param->place.offset,
+                itf_part->place.extra.stack.offset,
+                itf_part->place.extra.stack.size);
+        }
+    }
+    if (current_param != NULL) {
+        tacc_slot_free(current_param);
+    }
+
+    tacc_target_cg_call_top(state);
+    tacc_assert(ASSERT_TODO,
+                itf->retval_kind != CALLITF_RETVAL_OUTPARAM,
+                "return through outparam");
+    tacc_target_cg_normalize_retval(
+        state, itf, fn_type->extra.function->return_type);
+
+    tacc_callitf_free(itf);
+}
+
+static void tacc_cg_compile_expr(struct tacc_cg_state *state,
+                                 struct tacc_expr *expr) {
     struct tacc_val *val;
     struct tacc_global_object *global_object;
     struct tacc_slot *slot;
@@ -241,7 +431,18 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
             }
         }
         tacc_cg_compile_lval(state, expr);
-        tacc_cg_deref(state);
+        slot = tacc_cg_get_top(state);
+        tacc_assert(ASSERT_ICE,
+                    slot->ty->kind == TYK_PTR,
+                    "lval compilation didn't produce pointer");
+        if (slot->ty->extra.pointer.pointee->kind != TYK_FN) {
+            tacc_cg_deref(state);
+        } else {
+            /*
+             * this is a function designator. "convert" to function pointer by
+             * avoiding deref
+             */
+        }
         break;
 
     case EX_ASSI:
@@ -256,6 +457,26 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         tacc_cg_rot(state);
         tacc_cg_swap(state);
         tacc_cg_compile_assign(state);
+        break;
+
+    case EX_CALL:
+        tacc_cg_compile_expr(state, expr->op1);
+        slot = tacc_cg_get_top(state);
+        tacc_assert(ASSERT_ICE,
+                    slot->ty->kind == TYK_PTR,
+                    "lval compilation didn't produce pointer");
+        tacc_assert(ASSERT_DIAG,
+                    slot->ty->extra.pointer.pointee->kind == TYK_FN,
+                    "cannot call what is not a function pointer");
+        tacc_cg_function_params(
+            state, slot->ty->extra.pointer.pointee, expr->extra.op_list);
+        if (expr->extra.op_list == NULL) {
+            tacc_cg_call(state, slot->ty->extra.pointer.pointee, 0);
+        } else {
+            tacc_cg_call(state,
+                         slot->ty->extra.pointer.pointee,
+                         tacc_expr_list_len(expr->extra.op_list));
+        }
         break;
 
     case EX_UNINIT:
@@ -303,7 +524,6 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
     case EX_ADDROF:
     case EX_MEMBER:
     case EX_PTR_MEMBER:
-    case EX_CALL:
     case EX_COMMA:
     case EX_CAST:
     case EX_SIZEOF:
@@ -314,6 +534,14 @@ void tacc_cg_compile_expr(struct tacc_cg_state *state, struct tacc_expr *expr) {
         tacc_assert(ASSERT_TODO, 0, "unsupported expression in codegen");
         break;
     }
+}
+
+struct tacc_type *tacc_cg_top_type(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+
+    return slot->ty;
 }
 
 static tacc_bool tacc_cg_top_is_int(struct tacc_cg_state *state) {
@@ -479,7 +707,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
                     state,
                     param_type_entry->content,
                     param_name,
-                    itf_part_entry->content->place.extra.stack_offset);
+                    itf_part_entry->content->place.extra.stack.offset);
             } else {
                 tacc_cg_alloc_variable(
                     state, param_type_entry->content, param_name);
@@ -497,9 +725,27 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
 }
 
 void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
-    TACC_UNUSED(state);
-    TACC_UNUSED(slot);
-    tacc_assert(ASSERT_TODO, 0, "spill");
+    int offset;
+
+    if (slot->place_kind == PLACE_SCRATCH || slot->place_kind == PLACE_NONE) {
+        return;
+    }
+    offset = tacc_cg_alloc_scratch(
+        state, tacc_type_size(slot->ty), tacc_type_alignment_p2(slot->ty));
+    if (slot->place_kind == PLACE_REGISTER) {
+        tacc_target_cg_store_reg_to_scratch(
+            state, offset, slot->place.reg->reg, slot->ty);
+        tacc_target_place_register_free(slot->place.reg);
+        slot->place_kind = PLACE_SCRATCH;
+        slot->place.offset = offset;
+        return;
+    }
+    tacc_target_cg_store_reg_pair_to_scratch(
+        state, offset, slot->place.pair.reg->reg, slot->place.pair.reg_2->reg);
+    tacc_target_place_register_free(slot->place.pair.reg);
+    tacc_target_place_register_free(slot->place.pair.reg_2);
+    slot->place_kind = PLACE_SCRATCH;
+    slot->place.offset = offset;
 }
 
 struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state) {
@@ -596,6 +842,15 @@ void tacc_cg_push_reg_pair(struct tacc_cg_state *state,
     slot->place.pair.reg = reg;
     slot->place.pair.reg_2 = reg_2;
     slot->ty = ty;
+
+    tacc_slot_list_push(state->stack, slot);
+}
+void tacc_cg_push_void(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_slot_new();
+    slot->place_kind = PLACE_NONE;
+    slot->ty = tacc_get_basic_type(state->compiler->basic_types, TYK_VOID);
 
     tacc_slot_list_push(state->stack, slot);
 }
@@ -771,25 +1026,51 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
     *lo_reg = slot->place.pair.reg->reg;
     *hi_reg = slot->place.pair.reg_2->reg;
 }
-uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state) {
+
+static uint32_t tacc_cg_ensure_reg(struct tacc_cg_state *state,
+                                   struct tacc_slot *slot,
+                                   uint32_t regs_ok) {
+    uint32_t reg;
+    uint32_t old_reg;
+
+    if (slot->place_kind == PLACE_SCRATCH) {
+        reg = tacc_target_cg_alloc_reg(state, regs_ok);
+        tacc_target_cg_load_scratch_part(
+            state, slot->place.offset, reg, slot->ty);
+        slot->place_kind = PLACE_REGISTER;
+        slot->place.reg = tacc_target_place_register_new();
+        slot->place.reg->reg = reg;
+        return reg;
+    }
+
+    tacc_assert(ASSERT_TODO,
+                slot->place_kind == PLACE_REGISTER,
+                "expected register at stack top");
+    old_reg = slot->place.reg->reg;
+    if ((old_reg & regs_ok) != 0) {
+        return old_reg;
+    }
+    reg = tacc_target_cg_alloc_reg(state, regs_ok);
+    tacc_target_cg_move_reg_reg(state, old_reg, reg);
+    slot->place.reg->reg = reg;
+    return reg;
+}
+
+uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state,
+                                      uint32_t regs_ok) {
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_top(state);
 
-    tacc_assert(ASSERT_TODO,
-                slot->place_kind == PLACE_REGISTER,
-                "expected register at stack top");
-    return slot->place.reg->reg;
+    return tacc_cg_ensure_reg(state, slot, regs_ok);
 }
-uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state) {
+uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state,
+                                       uint32_t regs_ok) {
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_over(state);
 
-    tacc_assert(ASSERT_TODO,
-                slot->place_kind == PLACE_REGISTER,
-                "expected register at stack top");
-    return slot->place.reg->reg;
+    return tacc_cg_ensure_reg(state, slot, regs_ok);
 }
 
 void tacc_cg_finalize(struct tacc_cg_state *state) {
@@ -816,6 +1097,20 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
         state, ty, name_ref, -((int) (state->num_local_bytes)));
 
     return var;
+}
+
+int tacc_cg_alloc_scratch(struct tacc_cg_state *state,
+                          size_t size,
+                          size_t alignment_p2) {
+    tacc_assert(ASSERT_DIAG,
+                alignment_p2 <= 4,
+                "scratch alignment %d exceeds stack alignment of 16",
+                alignment_p2);
+    state->num_local_bytes =
+        tacc_align_up(state->num_local_bytes, alignment_p2);
+    state->num_local_bytes = state->num_local_bytes + size;
+
+    return -((int) (state->num_local_bytes));
 }
 
 struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,

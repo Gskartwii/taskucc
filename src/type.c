@@ -52,6 +52,10 @@ struct tacc_u64 *tacc_type_min_val(struct tacc_type *type) {
 }
 
 size_t tacc_type_bit_width(struct tacc_type *type) {
+    if (type->kind == TYK_PTR) {
+        return type->extra.pointer.repr->bit_width;
+    }
+
     tacc_assert(ASSERT_ICE,
                 tacc_type_kind_is_integral(type->kind),
                 "cannot take bit width val for non-integral type");

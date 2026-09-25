@@ -92,7 +92,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->int_regs_used = state->int_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.size = 8;
+            part->place.extra.stack.align_p2 = 3;
             state->used_stack = state->used_stack + 8;
         }
         break;
@@ -111,7 +113,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->float_regs_used = state->float_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.size = 8;
+            part->place.extra.stack.align_p2 = 3;
             state->used_stack = state->used_stack + 8;
         }
         break;
@@ -119,7 +123,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         part->ty = arg_type;
         part->place.kind = CALLITF_PLACE_STACK;
         state->used_stack = (uint32_t) tacc_align_up(state->used_stack, 4);
-        part->place.extra.stack_offset = (int) (state->used_stack);
+        part->place.extra.stack.offset = (int) (state->used_stack);
+        part->place.extra.stack.size = 16;
+        part->place.extra.stack.align_p2 = 4;
         state->used_stack = state->used_stack + 16;
         break;
     case TYK_ARRAY:
@@ -154,6 +160,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     state.used_stack = 16;
     state.int_regs_used = 0;
     state.float_regs_used = 0;
+    ret->implicit_stack_use = 16;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_RAX;

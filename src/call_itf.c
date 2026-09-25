@@ -10,6 +10,7 @@ struct tacc_callitf *tacc_callitf_new(void) {
     itf->retval_reg = 0;
     itf->retval_reg_2 = 0;
     itf->retval_reg_class = 0;
+    itf->implicit_stack_use = 0;
 
     return itf;
 }

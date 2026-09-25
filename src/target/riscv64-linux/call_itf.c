@@ -58,8 +58,10 @@ uint32_t tacc_callitf_float_areg(uint32_t index) {
     }
 }
 
-static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
-    struct tacc_type *arg_type, struct tacc_callitf_state *state) {
+static void
+tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
+                                   struct tacc_callitf_state *state,
+                                   struct tacc_callitf_part_list *parts) {
     struct tacc_callitf_part *part;
 
     part = tacc_callitf_part_new();
@@ -85,9 +87,12 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->int_regs_used = state->int_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.align_p2 = 3;
+            part->place.extra.stack.size = 8;
             state->used_stack = state->used_stack + 8;
         }
+        tacc_callitf_part_list_push(parts, part);
         break;
     case TYK_FLOAT:
     case TYK_DOUBLE:
@@ -104,27 +109,41 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->float_regs_used = state->float_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.align_p2 = 3;
+            part->place.extra.stack.size = 8;
             state->used_stack = state->used_stack + 8;
         }
+        tacc_callitf_part_list_push(parts, part);
         break;
     case TYK_LONGDOUBLE:
         part->ty = arg_type;
         state->int_regs_used =
             (uint32_t) tacc_align_up(state->int_regs_used, 1);
         if (state->int_regs_used < 8) {
-            part->place.kind = CALLITF_PLACE_REGISTER_PAIR;
-            part->place.extra.pair.reg_class = REGC_INT;
-            part->place.extra.pair.reg =
-                tacc_callitf_areg(state->int_regs_used);
-            part->place.extra.pair.reg_2 =
+            part->place.kind = CALLITF_PLACE_REGISTER;
+            part->place.extra.reg.reg_class = REGC_INT;
+            part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
+            tacc_callitf_part_list_push(parts, part);
+
+            part = tacc_callitf_part_new();
+            part->ty = arg_type;
+            part->place.kind = CALLITF_PLACE_REGISTER;
+            part->place.extra.reg.reg_class = REGC_INT;
+            part->place.extra.reg.reg =
                 tacc_callitf_areg(state->int_regs_used + 1);
+            tacc_callitf_part_list_push(parts, part);
+
             state->int_regs_used = state->int_regs_used + 2;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
             state->used_stack = (uint32_t) tacc_align_up(state->used_stack, 4);
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.align_p2 = 4;
+            part->place.extra.stack.size = 16;
             state->used_stack = state->used_stack + 16;
+
+            tacc_callitf_part_list_push(parts, part);
         }
         break;
     case TYK_ARRAY:
@@ -143,8 +162,6 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         tacc_assert(ASSERT_DIAG, 0, "function cannot take void as parameter");
         break;
     }
-
-    return part;
 }
 
 struct tacc_callitf *
@@ -158,6 +175,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     state.used_stack = 16; /* ra and fp */
     state.int_regs_used = 0;
     state.float_regs_used = 0;
+    ret->implicit_stack_use = 16;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_A0;
@@ -208,9 +226,8 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
 
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
-        tacc_callitf_part_list_push(
-            ret->param_parts,
-            tacc_target_callitf_part_from_arg(ty_entry->content, &state));
+        tacc_target_callitf_parts_from_arg(
+            ty_entry->content, &state, ret->param_parts);
     }
 
     ret->frame_offset = 16;

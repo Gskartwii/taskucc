@@ -82,7 +82,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->int_regs_used = state->int_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.align_p2 = 3;
+            part->place.extra.stack.size = 8;
             state->used_stack = state->used_stack + 8;
         }
         break;
@@ -97,7 +99,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             state->int_regs_used = state->int_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
-            part->place.extra.stack_offset = (int) (state->used_stack);
+            part->place.extra.stack.offset = (int) (state->used_stack);
+            part->place.extra.stack.align_p2 = 3;
+            part->place.extra.stack.size = 8;
             state->used_stack = state->used_stack + 8;
         }
         break;
@@ -122,10 +126,14 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
             if (arg_type->kind == TYK_LONGDOUBLE) {
                 state->used_stack =
                     (uint32_t) tacc_align_up(state->used_stack, 4);
-                part->place.extra.stack_offset = (int) (state->used_stack);
+                part->place.extra.stack.offset = (int) (state->used_stack);
+                part->place.extra.stack.align_p2 = 4;
+                part->place.extra.stack.size = 16;
                 state->used_stack = state->used_stack + 16;
             } else {
-                part->place.extra.stack_offset = (int) (state->used_stack);
+                part->place.extra.stack.offset = (int) (state->used_stack);
+                part->place.extra.stack.align_p2 = 3;
+                part->place.extra.stack.size = 8;
                 state->used_stack = state->used_stack + 8;
             }
         }

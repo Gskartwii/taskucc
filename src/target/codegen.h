@@ -2,6 +2,7 @@
 #define TACC_TARGET_CODEGEN
 
 #include "../codegen.h"
+#include "call_itf.h"
 #include "compile.h"
 #include "machine.h"
 
@@ -36,5 +37,29 @@ void tacc_target_cg_store_int(struct tacc_cg_state *state,
 void tacc_target_cg_finalize(struct tacc_cg_state *state);
 void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                                struct tacc_global_object *object);
+void tacc_target_cg_alloc_stack(struct tacc_cg_state *state,
+                                size_t space,
+                                size_t align_p2);
+void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
+                                      int offset,
+                                      uint32_t to_reg,
+                                      struct tacc_type *ty);
+void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
+                                          int from_fp_offset,
+                                          int to_sp_offset,
+                                          size_t size);
+void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
+                                         int offset,
+                                         uint32_t reg,
+                                         struct tacc_type *ty);
+void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
+                                              int offset,
+                                              uint32_t reg,
+                                              uint32_t reg_2);
+void tacc_target_cg_call_top(struct tacc_cg_state *state);
+void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
+                                     struct tacc_callitf *itf,
+                                     struct tacc_type *return_ty);
+uint32_t tacc_target_cg_reg_class_of_type(struct tacc_type *ty);
 
 #endif

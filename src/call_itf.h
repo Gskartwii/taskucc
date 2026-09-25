@@ -7,7 +7,6 @@
 
 enum tacc_callitf_place_kind {
     CALLITF_PLACE_REGISTER,
-    CALLITF_PLACE_REGISTER_PAIR,
     CALLITF_PLACE_STACK,
 };
 
@@ -26,11 +25,10 @@ struct tacc_callitf_place {
             uint32_t reg_class;
         } reg;
         struct {
-            uint32_t reg;
-            uint32_t reg_2;
-            uint32_t reg_class;
-        } pair;
-        int stack_offset;
+            int offset;
+            size_t size;
+            size_t align_p2;
+        } stack;
     } extra;
 };
 
@@ -62,6 +60,8 @@ struct tacc_callitf {
     uint32_t retval_reg;
     uint32_t retval_reg_2;
     uint32_t retval_reg_class;
+
+    size_t implicit_stack_use;
 
     int frame_offset;
 };
