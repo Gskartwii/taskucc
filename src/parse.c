@@ -285,12 +285,10 @@ static void tacc_parse_floatlit(char *cstr,
                                 char *cstr_last,
                                 struct tacc_expr *out_expr) {
     struct tacc_float_literal *literal;
-    struct tacc_f128 *value;
     struct tacc_file_iter *iter;
     int precision;
 
     literal = tacc_float_literal_new();
-    value = tacc_malloc(sizeof(struct tacc_f128));
     precision = 1;
     if (*cstr_last == 'f' || *cstr_last == 'F') {
         precision = 0;
@@ -303,9 +301,8 @@ static void tacc_parse_floatlit(char *cstr,
     }
 
     iter = tacc_file_iter_new_str(cstr, cstr_last);
-    floatscan(iter, precision, value);
+    floatscan(iter, precision, literal->number);
     tacc_file_iter_free(iter);
-    literal->number = value;
     out_expr->kind = EX_FLOAT_LIT;
     out_expr->extra.float_literal = literal;
 }
@@ -322,7 +319,6 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     struct tacc_file_iter *iter;
     struct tacc_u64 limit;
 
-    literal = tacc_int_literal_new();
     tacc_assert(ASSERT_ICE, tok->str != NULL, "need str to parse numlit");
     len = tacc_dynstring_len(tok->str);
     cstr = tacc_dynstring_take_str(tok->str);
@@ -331,6 +327,7 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
 
     tacc_assert(ASSERT_ICE, len > 0, "invalid empty ppnumber");
     if (len == 1) {
+        literal = tacc_int_literal_new();
         tacc_u64_add_u32(
             literal->number, literal->number, (uint32_t) (*cstr - '0'));
         tacc_free(cstr);
@@ -354,7 +351,8 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
             cstr = cstr + 1;
         }
     }
-    if (base != 16 && (strchr(cstr, 'e') != NULL || strchr(cstr, 'f') != NULL)) {
+    if (base != 16 &&
+        (strchr(cstr, 'e') != NULL || strchr(cstr, 'f') != NULL)) {
         tacc_parse_floatlit(cstr_orig, cstr_last, out_expr);
         return;
     }
@@ -382,6 +380,7 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
 
     iter = tacc_file_iter_new_str(cstr_orig, cstr_last);
 
+    literal = tacc_int_literal_new();
     limit.high = 0xFFFFFFFF;
     limit.low = 0xFFFFFFFF;
     intscan(iter, base, &limit, literal->number);

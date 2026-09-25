@@ -70,6 +70,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
     } else if (expr->kind == EX_CALL && expr->extra.op_list != NULL) {
         tacc_expr_list_free(expr->extra.op_list);
         tacc_free(expr->extra.op_list);
+    } else if (expr->kind == EX_FLOAT_LIT) {
+        tacc_float_literal_free(expr->extra.float_literal);
     }
     tacc_free(expr);
 }
@@ -81,6 +83,11 @@ void tacc_type_name_free(struct tacc_type_name *ty) {
 }
 
 void tacc_int_literal_free(struct tacc_int_literal *literal) {
+    tacc_free(literal->number);
+    tacc_free(literal);
+}
+
+void tacc_float_literal_free(struct tacc_float_literal *literal) {
     tacc_free(literal->number);
     tacc_free(literal);
 }
