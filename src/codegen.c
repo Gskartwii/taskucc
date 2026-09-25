@@ -348,7 +348,7 @@ static void tacc_cg_call(struct tacc_cg_state *state,
     current_param = NULL;
     current_param_idx = num_args;
     for (i = tacc_callitf_part_list_len(itf->param_parts); i > 0; i = i - 1) {
-        itf_part_entry = tacc_callitf_part_list_get(itf->param_parts, i);
+        itf_part_entry = tacc_callitf_part_list_get(itf->param_parts, i - 1);
         itf_part = itf_part_entry->content;
 
         if (itf_part->param_idx == current_param_idx - 1) {
