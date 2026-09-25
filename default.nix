@@ -1,10 +1,15 @@
 {
   localSystem ? "x86_64-unknown-linux-gnu",
-  crossSystem ? "x86_64-unknown-linux-gnu",
+  crossSystem ? "x86_64-unknown-linux-musl",
 }: let
   pkgsImport = import (builtins.getFlake "github:NixOS/nixpkgs/pull/555663/head");
   pkgsBase = pkgsImport {
-    inherit localSystem crossSystem;
+    inherit localSystem;
+    crossSystem =
+      ((pkgsImport {}).lib.systems.elaborate crossSystem)
+      // {
+        isStatic = true;
+      };
   };
 in
   (pkgsBase.extend (final: prev:

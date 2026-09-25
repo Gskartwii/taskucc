@@ -1,9 +1,15 @@
 {lite ? false}: let
-  systems = [
+  hostSystems = [
     "i686-linux"
     "x86_64-linux"
     "aarch64-linux"
     "riscv64-linux"
+  ];
+  targetSystems = [
+    "i686-unknown-linux-musl"
+    "x86_64-unknown-linux-musl"
+    "aarch64-unknown-linux-musl"
+    "riscv64-unknown-linux-musl"
   ];
   taskuPkgSet = import ../.;
   testOn = config: let
@@ -25,8 +31,8 @@ in
           }
         else "skipped testing on riscv64";
     })
-    systems)
-  systems)
+    targetSystems)
+  hostSystems)
   // {
     recurseForDerivations = true;
   }
