@@ -168,6 +168,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     ret = tacc_callitf_new();
     state.used_stack = 0;
     state.int_regs_used = 0;
+    state.float_regs_used = 0;
 
     ret->retval_kind = CALLITF_RETVAL_REGISTER;
     ret->retval_reg = REG_X0;
