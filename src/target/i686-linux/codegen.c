@@ -540,8 +540,10 @@ void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
                 (size & 3) == 0,
                 "move_scratch_to_stack: not a multiple of 4");
     for (i = 0; i < size; i = i + 4) {
-        tacc_cg_output(state, "\n\t movl %d(%%ebp), %%eax", from_fp_offset);
-        tacc_cg_output(state, "\n\t movl %%eax, %d(%%esp)", to_sp_offset);
+        tacc_cg_output(
+            state, "\n\t movl %d(%%ebp), %%eax", from_fp_offset + (int) i);
+        tacc_cg_output(
+            state, "\n\t movl %%eax, %d(%%esp)", to_sp_offset + (int) i);
     }
 }
 

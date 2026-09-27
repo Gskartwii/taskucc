@@ -553,9 +553,9 @@ void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
                 "move_scratch_to_stack: not a multiple of 8");
     for (i = 0; i < size; i = i + 8) {
         tacc_cg_output(
-            state, "\n\t movq %d(%%rbp), %%rax", from_fp_offset + (int) size);
+            state, "\n\t movq %d(%%rbp), %%rax", from_fp_offset + (int) i);
         tacc_cg_output(
-            state, "\n\t movq %%rax, %d(%%rsp)", to_sp_offset + (int) size);
+            state, "\n\t movq %%rax, %d(%%rsp)", to_sp_offset + (int) i);
     }
 }
 
