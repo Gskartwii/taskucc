@@ -1,6 +1,6 @@
 {
   stdenv,
-  bash,
+  bashNonInteractive,
   which,
   tasku-m2,
   tasku-gcc,
@@ -56,7 +56,7 @@ in
         (derivationStrict {
           name = "taskucc-run-target-unit-test-${stdenv.hostPlatform.system}";
           system = stdenv.hostPlatform.system;
-          builder = lib.getExe bash;
+          builder = lib.getExe bashNonInteractive;
           args = [
             (lib.getExe' unit-test "target-compile-test")
           ];
