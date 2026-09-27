@@ -381,7 +381,8 @@ static void tacc_cg_call(struct tacc_cg_state *state,
             tacc_target_cg_move_scratch_to_stack(
                 state,
                 current_param->place.offset,
-                itf_part->place.extra.stack.offset,
+                itf_part->place.extra.stack.offset -
+                    (int) (itf->implicit_stack_use),
                 itf_part->place.extra.stack.size);
         }
     }
