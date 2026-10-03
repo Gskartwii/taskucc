@@ -432,7 +432,7 @@ void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
 }
 
 void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
-    tacc_cg_output(state, "\n\t j .L%u_epilog", state->func_name);
+    tacc_cg_output(state, "\n\t b .L%u_epilog", state->func_name);
 }
 
 void tacc_target_cg_prelude(struct tacc_compiler *compiler) {
