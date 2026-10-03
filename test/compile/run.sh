@@ -22,7 +22,7 @@ for case_dir in cases/*; do
         ok=false
         continue
     fi
-    if ! $CC "$RUN_TMP/test.S" "$case_dir/driver.c" -o "$RUN_TMP/driver"; then
+    if ! $CC "$RUN_TMP/test.S" "$SCRIPT_DIR/taccrt.c" "$case_dir/driver.c" -o "$RUN_TMP/driver"; then
         echo "LINK $case_dir/test.c: fail"
         ok=false
         continue
