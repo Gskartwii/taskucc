@@ -56,6 +56,10 @@ size_t tacc_type_bit_width(struct tacc_type *type) {
         return type->extra.pointer.repr->bit_width;
     }
 
+    if (tacc_type_kind_is_floating(type->kind)) {
+        return type->extra.float_repr->bit_width;
+    }
+
     tacc_assert(ASSERT_ICE,
                 tacc_type_kind_is_integral(type->kind),
                 "cannot take bit width val for non-integral type");
