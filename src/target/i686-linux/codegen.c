@@ -597,6 +597,7 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
                                      struct tacc_type *return_ty) {
     struct tacc_target_place_register *reg_place;
     struct tacc_target_place_register *reg_place_2;
+    int offset;
 
     switch (itf->retval_kind) {
     case CALLITF_RETVAL_NONE:
@@ -604,15 +605,19 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
         break;
     case CALLITF_RETVAL_REGISTER:
         tacc_assert(ASSERT_TODO,
-                    itf->retval_reg_class <= REGC_INT_D,
-                    "returning non-integer register");
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = itf->retval_reg;
-        tacc_cg_push_reg(state, reg_place, return_ty);
+                    itf->retval_reg_class == REGC_FLOAT_X87,
+                    "returning non-x87 register");
+        offset = tacc_cg_alloc_scratch(state, 12, 2);
+        tacc_cg_output(state, "\n\t fstpt %d(%%ebp)", offset);
+        tacc_cg_push_scratch(
+            state,
+            offset,
+            tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
+        tacc_cg_convert_top(state, return_ty);
         break;
     case CALLITF_RETVAL_REGISTER_PAIR:
         tacc_assert(ASSERT_ICE,
-                    itf->retval_reg_class == REGC_INT_D,
+                    itf->retval_reg_class == REGC_INT,
                     "returning non-integer register pair");
         reg_place = tacc_target_place_register_new();
         reg_place->reg = itf->retval_reg;
@@ -650,6 +655,7 @@ void tacc_target_cg_convert_float(struct tacc_cg_state *state,
     } else {
         tacc_cg_output(state, "\n\t fstps %d(%%ebp)", offset);
     }
+    tacc_cg_pop(state);
     tacc_cg_push_scratch(state, offset, to_type);
 }
 
@@ -700,4 +706,17 @@ void tacc_target_cg_store_float(struct tacc_cg_state *state,
     }
     tacc_cg_pop(state);
     tacc_cg_pop(state);
+}
+
+void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
+    int offset;
+
+    offset = tacc_cg_alloc_scratch(state, 12, 2);
+    tacc_cg_output(state, "\n\t fldt .Lfloat_%d", index);
+    tacc_cg_output(state, "\n\t fstpt %d(%%ebp)", offset);
+
+    tacc_cg_push_scratch(
+        state,
+        offset,
+        tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
 }

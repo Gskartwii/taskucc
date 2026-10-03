@@ -139,7 +139,8 @@ static char *tacc_target_f_register_name(enum tacc_target_register_float reg) {
         return "ft10";
     case REGF_T11:
         return "ft11";
-        break;
+    default:
+        return "INVALID-F";
     }
 }
 
@@ -664,22 +665,23 @@ void tacc_target_cg_call_top(struct tacc_cg_state *state) {
 void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
                                      struct tacc_callitf *itf,
                                      struct tacc_type *return_ty) {
-    struct tacc_target_place_register *reg_place;
+    int offset;
 
     switch (itf->retval_kind) {
     case CALLITF_RETVAL_NONE:
         tacc_cg_push_void(state);
         break;
     case CALLITF_RETVAL_REGISTER:
-        tacc_assert(ASSERT_TODO,
-                    itf->retval_reg_class == REGC_INT,
-                    "returning non-integer register");
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = itf->retval_reg;
-        tacc_cg_push_reg(state, reg_place, return_ty);
+        tacc_assert(ASSERT_TODO, 0, "returning single register");
         break;
     case CALLITF_RETVAL_REGISTER_PAIR:
-        tacc_assert(ASSERT_TODO, 0, "return of regpair");
+        tacc_assert(ASSERT_TODO,
+                    return_ty->kind == TYK_LONGDOUBLE,
+                    "return of pair wasn't longdouble");
+        offset = tacc_cg_alloc_scratch(state, 16, 4);
+        tacc_cg_output(state, "\n\t sd a0, %d(s0)", offset);
+        tacc_cg_output(state, "\n\t sd a1, %d(s0)", offset + 8);
+        tacc_cg_push_scratch(state, offset, return_ty);
         break;
     case CALLITF_RETVAL_OUTPARAM:
         tacc_assert(ASSERT_TODO, 0, "outparam returns");
@@ -827,4 +829,41 @@ void tacc_target_cg_store_float(struct tacc_cg_state *state,
     }
     tacc_cg_pop(state);
     tacc_cg_pop(state);
+}
+
+void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
+    uint32_t scratch_reg;
+    int offset;
+
+    offset = tacc_cg_alloc_scratch(state, 16, 4);
+    scratch_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    tacc_cg_output(state,
+                   "\n\t la %s, .Lfloat_%d",
+                   tacc_target_register_as_64(scratch_reg),
+                   index);
+    tacc_cg_output(state,
+                   "\n\t ld %s, (%s)",
+                   tacc_target_register_as_64(scratch_reg),
+                   tacc_target_register_as_64(scratch_reg));
+    tacc_cg_output(state,
+                   "\n\t sd %s, %d(s0)",
+                   tacc_target_register_as_64(scratch_reg),
+                   offset);
+    tacc_cg_output(state,
+                   "\n\t la %s, .Lfloat_%d",
+                   tacc_target_register_as_64(scratch_reg),
+                   index);
+    tacc_cg_output(state,
+                   "\n\t ld %s, 8(%s)",
+                   tacc_target_register_as_64(scratch_reg),
+                   tacc_target_register_as_64(scratch_reg));
+    tacc_cg_output(state,
+                   "\n\t sd %s, %d(s0)",
+                   tacc_target_register_as_64(scratch_reg),
+                   offset + 8);
+
+    tacc_cg_push_scratch(
+        state,
+        offset,
+        tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
 }
