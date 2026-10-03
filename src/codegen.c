@@ -931,6 +931,9 @@ void tacc_slot_free(struct tacc_slot *slot) {
     if (slot->place_kind == PLACE_REGISTER) {
         tacc_target_place_register_free(slot->place.reg);
     }
+    if (slot->place_kind == PLACE_FLOAT_REGISTER) {
+        tacc_target_place_register_free(slot->place.reg);
+    }
     tacc_free(slot);
 }
 
