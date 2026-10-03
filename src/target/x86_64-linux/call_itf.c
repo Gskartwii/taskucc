@@ -64,25 +64,25 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_SCHAR:
     case TYK_BOOL:
         part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT_B;
+        part->place.extra.reg.reg_class = REGC_INT;
         goto alloc_int;
     case TYK_USHORT:
     case TYK_SSHORT:
         part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT_W;
+        part->place.extra.reg.reg_class = REGC_INT;
         goto alloc_int;
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ENUM:
         part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT_L;
+        part->place.extra.reg.reg_class = REGC_INT;
         goto alloc_int;
     case TYK_ULONG:
     case TYK_SLONG:
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_PTR:
-        part->place.extra.reg.reg_class = REGC_INT_Q;
+        part->place.extra.reg.reg_class = REGC_INT;
 
     alloc_int:
         part->ty = arg_type;
@@ -104,9 +104,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         if (state->float_regs_used < 6) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             if (arg_type->kind == TYK_FLOAT) {
-                part->place.extra.reg.reg_class = REGC_FLOAT_SSE_S;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             } else {
-                part->place.extra.reg.reg_class = REGC_FLOAT_SSE_D;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             }
             part->place.extra.reg.reg =
                 tacc_callitf_float_areg(state->int_regs_used);
@@ -168,30 +168,30 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:
-        ret->retval_reg_class = REGC_INT_B;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_USHORT:
     case TYK_SSHORT:
-        ret->retval_reg_class = REGC_INT_W;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ENUM:
-        ret->retval_reg_class = REGC_INT_L;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_ULONG:
     case TYK_SLONG:
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_PTR:
-        ret->retval_reg_class = REGC_INT_Q;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_FLOAT:
-        ret->retval_reg_class = REGC_FLOAT_SSE_S;
+        ret->retval_reg_class = REGC_FLOAT;
         ret->retval_reg = REGV_XMM0;
         break;
     case TYK_DOUBLE:
-        ret->retval_reg_class = REGC_FLOAT_SSE_D;
+        ret->retval_reg_class = REGC_FLOAT;
         ret->retval_reg = REGV_XMM0;
         break;
     case TYK_LONGDOUBLE:

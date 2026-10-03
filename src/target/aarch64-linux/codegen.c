@@ -1,8 +1,10 @@
 #include "codegen.h"
+#include "call_itf.h"
 #include "compile.h"
 #include "machine.h"
 #include "target/aarch64-linux/registers.h"
 #include "target/codegen.h"
+#include "target/target.h"
 #include "type.h"
 #include "util.h"
 
@@ -136,6 +138,213 @@ static char *tacc_target_register_as_32(enum tacc_target_register reg) {
     }
 }
 
+static char *tacc_target_f_register_as_32(enum tacc_target_register_float reg) {
+    switch (reg) {
+    case REGF_V0:
+        return "s0";
+    case REGF_V1:
+        return "s1";
+    case REGF_V2:
+        return "s2";
+    case REGF_V3:
+        return "s3";
+    case REGF_V4:
+        return "s4";
+    case REGF_V5:
+        return "s5";
+    case REGF_V6:
+        return "s6";
+    case REGF_V7:
+        return "s7";
+    case REGF_V8:
+        return "s8";
+    case REGF_V9:
+        return "s9";
+    case REGF_V10:
+        return "s10";
+    case REGF_V11:
+        return "s11";
+    case REGF_V12:
+        return "s12";
+    case REGF_V13:
+        return "s13";
+    case REGF_V14:
+        return "s14";
+    case REGF_V15:
+        return "s15";
+    case REGF_V16:
+        return "s16";
+    case REGF_V17:
+        return "s17";
+    case REGF_V18:
+        return "s18";
+    case REGF_V19:
+        return "s19";
+    case REGF_V20:
+        return "s20";
+    case REGF_V21:
+        return "s21";
+    case REGF_V22:
+        return "s22";
+    case REGF_V23:
+        return "s23";
+    case REGF_V24:
+        return "s24";
+    case REGF_V25:
+        return "s25";
+    case REGF_V26:
+        return "s26";
+    case REGF_V27:
+        return "s27";
+    case REGF_V28:
+        return "s28";
+    case REGF_V29:
+        return "s29";
+    case REGF_V30:
+        return "s30";
+    default:
+        return "INVALID-F32";
+    }
+}
+static char *tacc_target_f_register_as_64(enum tacc_target_register_float reg) {
+    switch (reg) {
+    case REGF_V0:
+        return "d0";
+    case REGF_V1:
+        return "d1";
+    case REGF_V2:
+        return "d2";
+    case REGF_V3:
+        return "d3";
+    case REGF_V4:
+        return "d4";
+    case REGF_V5:
+        return "d5";
+    case REGF_V6:
+        return "d6";
+    case REGF_V7:
+        return "d7";
+    case REGF_V8:
+        return "d8";
+    case REGF_V9:
+        return "d9";
+    case REGF_V10:
+        return "d10";
+    case REGF_V11:
+        return "d11";
+    case REGF_V12:
+        return "d12";
+    case REGF_V13:
+        return "d13";
+    case REGF_V14:
+        return "d14";
+    case REGF_V15:
+        return "d15";
+    case REGF_V16:
+        return "d16";
+    case REGF_V17:
+        return "d17";
+    case REGF_V18:
+        return "d18";
+    case REGF_V19:
+        return "d19";
+    case REGF_V20:
+        return "d20";
+    case REGF_V21:
+        return "d21";
+    case REGF_V22:
+        return "d22";
+    case REGF_V23:
+        return "d23";
+    case REGF_V24:
+        return "d24";
+    case REGF_V25:
+        return "d25";
+    case REGF_V26:
+        return "d26";
+    case REGF_V27:
+        return "d27";
+    case REGF_V28:
+        return "d28";
+    case REGF_V29:
+        return "d29";
+    case REGF_V30:
+        return "d30";
+    default:
+        return "INVALID-F64";
+    }
+}
+
+static char *
+tacc_target_f_register_as_128(enum tacc_target_register_float reg) {
+    switch (reg) {
+    case REGF_V0:
+        return "q0";
+    case REGF_V1:
+        return "q1";
+    case REGF_V2:
+        return "q2";
+    case REGF_V3:
+        return "q3";
+    case REGF_V4:
+        return "q4";
+    case REGF_V5:
+        return "q5";
+    case REGF_V6:
+        return "q6";
+    case REGF_V7:
+        return "q7";
+    case REGF_V8:
+        return "q8";
+    case REGF_V9:
+        return "q9";
+    case REGF_V10:
+        return "q10";
+    case REGF_V11:
+        return "q11";
+    case REGF_V12:
+        return "q12";
+    case REGF_V13:
+        return "q13";
+    case REGF_V14:
+        return "q14";
+    case REGF_V15:
+        return "q15";
+    case REGF_V16:
+        return "q16";
+    case REGF_V17:
+        return "q17";
+    case REGF_V18:
+        return "q18";
+    case REGF_V19:
+        return "q19";
+    case REGF_V20:
+        return "q20";
+    case REGF_V21:
+        return "q21";
+    case REGF_V22:
+        return "q22";
+    case REGF_V23:
+        return "q23";
+    case REGF_V24:
+        return "q24";
+    case REGF_V25:
+        return "q25";
+    case REGF_V26:
+        return "q26";
+    case REGF_V27:
+        return "q27";
+    case REGF_V28:
+        return "q28";
+    case REGF_V29:
+        return "q29";
+    case REGF_V30:
+        return "q30";
+    default:
+        return "INVALID-F128";
+    }
+}
+
 static char *tacc_target_register_name(enum tacc_target_register reg,
                                        size_t width) {
     switch (width) {
@@ -147,6 +356,21 @@ static char *tacc_target_register_name(enum tacc_target_register reg,
         return tacc_target_register_as_32(reg);
     default:
         tacc_assert(ASSERT_ICE, 0, "invalid width %d", width);
+        return NULL;
+    }
+}
+
+static char *tacc_target_f_register_name(enum tacc_target_register_float reg,
+                                         size_t width) {
+    switch (width) {
+    case 128:
+        return tacc_target_f_register_as_128(reg);
+    case 64:
+        return tacc_target_f_register_as_64(reg);
+    case 32:
+        return tacc_target_f_register_as_32(reg);
+    default:
+        tacc_assert(ASSERT_ICE, 0, "invalid float width %d", width);
         return NULL;
     }
 }
@@ -193,10 +417,22 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     tacc_cg_push_reg(state, reg_place, val->type);
 }
 
-void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
-    tacc_cg_move(state, tacc_cg_get_top(state), REG_X0);
-    tacc_cg_pop(state);
-    tacc_cg_output(state, "\n\t b .L%u_epilog", state->func_name);
+void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
+                                          struct tacc_callitf *itf) {
+    int offset;
+    if (itf->retval_reg_class == REGC_FLOAT_Q) {
+        offset = tacc_cg_ensure_top_is_scratch(state);
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [fp, #%d]",
+                       tacc_target_f_register_as_128(itf->retval_reg),
+                       offset);
+        return;
+    }
+    tacc_assert(ASSERT_ICE, 0, "unknown retval reg class");
+}
+
+void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
+    tacc_cg_output(state, "\n\t j .L%u_epilog", state->func_name);
 }
 
 void tacc_target_cg_prelude(struct tacc_compiler *compiler) {
@@ -275,6 +511,16 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
     reg_name = tacc_target_register_name(from, 64);
     reg_name_2 = tacc_target_register_name(to, 64);
     tacc_cg_output(state, "\n\t mov %s, %s", reg_name_2, reg_name);
+}
+void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
+                                   uint32_t from,
+                                   uint32_t to) {
+    char *reg_name;
+    char *reg_name_2;
+
+    reg_name = tacc_target_f_register_name(from, 64);
+    reg_name_2 = tacc_target_f_register_name(to, 64);
+    tacc_cg_output(state, "\n\t fmov %s, %s", reg_name_2, reg_name);
 }
 
 void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
@@ -609,4 +855,128 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
         tacc_assert(ASSERT_TODO, 0, "outparam returns");
         break;
     }
+}
+
+void tacc_target_cg_convert_float(struct tacc_cg_state *state,
+                                  struct tacc_type *to_type) {
+    uint32_t reg;
+    struct tacc_slot *slot;
+    struct tacc_type *ty;
+
+    slot = tacc_cg_get_top(state);
+    if (tacc_type_is_compatible(slot->ty, to_type)) {
+        return;
+    }
+    if (slot->ty->kind == TYK_LONGDOUBLE) {
+        if (to_type->kind == TYK_FLOAT) {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_TRUNCTFSF2);
+        } else {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_TRUNCTFDF2);
+        }
+        slot = tacc_cg_get_top(state);
+        tacc_cg_swap(state);
+        tacc_cg_call(state, ty, 1);
+        return;
+    }
+    if (to_type->kind == TYK_LONGDOUBLE) {
+        if (slot->ty->kind == TYK_FLOAT) {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_EXTENDSFTF2);
+        } else {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_EXTENDDFTF2);
+        }
+        slot = tacc_cg_get_top(state);
+        tacc_cg_swap(state);
+        tacc_cg_call(state, ty, 1);
+        return;
+    }
+    reg = tacc_cg_ensure_top_is_single_f(state, REGV_VOLATILE);
+    if (to_type->kind == TYK_FLOAT) {
+        tacc_cg_output(state,
+                       "\n\t fcvt %s, %s",
+                       tacc_target_f_register_name(reg, 32),
+                       tacc_target_f_register_name(reg, 64));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t fcvt %s, %s",
+                       tacc_target_f_register_name(reg, 64),
+                       tacc_target_f_register_name(reg, 32));
+    }
+}
+
+void tacc_target_cg_deref_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+    uint32_t reg;
+    struct tacc_target_place_register *reg_place;
+
+    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    reg = tacc_target_cg_alloc_freg(state, REGV_VOLATILE);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        offset = tacc_cg_alloc_scratch(state,
+                                       tacc_type_size(float_type),
+                                       tacc_type_alignment_p2(float_type));
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [%s]",
+                       tacc_target_f_register_as_128(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_output(state,
+                       "\n\t str %s, [fp, #%d]",
+                       tacc_target_f_register_as_128(reg),
+                       offset);
+        tacc_cg_push_scratch(state, offset, float_type);
+        return;
+    }
+    if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [%s]",
+                       tacc_target_f_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [%s]",
+                       tacc_target_f_register_as_32(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    }
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+    tacc_cg_pop(state);
+    tacc_cg_push_freg(state, reg_place, float_type);
+}
+
+void tacc_target_cg_store_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+    uint32_t reg;
+
+    ptr_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE);
+    reg = tacc_target_cg_alloc_freg(state, REGV_VOLATILE);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        offset = tacc_cg_ensure_top_is_scratch(state);
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [fp, #%d]",
+                       tacc_target_f_register_as_128(reg),
+                       offset);
+        tacc_cg_output(state,
+                       "\n\t str %s, [%s]",
+                       tacc_target_f_register_as_128(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_pop(state);
+        tacc_cg_pop(state);
+        return;
+    }
+    if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(state,
+                       "\n\t str %s, [%s]",
+                       tacc_target_f_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t str %s, [%s]",
+                       tacc_target_f_register_as_32(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    }
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
 }

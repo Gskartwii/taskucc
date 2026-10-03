@@ -24,6 +24,17 @@ static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
     return ret;
 }
 
+static struct tacc_float_type *tacc_mk_float_ty(size_t bit_size,
+                                                size_t alignment_p2) {
+    struct tacc_float_type *ret;
+
+    ret = tacc_malloc(sizeof(struct tacc_float_type));
+    ret->bit_width = bit_size;
+    ret->alignment_p2 = alignment_p2;
+
+    return ret;
+}
+
 struct tacc_target *tacc_target_new(void) {
     struct tacc_target *target;
 
@@ -40,6 +51,9 @@ struct tacc_target *tacc_target_new(void) {
     target->ulong = tacc_mk_twos_complement(64, 3, 0);
     target->sllong = tacc_mk_twos_complement(64, 3, 1);
     target->ullong = tacc_mk_twos_complement(64, 3, 0);
+    target->float_ty = tacc_mk_float_ty(32, 2);
+    target->double_ty = tacc_mk_float_ty(64, 3);
+    target->ldouble_ty = tacc_mk_float_ty(128, 4);
     target->bool_ty = tacc_mk_twos_complement(8, 0, 0);
     target->pointer_ty = tacc_malloc(sizeof(struct tacc_ptr_type));
     target->pointer_ty->alignment_p2 = 3;

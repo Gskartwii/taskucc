@@ -46,6 +46,10 @@ struct tacc_compiler {
 
     /* borrow */
     struct tacc_string_list *names;
+
+    struct tacc_string_list *predef_names;
+
+    int local_obj_index;
 };
 
 struct tacc_block_scope *tacc_block_scope_new(void);
@@ -67,5 +71,7 @@ struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
 void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...);
 struct tacc_global_object *
 tacc_compile_resolve_global(struct tacc_compiler *compiler, uint32_t name_ref);
+int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
+                                    struct tacc_f128 *float_value);
 
 #endif

@@ -6,6 +6,7 @@
 #include "decl.h"
 #include "dynarray.h"
 #include "machine.h"
+#include "predef_func.h"
 #include "target/target.h"
 #include "type.h"
 
@@ -14,6 +15,7 @@ enum tacc_place_kind {
     PLACE_REGISTER,
     PLACE_REGISTER_PAIR,
     PLACE_SCRATCH,
+    PLACE_FLOAT_REGISTER,
 };
 
 struct tacc_slot {
@@ -82,6 +84,12 @@ void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot);
 void tacc_cg_push_reg(struct tacc_cg_state *state,
                       struct tacc_target_place_register *reg,
                       struct tacc_type *ty);
+void tacc_cg_push_freg(struct tacc_cg_state *state,
+                       struct tacc_target_place_register *reg,
+                       struct tacc_type *ty);
+void tacc_cg_push_scratch(struct tacc_cg_state *state,
+                          int offset,
+                          struct tacc_type *ty);
 void tacc_cg_push_reg_pair(struct tacc_cg_state *state,
                            struct tacc_target_place_register *reg,
                            struct tacc_target_place_register *reg_2,
@@ -109,11 +117,17 @@ void tacc_cg_pop(struct tacc_cg_state *state);
 void tacc_cg_state_free(struct tacc_cg_state *state);
 void tacc_slot_free(struct tacc_slot *slot);
 void tacc_cg_finalize(struct tacc_cg_state *state);
+struct tacc_type *tacc_cg_push_func(struct tacc_cg_state *state,
+                                    enum tacc_predef_func_id predef_func_id);
+void tacc_cg_convert_top(struct tacc_cg_state *state,
+                         struct tacc_type *to_type);
 
 struct tacc_target_place_register *tacc_target_place_register_new(void);
 void tacc_target_place_register_free(struct tacc_target_place_register *reg);
 uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
                                   uint32_t desired_registers);
+uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,
+                                   uint32_t desired_registers);
 void tacc_cg_move_pair(struct tacc_cg_state *state,
                        struct tacc_slot *slot,
                        uint32_t permissible_low,
@@ -125,16 +139,25 @@ void tacc_cg_int_pair(struct tacc_cg_state *state, struct tacc_val *val);
 void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,
                                 uint32_t *hi_reg);
+void tacc_cg_call(struct tacc_cg_state *state,
+                  struct tacc_type *fn_type,
+                  size_t num_args);
 uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state,
                                       uint32_t acceptable_registers);
+uint32_t tacc_cg_ensure_top_is_single_f(struct tacc_cg_state *state,
+                                        uint32_t acceptable_registers);
 uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state,
                                        uint32_t acceptable_registers);
+int tacc_cg_ensure_top_is_scratch(struct tacc_cg_state *state);
 struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
                                               struct tacc_type *ty,
                                               uint32_t name_ref);
 int tacc_cg_alloc_scratch(struct tacc_cg_state *state,
                           size_t size,
-                          size_t alignment_p2);
+                          size_t align_p2);
+
+void tacc_cg_flush_stack(struct tacc_cg_state *state);
+
 struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,
                                             struct tacc_type *ty,
                                             uint32_t name_ref,

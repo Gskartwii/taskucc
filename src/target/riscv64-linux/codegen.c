@@ -75,6 +75,74 @@ static char *tacc_target_register_as_64(enum tacc_target_register reg) {
     }
 }
 
+static char *tacc_target_f_register_name(enum tacc_target_register_float reg) {
+    switch (reg) {
+    case REGF_T0:
+        return "ft0";
+    case REGF_T1:
+        return "ft1";
+    case REGF_T2:
+        return "ft2";
+    case REGF_T3:
+        return "ft3";
+    case REGF_T4:
+        return "ft4";
+    case REGF_T5:
+        return "ft5";
+    case REGF_T6:
+        return "ft6";
+    case REGF_T7:
+        return "ft7";
+    case REGF_S1:
+        return "fs1";
+    case REGF_A0:
+        return "fa0";
+    case REGF_A1:
+        return "fa1";
+    case REGF_A2:
+        return "fa2";
+    case REGF_A3:
+        return "fa3";
+    case REGF_A4:
+        return "fa4";
+    case REGF_A5:
+        return "fa5";
+    case REGF_A6:
+        return "fa6";
+    case REGF_A7:
+        return "fa7";
+    case REGF_S2:
+        return "fs2";
+    case REGF_S3:
+        return "fs3";
+    case REGF_S4:
+        return "fs4";
+    case REGF_S5:
+        return "fs5";
+    case REGF_S6:
+        return "fs6";
+    case REGF_S7:
+        return "fs7";
+    case REGF_S8:
+        return "fs8";
+    case REGF_S9:
+        return "fs9";
+    case REGF_S10:
+        return "fs10";
+    case REGF_S11:
+        return "fs11";
+    case REGF_T8:
+        return "ft8";
+    case REGF_T9:
+        return "ft9";
+    case REGF_T10:
+        return "ft10";
+    case REGF_T11:
+        return "ft11";
+        break;
+    }
+}
+
 void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
     struct tacc_target_place_register *reg_place;
@@ -128,9 +196,14 @@ static void tacc_target_cg_move(struct tacc_cg_state *state,
     }
 }
 
-void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
-    tacc_target_cg_move(state, tacc_cg_get_top(state), REG_A0);
-    tacc_cg_pop(state);
+void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
+                                          struct tacc_callitf *itf) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(itf);
+    tacc_assert(ASSERT_ICE, 0, "unknown retval reg class");
+}
+
+void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t j .L%u_epilog", state->func_name);
 }
 
@@ -217,6 +290,22 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
     reg_name = tacc_target_register_as_64(from);
     reg_name_2 = tacc_target_register_as_64(to);
     tacc_cg_output(state, "\n\t mv %s, %s", reg_name_2, reg_name);
+}
+void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
+                                   uint32_t from,
+                                   uint32_t to) {
+    struct tacc_type *ty;
+    char *reg_name;
+    char *reg_name_2;
+
+    ty = tacc_cg_top_type(state);
+    reg_name = tacc_target_f_register_name(from);
+    reg_name_2 = tacc_target_f_register_name(to);
+    if (ty->kind == TYK_DOUBLE) {
+        tacc_cg_output(state, "\n\t fmv.d %s, %s", reg_name_2, reg_name);
+    } else {
+        tacc_cg_output(state, "\n\t fmv.s %s, %s", reg_name_2, reg_name);
+    }
 }
 
 void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
@@ -596,4 +685,146 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
         tacc_assert(ASSERT_TODO, 0, "outparam returns");
         break;
     }
+}
+
+void tacc_target_cg_convert_float(struct tacc_cg_state *state,
+                                  struct tacc_type *to_type) {
+    uint32_t reg;
+    struct tacc_slot *slot;
+    struct tacc_type *ty;
+
+    slot = tacc_cg_get_top(state);
+    if (tacc_type_is_compatible(slot->ty, to_type)) {
+        return;
+    }
+    if (slot->ty->kind == TYK_LONGDOUBLE) {
+        if (to_type->kind == TYK_FLOAT) {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_TRUNCTFSF2);
+        } else {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_TRUNCTFDF2);
+        }
+        slot = tacc_cg_get_top(state);
+        tacc_cg_swap(state);
+        tacc_cg_call(state, ty, 1);
+        return;
+    }
+    if (to_type->kind == TYK_LONGDOUBLE) {
+        if (slot->ty->kind == TYK_FLOAT) {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_EXTENDSFTF2);
+        } else {
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_EXTENDDFTF2);
+        }
+        slot = tacc_cg_get_top(state);
+        tacc_cg_swap(state);
+        tacc_cg_call(state, ty, 1);
+        return;
+    }
+    reg = tacc_cg_ensure_top_is_single_f(state, REGF_VOLATILE);
+    if (to_type->kind == TYK_FLOAT) {
+        tacc_cg_output(state,
+                       "\n\t fcvt.d.s %s, %s",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_f_register_name(reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t fcvt.s.d %s, %s",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_f_register_name(reg));
+    }
+}
+
+void tacc_target_cg_deref_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+    uint32_t reg;
+    struct tacc_target_place_register *reg_place;
+
+    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        offset = tacc_cg_alloc_scratch(state,
+                                       tacc_type_size(float_type),
+                                       tacc_type_alignment_p2(float_type));
+        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+        tacc_cg_output(state,
+                       "\n\t ld %s, (%s)",
+                       tacc_target_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_output(state,
+                       "\n\t sd %s, %d(s0)",
+                       tacc_target_register_as_64(reg),
+                       offset);
+        tacc_cg_output(state,
+                       "\n\t ld %s, 8(%s)",
+                       tacc_target_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_output(state,
+                       "\n\t sd %s, %d(s0)",
+                       tacc_target_register_as_64(reg),
+                       offset + 8);
+        tacc_cg_push_scratch(state, offset, float_type);
+        return;
+    }
+    reg = tacc_target_cg_alloc_freg(state, REGF_VOLATILE);
+    if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(state,
+                       "\n\t fld %s, (%s)",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t flw %s, (%s)",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    }
+    reg_place = tacc_target_place_register_new();
+    reg_place->reg = reg;
+    tacc_cg_pop(state);
+    tacc_cg_push_freg(state, reg_place, float_type);
+}
+
+void tacc_target_cg_store_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+    uint32_t reg;
+
+    ptr_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        offset = tacc_cg_ensure_top_is_scratch(state);
+        reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~ptr_reg);
+        tacc_cg_output(state,
+                       "\n\t ld %s, %d(s0)",
+                       tacc_target_register_as_64(reg),
+                       offset);
+        tacc_cg_output(state,
+                       "\n\t sd %s, (%s)",
+                       tacc_target_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_output(state,
+                       "\n\t ld %s, %d(s0)",
+                       tacc_target_register_as_64(reg),
+                       offset + 8);
+        tacc_cg_output(state,
+                       "\n\t sd %s, 8(%s)",
+                       tacc_target_register_as_64(reg),
+                       tacc_target_register_as_64(ptr_reg));
+        tacc_cg_pop(state);
+        tacc_cg_pop(state);
+        return;
+    }
+    reg = tacc_cg_ensure_top_is_single_f(state, REGF_VOLATILE);
+    if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(state,
+                       "\n\t fsd %s, (%s)",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t fsw %s, (%s)",
+                       tacc_target_f_register_name(reg),
+                       tacc_target_register_as_64(ptr_reg));
+    }
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
 }

@@ -10,12 +10,7 @@ enum tacc_target_register {
     REG_EDI = 0x20,
 };
 
-enum tacc_target_reg_class {
-    REGC_INT_B,
-    REGC_INT_W,
-    REGC_INT_D,
-    REGC_FLOAT_X87,
-};
+#define REGC_FLOAT_X87 REGC_FIRST_TARGET_SPECIFIC
 
 #define REG_ANY 0x3F
 #define REG_NONVOLATILE 0x32

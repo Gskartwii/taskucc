@@ -90,9 +90,13 @@ static void tacc_cg_deref(struct tacc_cg_state *state) {
                 slot->ty->kind == TYK_PTR,
                 "attempt to dereference non-pointer");
     pointed_ty = slot->ty->extra.pointer.pointee;
-    tacc_assert(
-        ASSERT_TODO, tacc_type_is_integral(pointed_ty), "load of non-integer");
-    tacc_target_cg_deref_int(state, pointed_ty);
+    if (tacc_type_is_integral(pointed_ty)) {
+        tacc_target_cg_deref_int(state, pointed_ty);
+    } else if (tacc_type_is_floating(pointed_ty)) {
+        tacc_target_cg_deref_float(state, pointed_ty);
+    } else {
+        tacc_assert(ASSERT_TODO, 0, "load of non-arithmetic type");
+    }
 }
 
 static void tacc_cg_compile_lval(struct tacc_cg_state *state,
@@ -155,9 +159,6 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     case EX_IDENT:
         var = tacc_cg_resolve_local(state, expr->extra.name_ref);
         if (var != NULL) {
-            tacc_assert(ASSERT_TODO,
-                        tacc_type_is_integral(var->ty),
-                        "load non-integral value");
             tacc_target_cg_addrof_var(state, var);
         } else {
             object = tacc_compile_resolve_global(state->compiler,
@@ -201,14 +202,16 @@ static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
                 tacc_type_is_compatible(slot_lval->ty->extra.pointer.pointee,
                                         pointed_ty),
                 "trying to store to incompatible pointer");
-    tacc_assert(ASSERT_TODO,
-                tacc_type_is_integral(slot_rval->ty),
-                "store of non-integer");
-    tacc_target_cg_store_int(state, pointed_ty);
+    if (tacc_type_is_integral(pointed_ty)) {
+        tacc_target_cg_store_int(state, pointed_ty);
+    } else if (tacc_type_is_floating(pointed_ty)) {
+        tacc_target_cg_store_float(state, pointed_ty);
+    } else {
+        tacc_assert(ASSERT_TODO,
+                    tacc_type_is_integral(slot_rval->ty),
+                    "store of non-arithmetic type");
+    }
 }
-
-static void tacc_cg_convert_top(struct tacc_cg_state *state,
-                                struct tacc_type *to_type);
 
 static void tacc_cg_compile_expr(struct tacc_cg_state *state,
                                  struct tacc_expr *expr);
@@ -290,30 +293,35 @@ static void tacc_cg_function_params(struct tacc_cg_state *state,
     }
 }
 
-static void tacc_cg_call(struct tacc_cg_state *state,
-                         struct tacc_type *fn_type,
-                         size_t num_args) {
+void tacc_cg_flush_stack(struct tacc_cg_state *state) {
+    size_t i;
+    struct tacc_slot_list_entry *slot_entry;
+
+    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
+        slot_entry = tacc_slot_list_get(state->stack, i);
+        tacc_cg_slot_spill(state, slot_entry->content);
+    }
+}
+
+void tacc_cg_call(struct tacc_cg_state *state,
+                  struct tacc_type *fn_type,
+                  size_t num_args) {
     size_t i;
     size_t needed_stack_space;
     size_t needed_stack_alignment;
     size_t part_end;
     size_t current_param_idx;
-    struct tacc_slot_list_entry *slot_entry;
     struct tacc_callitf *itf;
     struct tacc_callitf_part_list_entry *itf_part_entry;
     struct tacc_callitf_part *itf_part;
     struct tacc_slot *current_param;
 
+    itf = tacc_target_callitf_from_func_type(fn_type->extra.function);
     /*
      * spill everything to stack to make it easier to handle calling convention;
      * not only the current args but everything else as well
      */
-    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
-        slot_entry = tacc_slot_list_get(state->stack, i);
-        tacc_cg_slot_spill(state, slot_entry->content);
-    }
-
-    itf = tacc_target_callitf_from_func_type(fn_type->extra.function);
+    tacc_cg_flush_stack(state);
 
     /* need better support from callitf for variable-length argument lists... */
     tacc_assert(ASSERT_TODO,
@@ -400,11 +408,30 @@ static void tacc_cg_call(struct tacc_cg_state *state,
     tacc_callitf_free(itf);
 }
 
+struct tacc_type *tacc_cg_push_func(struct tacc_cg_state *state,
+                                    enum tacc_predef_func_id predef_func_id) {
+    struct tacc_global_object *object;
+
+    object = tacc_compile_resolve_global(state->compiler,
+                                         (uint32_t) -predef_func_id);
+    tacc_assert(ASSERT_ICE,
+                object != NULL,
+                "no declaration visible: %d",
+                predef_func_id);
+    tacc_assert(ASSERT_DIAG,
+                !object->is_enumerator,
+                "cannot take address of enumerator");
+    tacc_target_cg_addrof_obj(state, object);
+    return object->extra.obj_type;
+}
+
 static void tacc_cg_compile_expr(struct tacc_cg_state *state,
                                  struct tacc_expr *expr) {
     struct tacc_val *val;
+    struct tacc_f128 *float_val;
     struct tacc_global_object *global_object;
     struct tacc_slot *slot;
+    int index;
 
     switch (expr->kind) {
     case EX_INT_LIT:
@@ -414,6 +441,21 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         slot = tacc_cg_get_top(state);
         slot->ty = val->type;
         tacc_val_free(val);
+        break;
+
+    case EX_FLOAT_LIT:
+        float_val = expr->extra.float_literal->number;
+        index = tacc_compile_emit_local_float(state->compiler, float_val);
+        tacc_target_cg_float(state, index); /* emits ldouble */
+        if (expr->extra.float_literal->suffix_f) {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_FLOAT));
+        } else if (!expr->extra.float_literal->suffix_l) {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_DOUBLE));
+        }
         break;
 
     case EX_IDENT:
@@ -482,7 +524,6 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
 
     case EX_UNINIT:
     case EX_CHAR_LIT:
-    case EX_FLOAT_LIT:
     case EX_STRING_LIT:
     case EX_ADD:
     case EX_SUB:
@@ -545,34 +586,70 @@ struct tacc_type *tacc_cg_top_type(struct tacc_cg_state *state) {
     return slot->ty;
 }
 
-static tacc_bool tacc_cg_top_is_int(struct tacc_cg_state *state) {
-    struct tacc_slot *slot;
-
-    slot = tacc_cg_get_top(state);
-
-    return tacc_type_is_integral(slot->ty);
-}
-
-static void tacc_cg_convert_top(struct tacc_cg_state *state,
-                                struct tacc_type *to_type) {
+void tacc_cg_convert_top(struct tacc_cg_state *state,
+                         struct tacc_type *to_type) {
     struct tacc_slot *slot;
     struct tacc_type *from_type;
+    struct tacc_type *func_ty;
 
     slot = tacc_cg_get_top(state);
     from_type = slot->ty;
-    if (tacc_int_type_has_compatible_repr(to_type, from_type)) {
-        return;
+    if (tacc_type_is_integral(from_type) && tacc_type_is_integral(to_type)) {
+        if (tacc_int_type_has_compatible_repr(to_type, from_type)) {
+            return;
+        }
+        if (tacc_type_bit_width(from_type) > tacc_type_bit_width(to_type)) {
+            tacc_target_cg_narrow_top(
+                state, to_type, tacc_type_kind_is_signed(to_type->kind));
+            slot->ty = to_type;
+            return;
+        }
+        tacc_target_cg_ext_top(state,
+                               to_type,
+                               tacc_type_kind_is_signed(to_type->kind) &&
+                                   tacc_type_kind_is_signed(from_type->kind));
+    } else if (tacc_type_is_floating(from_type) &&
+               tacc_type_is_floating(to_type)) {
+        if (tacc_type_is_compatible(to_type, from_type)) {
+            return;
+        }
+        tacc_target_cg_convert_float(state, to_type);
+    } else if (tacc_type_is_floating(from_type) &&
+               tacc_type_is_integral(to_type)) {
+        tacc_target_cg_convert_float(
+            state,
+            tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
+        /* TODO: maybe xfdi would be more accurate for x86 */
+        if (tacc_type_kind_is_signed(to_type->kind)) {
+            func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FIXTFDI);
+        } else {
+            func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FIXUNSTFDI);
+        }
+        tacc_cg_swap(state);
+        tacc_cg_call(state, func_ty, 1);
+        tacc_cg_convert_top(state, to_type);
+    } else if (tacc_type_is_integral(from_type) &&
+               tacc_type_is_floating(to_type)) {
+        if (tacc_type_kind_is_signed(from_type->kind)) {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types,
+                                    TYK_SLONGLONG));
+            func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FLOATDITF);
+        } else {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types,
+                                    TYK_ULONGLONG));
+            func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FLOATUNSDITF);
+        }
+
+        tacc_cg_swap(state);
+        tacc_cg_call(state, func_ty, 1);
+        tacc_target_cg_convert_float(state, to_type);
+    } else {
+        tacc_assert(ASSERT_DIAG, 0, "invalid conversion");
     }
-    if (tacc_type_bit_width(from_type) > tacc_type_bit_width(to_type)) {
-        tacc_target_cg_narrow_top(
-            state, to_type, tacc_type_kind_is_signed(to_type->kind));
-        slot->ty = to_type;
-        return;
-    }
-    tacc_target_cg_ext_top(state,
-                           to_type,
-                           tacc_type_kind_is_signed(to_type->kind) &&
-                               tacc_type_kind_is_signed(from_type->kind));
     slot = tacc_cg_get_top(state);
     slot->ty = to_type;
 }
@@ -617,6 +694,40 @@ static void tacc_cg_decl(struct tacc_cg_state *state, struct tacc_decl *decl) {
     }
 }
 
+static void tacc_cg_return(struct tacc_cg_state *state) {
+    uint32_t lo;
+    uint32_t hi;
+
+    switch (state->interface->retval_kind) {
+    case CALLITF_RETVAL_NONE:
+        break;
+    case CALLITF_RETVAL_REGISTER:
+        if (state->interface->retval_reg_class == REGC_INT) {
+            tacc_cg_ensure_top_is_single(state, state->interface->retval_reg);
+        } else if (state->interface->retval_reg_class == REGC_FLOAT) {
+            tacc_cg_ensure_top_is_single_f(state, state->interface->retval_reg);
+        } else {
+            tacc_target_cg_adjust_top_for_return(state, state->interface);
+        }
+        break;
+    case CALLITF_RETVAL_REGISTER_PAIR:
+        if (state->interface->retval_reg_class == REGC_INT) {
+            lo = state->interface->retval_reg;
+            hi = state->interface->retval_reg_2;
+            tacc_cg_ensure_top_is_pair(state, &lo, &hi);
+        } else if (state->interface->retval_reg_class == REGC_FLOAT) {
+            tacc_assert(ASSERT_TODO, 0, "float pair return");
+        } else {
+            tacc_target_cg_adjust_top_for_return(state, state->interface);
+        }
+        break;
+    case CALLITF_RETVAL_OUTPARAM:
+        tacc_assert(ASSERT_TODO, 0, "outparam return");
+        break;
+    }
+    tacc_target_cg_jump_to_return(state);
+}
+
 void tacc_cg_compile_body_member(struct tacc_cg_state *state,
                                  struct tacc_compound_member *member) {
     if (member->kind == COMPOUND_MEMBER_DECL) {
@@ -628,12 +739,15 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
         break;
 
     case STMT_RETURN:
-        tacc_cg_compile_expr(state, member->member.statement->extra.expr);
-        tacc_cg_convert_top(state, state->func_type->return_type);
-        tacc_assert(ASSERT_TODO,
-                    tacc_cg_top_is_int(state),
-                    "return of non-integral type");
-        tacc_target_cg_return_top_int(state);
+        if (state->interface->retval_kind == CALLITF_RETVAL_NONE) {
+            tacc_assert(ASSERT_DIAG,
+                        member->member.statement->extra.expr == NULL,
+                        "cannot return value as void");
+        } else {
+            tacc_cg_compile_expr(state, member->member.statement->extra.expr);
+            tacc_cg_convert_top(state, state->func_type->return_type);
+        }
+        tacc_cg_return(state);
         tacc_assert(ASSERT_ICE,
                     tacc_cg_stack_is_empty(state),
                     "stack not fully consumed by return");
@@ -832,6 +946,30 @@ void tacc_cg_push_reg(struct tacc_cg_state *state,
 
     tacc_slot_list_push(state->stack, slot);
 }
+void tacc_cg_push_freg(struct tacc_cg_state *state,
+                       struct tacc_target_place_register *reg,
+                       struct tacc_type *ty) {
+    struct tacc_slot *slot;
+
+    slot = tacc_slot_new();
+    slot->place_kind = PLACE_FLOAT_REGISTER;
+    slot->place.reg = reg;
+    slot->ty = ty;
+
+    tacc_slot_list_push(state->stack, slot);
+}
+void tacc_cg_push_scratch(struct tacc_cg_state *state,
+                          int offset,
+                          struct tacc_type *ty) {
+    struct tacc_slot *slot;
+
+    slot = tacc_slot_new();
+    slot->place_kind = PLACE_SCRATCH;
+    slot->place.offset = offset;
+    slot->ty = ty;
+
+    tacc_slot_list_push(state->stack, slot);
+}
 void tacc_cg_push_reg_pair(struct tacc_cg_state *state,
                            struct tacc_target_place_register *reg,
                            struct tacc_target_place_register *reg_2,
@@ -874,6 +1012,46 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
         slot_entry = tacc_slot_list_get(state->stack, i);
         if (slot_entry->content->place_kind == PLACE_REGISTER ||
             slot_entry->content->place_kind == PLACE_REGISTER_PAIR) {
+            if ((slot_entry->content->place.reg->reg & desired_registers) !=
+                0) {
+                if (!found_matching) {
+                    found_matching = 1;
+                    oldest_matching = i;
+                }
+                occupied_registers =
+                    occupied_registers | slot_entry->content->place.reg->reg;
+            }
+        }
+    }
+    if (occupied_registers == desired_registers) {
+        slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
+        reg_chosen = slot_entry->content->place.reg->reg;
+        tacc_cg_slot_spill(state, slot_entry->content);
+    } else {
+        available = desired_registers & ~(occupied_registers);
+        reg_chosen = available & (-available);
+    }
+    state->clobbered_registers = state->clobbered_registers | reg_chosen;
+    return reg_chosen;
+}
+
+uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,
+                                   uint32_t desired_registers) {
+    size_t i;
+    size_t oldest_matching;
+    tacc_bool found_matching;
+    uint32_t occupied_registers;
+    uint32_t available;
+    struct tacc_slot_list_entry *slot_entry;
+    uint32_t reg_chosen;
+
+    /* steal slot from oldest stack entry that uses a desirable register */
+    found_matching = 0;
+    occupied_registers = 0;
+    oldest_matching = 0;
+    for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
+        slot_entry = tacc_slot_list_get(state->stack, i);
+        if (slot_entry->content->place_kind == PLACE_FLOAT_REGISTER) {
             if ((slot_entry->content->place.reg->reg & desired_registers) !=
                 0) {
                 if (!found_matching) {
@@ -1021,7 +1199,7 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
 
-    tacc_assert(ASSERT_TODO,
+    tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_REGISTER_PAIR,
                 "expected register pair at stack top");
     *lo_reg = slot->place.pair.reg->reg;
@@ -1057,6 +1235,35 @@ static uint32_t tacc_cg_ensure_reg(struct tacc_cg_state *state,
     return reg;
 }
 
+static uint32_t tacc_cg_ensure_freg(struct tacc_cg_state *state,
+                                    struct tacc_slot *slot,
+                                    uint32_t regs_ok) {
+    uint32_t reg;
+    uint32_t old_reg;
+
+    if (slot->place_kind == PLACE_SCRATCH) {
+        reg = tacc_target_cg_alloc_freg(state, regs_ok);
+        tacc_target_cg_load_scratch_part(
+            state, slot->place.offset, reg, slot->ty);
+        slot->place_kind = PLACE_FLOAT_REGISTER;
+        slot->place.reg = tacc_target_place_register_new();
+        slot->place.reg->reg = reg;
+        return reg;
+    }
+
+    tacc_assert(ASSERT_TODO,
+                slot->place_kind == PLACE_FLOAT_REGISTER,
+                "expected register at stack top");
+    old_reg = slot->place.reg->reg;
+    if ((old_reg & regs_ok) != 0) {
+        return old_reg;
+    }
+    reg = tacc_target_cg_alloc_freg(state, regs_ok);
+    tacc_target_cg_move_f_reg_reg(state, old_reg, reg);
+    slot->place.reg->reg = reg;
+    return reg;
+}
+
 uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state,
                                       uint32_t regs_ok) {
     struct tacc_slot *slot;
@@ -1065,6 +1272,7 @@ uint32_t tacc_cg_ensure_top_is_single(struct tacc_cg_state *state,
 
     return tacc_cg_ensure_reg(state, slot, regs_ok);
 }
+
 uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state,
                                        uint32_t regs_ok) {
     struct tacc_slot *slot;
@@ -1072,6 +1280,26 @@ uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state,
     slot = tacc_cg_get_over(state);
 
     return tacc_cg_ensure_reg(state, slot, regs_ok);
+}
+
+int tacc_cg_ensure_top_is_scratch(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+
+    tacc_assert(ASSERT_ICE,
+                slot->place_kind == PLACE_SCRATCH,
+                "expected register at stack top");
+    return slot->place.offset;
+}
+
+uint32_t tacc_cg_ensure_top_is_single_f(struct tacc_cg_state *state,
+                                        uint32_t regs_ok) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+
+    return tacc_cg_ensure_freg(state, slot, regs_ok);
 }
 
 void tacc_cg_finalize(struct tacc_cg_state *state) {

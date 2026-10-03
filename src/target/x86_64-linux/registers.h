@@ -27,20 +27,25 @@ enum tacc_target_register_float {
     REGV_XMM5 = 0x20,
     REGV_XMM6 = 0x40,
     REGV_XMM7 = 0x80,
+    REGV_XMM8 = 0x100,
+    REGV_XMM9 = 0x200,
+    REGV_XMM10 = 0x400,
+    REGV_XMM11 = 0x800,
+    REGV_XMM12 = 0x1000,
+    REGV_XMM13 = 0x2000,
+    REGV_XMM14 = 0x4000,
+    REGV_XMM15 = 0x8000,
+    REGV_SCRATCH = 0x8000,
 };
 
-enum tacc_target_reg_class {
-    REGC_INT_B,
-    REGC_INT_W,
-    REGC_INT_L,
-    REGC_INT_Q,
-    REGC_FLOAT_X87,
-    REGC_FLOAT_SSE_S,
-    REGC_FLOAT_SSE_D,
-};
+#define REGC_FLOAT_X87 REGC_FIRST_TARGET_SPECIFIC
 
 #define REG_ANY 0x3FFF
 #define REG_NONVOLATILE 0x3C02
 #define REG_VOLATILE 0x3FD
+
+#define REGV_VOLATILE 0x7F00
+#define REGV_NONVOLATILE 0x00FF
+#define REGV_ANY 0xFFFF
 
 #endif

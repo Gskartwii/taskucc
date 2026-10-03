@@ -139,6 +139,14 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
                    tacc_target_register_as_32(from_reg),
                    tacc_target_register_as_32(to_reg));
 }
+void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
+                                   uint32_t from,
+                                   uint32_t to) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(from);
+    TACC_UNUSED(to);
+    tacc_assert(ASSERT_ICE, 0, "no fregs available");
+}
 
 void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
@@ -167,18 +175,18 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     tacc_cg_push_reg(state, reg_place, val->type);
 }
 
-void tacc_target_cg_return_top_int(struct tacc_cg_state *state) {
-    size_t width;
-    struct tacc_slot *slot;
-
-    slot = tacc_cg_get_top(state);
-    width = tacc_type_bit_width(slot->ty);
-    if (width > 32) {
-        tacc_cg_move_pair(state, tacc_cg_get_top(state), REG_EAX, REG_EDX);
-    } else {
-        tacc_cg_move(state, tacc_cg_get_top(state), REG_EAX);
+void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
+                                          struct tacc_callitf *itf) {
+    int offset;
+    if (itf->retval_reg_class == REGC_FLOAT_X87) {
+        offset = tacc_cg_ensure_top_is_scratch(state);
+        tacc_cg_output(state, "\n\t fldt %d(%%ebp)", offset);
+        return;
     }
-    tacc_cg_pop(state);
+    tacc_assert(ASSERT_ICE, 0, "unknown retval reg class");
+}
+
+void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
     tacc_cg_output(state, "\n\t jmp .L%u_epilog", state->func_name);
 }
 
@@ -617,4 +625,80 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
         tacc_assert(ASSERT_TODO, 0, "outparam returns");
         break;
     }
+}
+
+void tacc_target_cg_convert_float(struct tacc_cg_state *state,
+                                  struct tacc_type *to_type) {
+    int offset;
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_top(state);
+    if (tacc_type_is_compatible(slot->ty, to_type)) {
+        return;
+    }
+    offset = tacc_cg_ensure_top_is_scratch(state);
+    if (slot->ty->kind == TYK_LONGDOUBLE) {
+        tacc_cg_output(state, "\n\t fldt %d(%%ebp)", offset);
+    } else if (slot->ty->kind == TYK_DOUBLE) {
+        tacc_cg_output(state, "\n\t fldl %d(%%ebp)", offset);
+    } else {
+        tacc_cg_output(state, "\n\t flds %d(%%ebp)", offset);
+    }
+    if (to_type->kind == TYK_LONGDOUBLE) {
+        tacc_cg_output(state, "\n\t fstpt %d(%%ebp)", offset);
+    } else if (slot->ty->kind == TYK_DOUBLE) {
+        tacc_cg_output(state, "\n\t fstpl %d(%%ebp)", offset);
+    } else {
+        tacc_cg_output(state, "\n\t fstps %d(%%ebp)", offset);
+    }
+    tacc_cg_push_scratch(state, offset, to_type);
+}
+
+void tacc_target_cg_deref_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+
+    offset = tacc_cg_alloc_scratch(
+        state, tacc_type_size(float_type), tacc_type_alignment_p2(float_type));
+    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        tacc_cg_output(
+            state, "\n\t fldt (%s)", tacc_target_register_as_32(ptr_reg));
+        tacc_cg_output(state, "\n\t fstpt %d(%%ebp)", offset);
+    } else if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(
+            state, "\n\t fldl (%s)", tacc_target_register_as_32(ptr_reg));
+        tacc_cg_output(state, "\n\t fstpl %d(%%ebp)", offset);
+    } else {
+        tacc_cg_output(
+            state, "\n\t flds (%s)", tacc_target_register_as_32(ptr_reg));
+        tacc_cg_output(state, "\n\t fstps %d(%%ebp)", offset);
+    }
+    tacc_cg_pop(state);
+    tacc_cg_push_scratch(state, offset, float_type);
+}
+
+void tacc_target_cg_store_float(struct tacc_cg_state *state,
+                                struct tacc_type *float_type) {
+    int offset;
+    uint32_t ptr_reg;
+
+    offset = tacc_cg_ensure_top_is_scratch(state);
+    ptr_reg = tacc_cg_ensure_over_is_single(state, REG_ANY);
+    if (float_type->kind == TYK_LONGDOUBLE) {
+        tacc_cg_output(state, "\n\t fldt %d(%%ebp)", offset);
+        tacc_cg_output(
+            state, "\n\t fstpt (%s)", tacc_target_register_as_32(ptr_reg));
+    } else if (float_type->kind == TYK_DOUBLE) {
+        tacc_cg_output(state, "\n\t fldl %d(%%ebp)", offset);
+        tacc_cg_output(
+            state, "\n\t fstpl (%s)", tacc_target_register_as_32(ptr_reg));
+    } else {
+        tacc_cg_output(state, "\n\t flds %d(%%ebp)", offset);
+        tacc_cg_output(
+            state, "\n\t fstps (%s)", tacc_target_register_as_32(ptr_reg));
+    }
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
 }

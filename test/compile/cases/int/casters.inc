@@ -8,4 +8,5 @@
     CASTER_ACTION(char, int, qi_si)    \
     CASTER_ACTION(char, long, qi_di)   \
     CASTER_ACTION(int, char, si_qi)    \
-    CASTER_ACTION(long, char, di_qi)
+    CASTER_ACTION(long, char, di_qi)   \
+    CASTER_ACTION(long, float, di_sf)

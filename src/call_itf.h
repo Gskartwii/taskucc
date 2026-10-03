@@ -5,6 +5,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+enum tacc_target_reg_class {
+    REGC_INT,
+    REGC_FLOAT,
+    REGC_FIRST_TARGET_SPECIFIC,
+};
+
 enum tacc_callitf_place_kind {
     CALLITF_PLACE_REGISTER,
     CALLITF_PLACE_STACK,

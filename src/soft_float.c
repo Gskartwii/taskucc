@@ -900,3 +900,64 @@ void tacc_f128_dump(struct tacc_f128 *f, char *name) {
            f->mant_c,
            f->mant_d);
 }
+
+void tacc_f128_serialize_round_f80(struct tacc_u64 *low_64,
+                                   uint16_t *high_16,
+                                   struct tacc_f128 *src) {
+    if (tacc_f128_is_nan(src)) {
+        *high_16 = 0x7FFF;
+        low_64->high = 0x80000000;
+        low_64->low = 0;
+        return;
+    }
+    *high_16 = src->exponent;
+    if (src->sign) {
+        *high_16 = (*high_16) | 0x8000;
+    }
+    if (src->exponent == INF_EXPONENT) {
+        tacc_u64_zero(low_64);
+        return;
+    }
+    low_64->low = src->mant_b;
+    low_64->high = src->mant_a;
+
+    if ((src->mant_c >> 31) == 0) {
+        /* Less than halfway to next f80 from zero: truncate */
+        return;
+    }
+    if ((low_64->low & 1) != 0) {
+        /* Halfway+, and mantissa is odd -> mantissa may overflow */
+        tacc_u64_add_u32(low_64, low_64, 1);
+        if (tacc_u64_is_zero(low_64)) {
+            *high_16 = (((uint32_t) *high_16) + 1) & 0xFFFF;
+            /*
+             * Exponent overflow is impossible, inf case was checked above.
+             * We might still have rounded finite->infinite. Still, no need
+             * to zero out low_64: we are in the tacc_u64_is_zero(low_64)
+             * branch!
+             */
+        }
+        return;
+    }
+    /*
+     * Mantissa even: round away from zero only if higher than halfway.
+     * Mantissa overflow is impossible.
+     */
+    if ((src->mant_d != 0) || (src->mant_c & 0x7FFFFFFF) != 0) {
+        tacc_u64_add_u32(low_64, low_64, 1);
+    }
+}
+void tacc_f128_serialize_f128(struct tacc_u64 *low_64,
+                              struct tacc_u64 *high_64,
+                              struct tacc_f128 *src) {
+    high_64->high = ((uint32_t) (src->exponent)) << 16;
+    high_64->high = high_64->high | src->mant_a >> 16;
+    if (src->sign) {
+        high_64->high = high_64->high | 0x80000000;
+    }
+
+    high_64->low = src->mant_a << 16 | src->mant_b >> 16;
+    low_64->high = src->mant_b << 16 | src->mant_c >> 16;
+    low_64->low = src->mant_c << 16 | src->mant_d >> 16;
+    /* mant_d low 16 bits should be zero */
+}

@@ -64,13 +64,6 @@ enum tacc_target_register_float {
     REGF_T11 = 0x40000000,
 };
 
-enum tacc_target_reg_class {
-    REGC_INT,
-    REGC_FLOAT_S,
-    REGC_FLOAT_D,
-    /* We target rv64gc; do not assume existence of REGC_FLOAT_Q */
-};
-
 #define REG_ANY 0x1FFFFFF
 #define REG_NONVOLATILE 0x1FF804
 #define REG_VOLATILE 0x1E007FB

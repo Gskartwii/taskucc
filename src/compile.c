@@ -1,8 +1,11 @@
 #include "compile.h"
 #include "codegen.h"
 #include "decl.h"
+#include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "predef_func.h"
+#include "soft_float.h"
 #include "string_list.h"
 #include "target/codegen.h"
 #include "type.h"
@@ -747,7 +750,86 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     state = NULL;
 }
 
+static void tacc_compile_declare_predef(struct tacc_compiler *compiler,
+                                        enum tacc_predef_func_id id,
+                                        struct tacc_type *arg_ty,
+                                        struct tacc_type *ret_ty) {
+    struct tacc_global_object *object;
+    struct tacc_type *func_ty;
+
+    object = tacc_global_object_new();
+    object->is_enumerator = 0;
+    object->name_ref = (uint32_t) -id;
+
+    func_ty = tacc_type_new();
+    func_ty->kind = TYK_FN;
+    func_ty->extra.function = tacc_function_type_new();
+    func_ty->extra.function->return_type = ret_ty;
+    func_ty->extra.function->param_types = tacc_type_list_new();
+    tacc_type_list_push(func_ty->extra.function->param_types, arg_ty);
+    object->extra.obj_type = func_ty;
+
+    tacc_global_object_map_insert(compiler->global_objects, object);
+}
+
+static void tacc_compile_add_predef_name(struct tacc_compiler *compiler,
+                                         char *name) {
+    struct tacc_string *name_string;
+
+    name_string = tacc_dynstring_new();
+    tacc_dynstring_concat(name_string, name);
+
+    tacc_string_list_push(compiler->predef_names, name_string);
+}
+
+static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
+    struct tacc_type *longdouble;
+    struct tacc_type *sfloat;
+    struct tacc_type *dfloat;
+    struct tacc_type *llongint;
+    struct tacc_type *llonguint;
+    struct tacc_type *sint;
+    struct tacc_type_list *basic_types;
+
+    basic_types = compiler->basic_types;
+    longdouble = tacc_get_basic_type(basic_types, TYK_LONGDOUBLE);
+    sfloat = tacc_get_basic_type(basic_types, TYK_FLOAT);
+    dfloat = tacc_get_basic_type(basic_types, TYK_DOUBLE);
+    llongint = tacc_get_basic_type(basic_types, TYK_SLONGLONG);
+    llonguint = tacc_get_basic_type(basic_types, TYK_ULONGLONG);
+    sint = tacc_get_basic_type(basic_types, TYK_SINT);
+
+    tacc_compile_add_predef_name(compiler, "__taccrt_fixtfdi");
+    tacc_compile_add_predef_name(compiler, "__taccrt_fixunstfdi");
+    tacc_compile_add_predef_name(compiler, "__taccrt_floatditf");
+    tacc_compile_add_predef_name(compiler, "__taccrt_floatunsditf");
+    tacc_compile_add_predef_name(compiler, "__taccrt_fixtfsi");
+    tacc_compile_add_predef_name(compiler, "__taccrt_trunctfsf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_trunctfdf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_extendsftf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_extenddftf2");
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_FIXTFDI, longdouble, llongint);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_FIXUNSTFDI, longdouble, llonguint);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_FLOATDITF, llongint, longdouble);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_FLOATUNSDITF, llonguint, longdouble);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_FIXTFSI, longdouble, sint);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_TRUNCTFSF2, longdouble, sfloat);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_TRUNCTFDF2, longdouble, dfloat);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_EXTENDSFTF2, sfloat, longdouble);
+    tacc_compile_declare_predef(
+        compiler, PREDEF__TACCRT_EXTENDDFTF2, dfloat, longdouble);
+}
+
 void tacc_compile_prelude(struct tacc_compiler *compiler) {
+    tacc_compile_init_predef(compiler);
     tacc_target_cg_prelude(compiler);
 }
 
@@ -755,7 +837,12 @@ struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
                                           uint32_t name_ref) {
     struct tacc_string_list_entry *entry;
 
-    entry = tacc_string_list_get(compiler->names, name_ref);
+    if ((name_ref >> 31) != 0) {
+        entry =
+            tacc_string_list_get(compiler->predef_names, (uint32_t) -name_ref);
+    } else {
+        entry = tacc_string_list_get(compiler->names, name_ref);
+    }
 
     return entry->content;
 }
@@ -809,4 +896,36 @@ tacc_compile_resolve_global(struct tacc_compiler *compiler, uint32_t name_ref) {
         return entry->content;
     }
     return NULL;
+}
+
+int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
+                                  struct tacc_f128 *float_value) {
+    int index;
+    struct tacc_u64 u64_part;
+    struct tacc_u64 u64_part_2;
+    uint16_t f80_high16;
+
+    index = compiler->local_obj_index;
+    compiler->local_obj_index = index + 1;
+
+    tacc_compile_output_directive(compiler, "data");
+    tacc_compile_output_directive(
+        compiler,
+        "p2align %d",
+        (int) (compiler->target->ldouble_ty->alignment_p2));
+    if (compiler->target->ldouble_ty->bit_width == 80) {
+        tacc_f128_serialize_round_f80(&u64_part, &f80_high16, float_value);
+        /* little endian */
+        tacc_compile_output_int(compiler, &u64_part, 64);
+        tacc_compile_output_directive(
+            compiler, "byte %u", (unsigned) (f80_high16 & 0xFF));
+        tacc_compile_output_directive(
+            compiler, "byte %u", (unsigned) ((f80_high16 >> 8) & 0xFF));
+    } else {
+        tacc_f128_serialize_f128(&u64_part, &u64_part_2, float_value);
+        tacc_compile_output_int(compiler, &u64_part, 64);
+        tacc_compile_output_int(compiler, &u64_part_2, 64);
+    }
+
+    return index;
 }

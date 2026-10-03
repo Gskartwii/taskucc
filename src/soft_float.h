@@ -1,6 +1,7 @@
 #ifndef TACC_SOFT_FLOAT_H
 #define TACC_SOFT_FLOAT_H
 
+#include "soft_u64.h"
 #include "util.h"
 #include <stdint.h>
 
@@ -51,5 +52,11 @@ void tacc_f128_fmodl_p2(struct tacc_f128 *dst,
                         int modulus_p2);
 void tacc_f128_round_f64(struct tacc_f128 *dst, struct tacc_f128 *src);
 void tacc_f128_dump(struct tacc_f128 *f, char *name);
+void tacc_f128_serialize_round_f80(struct tacc_u64 *low_64,
+                             uint16_t *high_16,
+                             struct tacc_f128 *src);
+void tacc_f128_serialize_f128(struct tacc_u64 *low_64,
+                              struct tacc_u64 *high_64,
+                              struct tacc_f128 *src);
 
 #endif

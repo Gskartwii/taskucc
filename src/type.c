@@ -69,8 +69,7 @@ size_t tacc_type_size(struct tacc_type *type) {
     case TYK_FLOAT:
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
-        tacc_assert(ASSERT_TODO, 0, "floating point type size");
-        return 0;
+        return type->extra.float_repr->bit_width >> ((unsigned) 3);
     case TYK_VOID:
         tacc_assert(ASSERT_DIAG, 0, "cannot take size of void");
         return 0;
@@ -118,8 +117,7 @@ size_t tacc_type_alignment_p2(struct tacc_type *type) {
     case TYK_FLOAT:
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
-        tacc_assert(ASSERT_TODO, 0, "floating point type alignment_p2");
-        return 0;
+        return type->extra.float_repr->alignment_p2;
     case TYK_VOID:
         tacc_assert(ASSERT_DIAG, 0, "cannot take alignment of void");
         return 0;
@@ -203,8 +201,8 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
 
 tacc_bool tacc_type_is_compatible(struct tacc_type *a, struct tacc_type *b) {
     tacc_assert(ASSERT_TODO,
-                tacc_type_is_integral(a),
-                "compatibility of non-integral types");
+                tacc_type_is_arithmetic(a),
+                "compatibility of non-arithmetic types");
     return a->kind == b->kind;
 }
 
@@ -352,6 +350,35 @@ tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind) {
     }
 }
 
+tacc_bool tacc_type_kind_is_floating(enum tacc_type_kind type_kind) {
+    switch (type_kind) {
+    case TYK_FLOAT:
+    case TYK_DOUBLE:
+    case TYK_LONGDOUBLE:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+tacc_bool tacc_type_is_floating(struct tacc_type *ty) {
+    return tacc_type_kind_is_floating(ty->kind);
+}
+
+tacc_bool tacc_type_kind_is_arithmetic(enum tacc_type_kind kind) {
+    if (tacc_type_kind_is_integral(kind)) {
+        return 1;
+    }
+    if (tacc_type_kind_is_floating(kind)) {
+        return 1;
+    }
+    return 0;
+}
+
+tacc_bool tacc_type_is_arithmetic(struct tacc_type *type) {
+    return tacc_type_kind_is_arithmetic(type->kind);
+}
+
 tacc_bool tacc_type_is_integral(struct tacc_type *type) {
     if (tacc_type_kind_is_integral(type->kind)) {
         return 1;
@@ -360,28 +387,10 @@ tacc_bool tacc_type_is_integral(struct tacc_type *type) {
 }
 
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind) {
-    switch (type_kind) {
-    case TYK_UCHAR:
-    case TYK_SCHAR:
-    case TYK_USHORT:
-    case TYK_SSHORT:
-    case TYK_UINT:
-    case TYK_SINT:
-    case TYK_ULONG:
-    case TYK_SLONG:
-    case TYK_ULONGLONG:
-    case TYK_SLONGLONG:
-    case TYK_FLOAT:
-    case TYK_DOUBLE:
-    case TYK_LONGDOUBLE:
-    case TYK_BOOL:
-    case TYK_PTR:
-    case TYK_ENUM:
+    if (tacc_type_kind_is_arithmetic(type_kind)) {
         return 1;
-    default:
-        return 0;
     }
-    return 0;
+    return type_kind == TYK_PTR;
 }
 
 tacc_bool tacc_type_is_scalar(struct tacc_type *type) {
@@ -415,6 +424,17 @@ static struct tacc_type *tacc_mk_basic_type(struct tacc_int_type *repr,
     type = tacc_type_new();
     type->kind = kind;
     type->extra.int_repr = repr;
+
+    return type;
+}
+
+static struct tacc_type *tacc_mk_basic_ftype(struct tacc_float_type *repr,
+                                             enum tacc_type_kind kind) {
+    struct tacc_type *type;
+
+    type = tacc_type_new();
+    type->kind = kind;
+    type->extra.float_repr = repr;
 
     return type;
 }
@@ -455,9 +475,11 @@ void tacc_gen_basic_types(struct tacc_target *target,
                         tacc_mk_basic_type(target->ullong, TYK_ULONGLONG));
     tacc_type_list_push(into,
                         tacc_mk_basic_type(target->sllong, TYK_SLONGLONG));
-    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_FLOAT));
-    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_DOUBLE));
-    tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_LONGDOUBLE));
+    tacc_type_list_push(into, tacc_mk_basic_ftype(target->float_ty, TYK_FLOAT));
+    tacc_type_list_push(into,
+                        tacc_mk_basic_ftype(target->double_ty, TYK_DOUBLE));
+    tacc_type_list_push(
+        into, tacc_mk_basic_ftype(target->ldouble_ty, TYK_LONGDOUBLE));
     tacc_type_list_push(into, tacc_mk_basic_type(target->bool_ty, TYK_BOOL));
     tacc_type_list_push(into, tacc_mk_basic_type(NULL, TYK_VOID));
 }

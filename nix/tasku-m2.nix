@@ -70,6 +70,7 @@
     "target/call_itf.h"
     "target/codegen.h"
     "call_itf.h"
+    "predef_func.h"
     "codegen.h"
     "target/target.h"
     "expr.h"
