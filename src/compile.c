@@ -770,6 +770,7 @@ static void tacc_compile_declare_predef(struct tacc_compiler *compiler,
     object->extra.obj_type = func_ty;
 
     tacc_global_object_map_insert(compiler->global_objects, object);
+    tacc_type_list_push(ret_ty->derived_func_types, func_ty);
 }
 
 static void tacc_compile_add_predef_name(struct tacc_compiler *compiler,
