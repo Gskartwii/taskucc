@@ -270,9 +270,8 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
         reg_name = tacc_target_register_name(top_place, 32);
         reg_name_2 = tacc_target_register_name(top_reg_2, 32);
         if (is_sext) {
-            tacc_cg_output(
-                state, "\n\t movl %s, %s, $31", reg_name, reg_name_2);
-            tacc_cg_output(state, "\n\t sar %s, $31", reg_name_2);
+            tacc_cg_output(state, "\n\t movl %s, %s", reg_name, reg_name_2);
+            tacc_cg_output(state, "\n\t sarl $31, %s", reg_name_2);
         } else {
             tacc_cg_output(state, "\n\t xorl %s, %s", reg_name_2, reg_name_2);
         }
