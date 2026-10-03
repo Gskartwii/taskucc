@@ -214,15 +214,20 @@ void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
 
     if (from_width > 32 && to_width <= 32) {
         /* first cast to int and forget reg_2 */
-        top_place = slot->place.pair.reg;
-        slot->place_kind = PLACE_REGISTER;
-        slot->place.reg = top_place;
+        top_place = tacc_target_place_register_new();
+        top_place->reg = slot->place.pair.reg->reg;
         if (tacc_type_kind_is_signed(slot->ty->kind)) {
-            slot->ty =
-                tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
+            tacc_cg_pop(state);
+            tacc_cg_push_reg(
+                state,
+                top_place,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_SINT));
         } else {
-            slot->ty =
-                tacc_get_basic_type(state->compiler->basic_types, TYK_UINT);
+            tacc_cg_pop(state);
+            tacc_cg_push_reg(
+                state,
+                top_place,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_UINT));
         }
     }
 
@@ -234,7 +239,8 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                             struct tacc_type *type,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
-    uint32_t top_place;
+    struct tacc_target_place_register *top_place;
+    struct tacc_target_place_register *top_place_2;
     enum tacc_target_register top_reg;
     enum tacc_target_register top_reg_2;
     size_t from_width;
@@ -259,16 +265,17 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
             state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_UINT),
             is_sext);
-        slot = tacc_cg_get_top(state);
-        top_place = tacc_cg_ensure_top_is_single(state, REG_ANY);
+        top_place = tacc_target_place_register_new();
+        top_place_2 = tacc_target_place_register_new();
+        top_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+        top_place->reg = top_reg;
         top_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY);
-        slot->place_kind = PLACE_REGISTER_PAIR;
-        slot->place.pair.reg = tacc_target_place_register_new();
-        slot->place.pair.reg->reg = top_place;
-        slot->place.pair.reg_2 = tacc_target_place_register_new();
-        slot->place.pair.reg_2->reg = top_reg_2;
-        reg_name = tacc_target_register_name(top_place, 32);
+        top_place_2->reg = top_reg_2;
+
+        reg_name = tacc_target_register_name(top_reg, 32);
         reg_name_2 = tacc_target_register_name(top_reg_2, 32);
+        tacc_cg_pop(state);
+        tacc_cg_push_reg_pair(state, top_place, top_place_2, type);
         if (is_sext) {
             tacc_cg_output(state, "\n\t movl %s, %s", reg_name, reg_name_2);
             tacc_cg_output(state, "\n\t sarl $31, %s", reg_name_2);
@@ -338,7 +345,6 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     struct tacc_target_place_register *reg_place;
     struct tacc_target_place_register *reg_place_2;
     size_t load_width;
-    struct tacc_slot *slot;
     uint32_t reg;
     uint32_t reg_2;
 
@@ -347,7 +353,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     if (load_width > 32) {
         reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
     }
-    slot = tacc_cg_get_top(state);
+    tacc_cg_pop(state);
 
     switch (load_width) {
     case 8:
@@ -358,7 +364,9 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                        tacc_target_op_suffix(load_width),
                        tacc_target_register_as_32(reg),
                        tacc_target_register_name(reg, load_width));
-        slot->ty = int_type;
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = reg;
+        tacc_cg_push_reg(state, reg_place, int_type);
         break;
     case 64:
         tacc_cg_output(state,
@@ -369,13 +377,11 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                        "\n\t movl (%s), %s",
                        tacc_target_register_as_32(reg),
                        tacc_target_register_as_32(reg));
-        reg_place = slot->place.reg;
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = reg;
         reg_place_2 = tacc_target_place_register_new();
         reg_place_2->reg = reg_2;
-        slot->place_kind = PLACE_REGISTER_PAIR;
-        slot->place.pair.reg = reg_place;
-        slot->place.pair.reg_2 = reg_place_2;
-        slot->ty = int_type;
+        tacc_cg_push_reg_pair(state, reg_place, reg_place_2, int_type);
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "invalid load width %d", load_width);
