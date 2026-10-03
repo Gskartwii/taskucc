@@ -424,9 +424,10 @@ void tacc_cg_call(struct tacc_cg_state *state,
 struct tacc_type *tacc_cg_push_func(struct tacc_cg_state *state,
                                     enum tacc_predef_func_id predef_func_id) {
     struct tacc_global_object *object;
+    uint32_t adjusted_id;
 
-    object = tacc_compile_resolve_global(state->compiler,
-                                         (uint32_t) -predef_func_id);
+    adjusted_id = -predef_func_id;
+    object = tacc_compile_resolve_global(state->compiler, adjusted_id);
     tacc_assert(ASSERT_ICE,
                 object != NULL,
                 "no declaration visible: %d",

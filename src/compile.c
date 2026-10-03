@@ -837,10 +837,11 @@ void tacc_compile_prelude(struct tacc_compiler *compiler) {
 struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
                                           uint32_t name_ref) {
     struct tacc_string_list_entry *entry;
+    uint32_t adjusted_id;
 
-    if ((name_ref >> 31) != 0) {
-        entry =
-            tacc_string_list_get(compiler->predef_names, (uint32_t) -name_ref);
+    if (((name_ref >> 31) & 1) != 0) {
+        adjusted_id = -name_ref;
+        entry = tacc_string_list_get(compiler->predef_names, adjusted_id);
     } else {
         entry = tacc_string_list_get(compiler->names, name_ref);
     }
