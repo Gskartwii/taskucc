@@ -315,6 +315,7 @@ void tacc_cg_call(struct tacc_cg_state *state,
     struct tacc_callitf_part_list_entry *itf_part_entry;
     struct tacc_callitf_part *itf_part;
     struct tacc_slot *current_param;
+    struct tacc_target_place_register *reg_place;
 
     itf = tacc_target_callitf_from_func_type(fn_type->extra.function);
     /*
@@ -402,8 +403,20 @@ void tacc_cg_call(struct tacc_cg_state *state,
     tacc_assert(ASSERT_TODO,
                 itf->retval_kind != CALLITF_RETVAL_OUTPARAM,
                 "return through outparam");
-    tacc_target_cg_normalize_retval(
-        state, itf, fn_type->extra.function->return_type);
+    if (itf->retval_reg_class == REGC_INT) {
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = itf->retval_reg;
+        tacc_cg_push_reg(
+            state, reg_place, fn_type->extra.function->return_type);
+    } else if (itf->retval_reg_class == REGC_FLOAT) {
+        reg_place = tacc_target_place_register_new();
+        reg_place->reg = itf->retval_reg;
+        tacc_cg_push_freg(
+            state, reg_place, fn_type->extra.function->return_type);
+    } else {
+        tacc_target_cg_normalize_retval(
+            state, itf, fn_type->extra.function->return_type);
+    }
 
     tacc_callitf_free(itf);
 }
