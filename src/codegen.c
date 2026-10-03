@@ -739,6 +739,7 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
         break;
     }
     tacc_target_cg_jump_to_return(state);
+    tacc_cg_pop(state);
 }
 
 void tacc_cg_compile_body_member(struct tacc_cg_state *state,
@@ -761,17 +762,11 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
             tacc_cg_convert_top(state, state->func_type->return_type);
         }
         tacc_cg_return(state);
-        tacc_assert(ASSERT_ICE,
-                    tacc_cg_stack_is_empty(state),
-                    "stack not fully consumed by return");
         break;
 
     case STMT_EXPRESSION:
         tacc_cg_compile_expr(state, member->member.statement->extra.expr);
         tacc_cg_pop(state);
-        tacc_assert(ASSERT_ICE,
-                    tacc_cg_stack_is_empty(state),
-                    "expression statement produced long stack");
         break;
 
     case STMT_LABEL_NAMED:
@@ -789,6 +784,9 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
         tacc_assert(ASSERT_TODO, 0, "unsupported statement in codegen");
         break;
     }
+    tacc_assert(ASSERT_ICE,
+                tacc_cg_stack_is_empty(state),
+                "stack not fully consumed by end of body member");
 }
 
 void tacc_cg_compile_function(struct tacc_cg_state *state,
