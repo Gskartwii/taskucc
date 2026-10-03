@@ -80,6 +80,9 @@ void tacc_target_free(struct tacc_target *target) {
     tacc_free_int_type(target->sllong);
     tacc_free_int_type(target->ullong);
     tacc_free_int_type(target->bool_ty);
+    tacc_free(target->ldouble_ty);
+    tacc_free(target->double_ty);
+    tacc_free(target->float_ty);
     tacc_free(target->pointer_ty);
     tacc_free(target);
 }
