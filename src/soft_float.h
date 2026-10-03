@@ -53,8 +53,8 @@ void tacc_f128_fmodl_p2(struct tacc_f128 *dst,
 void tacc_f128_round_f64(struct tacc_f128 *dst, struct tacc_f128 *src);
 void tacc_f128_dump(struct tacc_f128 *f, char *name);
 void tacc_f128_serialize_round_f80(struct tacc_u64 *low_64,
-                             uint16_t *high_16,
-                             struct tacc_f128 *src);
+                                   uint16_t *high_16,
+                                   struct tacc_f128 *src);
 void tacc_f128_serialize_f128(struct tacc_u64 *low_64,
                               struct tacc_u64 *high_64,
                               struct tacc_f128 *src);

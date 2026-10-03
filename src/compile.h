@@ -72,6 +72,6 @@ void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...);
 struct tacc_global_object *
 tacc_compile_resolve_global(struct tacc_compiler *compiler, uint32_t name_ref);
 int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
-                                    struct tacc_f128 *float_value);
+                                  struct tacc_f128 *float_value);
 
 #endif
