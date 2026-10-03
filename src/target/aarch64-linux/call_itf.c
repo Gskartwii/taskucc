@@ -77,7 +77,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         part->ty = arg_type;
         if (state->int_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
-            part->place.extra.reg.reg_class = REGC_INT_W;
+            part->place.extra.reg.reg_class = REGC_INT;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
             state->int_regs_used = state->int_regs_used + 1;
         } else {
@@ -94,7 +94,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         part->ty = arg_type;
         if (state->int_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
-            part->place.extra.reg.reg_class = REGC_INT_X;
+            part->place.extra.reg.reg_class = REGC_INT;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
             state->int_regs_used = state->int_regs_used + 1;
         } else {
@@ -112,9 +112,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         if (state->float_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             if (arg_type->kind == TYK_FLOAT) {
-                part->place.extra.reg.reg_class = REGC_FLOAT_S;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             } else if (arg_type->kind == TYK_DOUBLE) {
-                part->place.extra.reg.reg_class = REGC_FLOAT_D;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             } else {
                 part->place.extra.reg.reg_class = REGC_FLOAT_Q;
             }
@@ -181,21 +181,16 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ENUM:
-        ret->retval_reg_class = REGC_INT_W;
-        break;
     case TYK_ULONG:
     case TYK_SLONG:
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_PTR:
-        ret->retval_reg_class = REGC_INT_X;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_FLOAT:
-        ret->retval_reg_class = REGC_FLOAT_S;
-        ret->retval_reg = REGF_V0;
-        break;
     case TYK_DOUBLE:
-        ret->retval_reg_class = REGC_FLOAT_D;
+        ret->retval_reg_class = REGC_FLOAT;
         ret->retval_reg = REGF_V0;
         break;
     case TYK_LONGDOUBLE:

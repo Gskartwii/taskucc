@@ -100,9 +100,9 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
         if (state->float_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             if (arg_type->kind == TYK_FLOAT) {
-                part->place.extra.reg.reg_class = REGC_FLOAT_S;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             } else {
-                part->place.extra.reg.reg_class = REGC_FLOAT_D;
+                part->place.extra.reg.reg_class = REGC_FLOAT;
             }
             part->place.extra.reg.reg =
                 tacc_callitf_float_areg(state->int_regs_used);
@@ -196,11 +196,8 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
         ret->retval_reg_class = REGC_INT;
         break;
     case TYK_FLOAT:
-        ret->retval_reg_class = REGC_FLOAT_S;
-        ret->retval_reg = REGF_A0;
-        break;
     case TYK_DOUBLE:
-        ret->retval_reg_class = REGC_FLOAT_D;
+        ret->retval_reg_class = REGC_FLOAT;
         ret->retval_reg = REGF_A0;
         break;
     case TYK_LONGDOUBLE:

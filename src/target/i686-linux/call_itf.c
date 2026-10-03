@@ -45,12 +45,8 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:
-        ret->retval_reg_class = REGC_INT_B;
-        break;
     case TYK_USHORT:
     case TYK_SSHORT:
-        ret->retval_reg_class = REGC_INT_W;
-        break;
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ULONG:
@@ -58,12 +54,12 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_PTR:
         /* TODO: for enums, consider if representation type differs from int */
     case TYK_ENUM:
-        ret->retval_reg_class = REGC_INT_D;
+        ret->retval_reg_class = REGC_INT;
         break;
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
         ret->retval_kind = CALLITF_RETVAL_REGISTER_PAIR;
-        ret->retval_reg_class = REGC_INT_D;
+        ret->retval_reg_class = REGC_INT;
         ret->retval_reg_2 = REG_EDX;
         break;
     case TYK_FLOAT:
