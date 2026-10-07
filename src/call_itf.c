@@ -9,7 +9,6 @@ struct tacc_callitf *tacc_callitf_new(void) {
     itf->retval_kind = 0;
     itf->retval_reg = 0;
     itf->retval_reg_2 = 0;
-    itf->retval_reg_class = 0;
     itf->implicit_stack_use = 0;
 
     return itf;
@@ -21,7 +20,6 @@ struct tacc_callitf_part *tacc_callitf_part_new(void) {
     part = tacc_malloc(sizeof(struct tacc_callitf_part));
     part->place.kind = CALLITF_PLACE_REGISTER;
     part->place.extra.reg.reg = 0;
-    part->place.extra.reg.reg_class = 0;
     part->offset_from_param_start = 0;
     part->param_idx = 0;
 

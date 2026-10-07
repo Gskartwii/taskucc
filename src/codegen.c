@@ -378,21 +378,24 @@ void tacc_cg_call(struct tacc_cg_state *state,
                         "callitf mismatch, params unordered or skipped");
         }
 
-        if (itf_part->place.kind == CALLITF_PLACE_REGISTER) {
+        if (itf_part->place.kind == CALLITF_PLACE_REGISTER ||
+            itf_part->place.kind == CALLITF_PLACE_FLOAT_REGISTER) {
             tacc_assert(ASSERT_TODO,
                         tacc_type_is_scalar(current_param->ty),
                         "non-scalar spill loads");
             tacc_target_cg_load_scratch_part(state,
                                              current_param->place.offset,
                                              itf_part->place.extra.reg.reg,
-                                             current_param->ty);
-        } else {
+                                             itf_part->access_as_type);
+        } else if (itf_part->place.kind == CALLITF_PLACE_STACK) {
             tacc_target_cg_move_scratch_to_stack(
                 state,
                 current_param->place.offset,
                 itf_part->place.extra.stack.offset -
                     (int) (itf->implicit_stack_use),
                 itf_part->place.extra.stack.size);
+        } else {
+            tacc_target_cg_prepare_arg(state, current_param, itf_part);
         }
     }
     if (current_param != NULL) {
@@ -400,22 +403,32 @@ void tacc_cg_call(struct tacc_cg_state *state,
     }
 
     tacc_target_cg_call_top(state);
-    tacc_assert(ASSERT_TODO,
-                itf->retval_kind != CALLITF_RETVAL_OUTPARAM,
-                "return through outparam");
-    if (itf->retval_reg_class == REGC_INT) {
+    switch (itf->retval_kind) {
+    case CALLITF_RETVAL_NONE:
+        tacc_cg_push_void(state);
+        break;
+    case CALLITF_RETVAL_REGISTER:
         reg_place = tacc_target_place_register_new();
         reg_place->reg = itf->retval_reg;
         tacc_cg_push_reg(
             state, reg_place, fn_type->extra.function->return_type);
-    } else if (itf->retval_reg_class == REGC_FLOAT) {
+        break;
+    case CALLITF_RETVAL_FLOAT_REGISTER:
         reg_place = tacc_target_place_register_new();
         reg_place->reg = itf->retval_reg;
         tacc_cg_push_freg(
             state, reg_place, fn_type->extra.function->return_type);
-    } else {
+        break;
+    case CALLITF_RETVAL_REGISTER_PAIR:
+        tacc_assert(ASSERT_TODO, 0, "consume return of register pair");
+        break;
+    case CALLITF_RETVAL_OUTPARAM:
+        tacc_assert(ASSERT_TODO, 0, "consume return of outparam");
+        break;
+    default:
         tacc_target_cg_normalize_retval(
             state, itf, fn_type->extra.function->return_type);
+        break;
     }
 
     tacc_callitf_free(itf);
@@ -716,27 +729,21 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
     case CALLITF_RETVAL_NONE:
         break;
     case CALLITF_RETVAL_REGISTER:
-        if (state->interface->retval_reg_class == REGC_INT) {
-            tacc_cg_ensure_top_is_single(state, state->interface->retval_reg);
-        } else if (state->interface->retval_reg_class == REGC_FLOAT) {
-            tacc_cg_ensure_top_is_single_f(state, state->interface->retval_reg);
-        } else {
-            tacc_target_cg_adjust_top_for_return(state, state->interface);
-        }
+        tacc_cg_ensure_top_is_single(state, state->interface->retval_reg);
+        break;
+    case CALLITF_RETVAL_FLOAT_REGISTER:
+        tacc_cg_ensure_top_is_single_f(state, state->interface->retval_reg);
         break;
     case CALLITF_RETVAL_REGISTER_PAIR:
-        if (state->interface->retval_reg_class == REGC_INT) {
-            lo = state->interface->retval_reg;
-            hi = state->interface->retval_reg_2;
-            tacc_cg_ensure_top_is_pair(state, &lo, &hi);
-        } else if (state->interface->retval_reg_class == REGC_FLOAT) {
-            tacc_assert(ASSERT_TODO, 0, "float pair return");
-        } else {
-            tacc_target_cg_adjust_top_for_return(state, state->interface);
-        }
+        lo = state->interface->retval_reg;
+        hi = state->interface->retval_reg_2;
+        tacc_cg_ensure_top_is_pair(state, &lo, &hi);
         break;
     case CALLITF_RETVAL_OUTPARAM:
         tacc_assert(ASSERT_TODO, 0, "outparam return");
+        break;
+    default:
+        tacc_target_cg_adjust_top_for_return(state, state->interface);
         break;
     }
     tacc_target_cg_jump_to_return(state);
@@ -861,7 +868,15 @@ void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
         state, tacc_type_size(slot->ty), tacc_type_alignment_p2(slot->ty));
     if (slot->place_kind == PLACE_REGISTER) {
         tacc_target_cg_store_reg_to_scratch(
-            state, offset, slot->place.reg->reg, slot->ty);
+            state, offset, slot->place.reg->reg, slot->ty, 0);
+        tacc_target_place_register_free(slot->place.reg);
+        slot->place_kind = PLACE_SCRATCH;
+        slot->place.offset = offset;
+        return;
+    }
+    if (slot->place_kind == PLACE_FLOAT_REGISTER) {
+        tacc_target_cg_store_f_reg_to_scratch(
+            state, offset, slot->place.reg->reg, slot->ty, 0);
         tacc_target_place_register_free(slot->place.reg);
         slot->place_kind = PLACE_SCRATCH;
         slot->place.offset = offset;
@@ -934,6 +949,10 @@ void tacc_slot_free(struct tacc_slot *slot) {
     }
     if (slot->place_kind == PLACE_FLOAT_REGISTER) {
         tacc_target_place_register_free(slot->place.reg);
+    }
+    if (slot->place_kind == PLACE_REGISTER_PAIR) {
+        tacc_target_place_register_free(slot->place.pair.reg);
+        tacc_target_place_register_free(slot->place.pair.reg_2);
     }
     tacc_free(slot);
 }
@@ -1331,10 +1350,6 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
 
     size = tacc_type_size(ty);
     align = tacc_type_alignment_p2(ty);
-    tacc_assert(ASSERT_DIAG,
-                align <= 4,
-                "type alignment %d exceeds stack alignment of 16",
-                align);
     state->num_local_bytes = tacc_align_up(state->num_local_bytes, align);
     state->num_local_bytes = state->num_local_bytes + size;
     var = tacc_cg_add_variable(
@@ -1346,13 +1361,22 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
 int tacc_cg_alloc_scratch(struct tacc_cg_state *state,
                           size_t size,
                           size_t alignment_p2) {
+    size_t actual_size;
+
+    if (size < 8) {
+        /* ensure at least register sized unit is always stored */
+        actual_size = 8;
+    } else {
+        actual_size = size;
+    }
+
     tacc_assert(ASSERT_DIAG,
                 alignment_p2 <= 4,
                 "scratch alignment %d exceeds stack alignment of 16",
                 alignment_p2);
     state->num_local_bytes =
         tacc_align_up(state->num_local_bytes, alignment_p2);
-    state->num_local_bytes = state->num_local_bytes + size;
+    state->num_local_bytes = state->num_local_bytes + actual_size;
 
     return -((int) (state->num_local_bytes));
 }
@@ -1384,3 +1408,32 @@ struct tacc_local_var *tacc_local_var_new(void) {
 }
 
 void tacc_local_var_free(struct tacc_local_var *var) { tacc_free(var); }
+
+void tacc_cg_copy_param(struct tacc_cg_state *state,
+                        struct tacc_callitf_part *param,
+                        struct tacc_local_var *locvar) {
+    switch (param->place.kind) {
+    case CALLITF_PLACE_REGISTER:
+        tacc_target_cg_store_reg_to_scratch(
+            state,
+            (int) (param->offset_from_param_start) + locvar->offset,
+            param->place.extra.reg.reg,
+            param->access_as_type,
+            1);
+        break;
+    case CALLITF_PLACE_FLOAT_REGISTER:
+        tacc_target_cg_store_f_reg_to_scratch(
+            state,
+            (int) (param->offset_from_param_start) + locvar->offset,
+            param->place.extra.reg.reg,
+            param->access_as_type,
+            1);
+        break;
+    case CALLITF_PLACE_STACK:
+        /* skip */
+        break;
+    case CALLITF_PLACE_FIRST_TARGET_SPECIAL:
+        tacc_target_cg_copy_param(state, param, locvar);
+        break;
+    }
+}

@@ -55,7 +55,7 @@ void tacc_target_cg_alloc_stack(struct tacc_cg_state *state,
 void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
                                       int offset,
                                       uint32_t to_reg,
-                                      struct tacc_type *ty);
+                                      struct tacc_type *as_type);
 void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
                                           int from_fp_offset,
                                           int to_sp_offset,
@@ -63,7 +63,13 @@ void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
 void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
                                          int offset,
                                          uint32_t reg,
-                                         struct tacc_type *ty);
+                                         struct tacc_type *ty,
+                                         tacc_bool in_prelude);
+void tacc_target_cg_store_f_reg_to_scratch(struct tacc_cg_state *state,
+                                           int offset,
+                                           uint32_t reg,
+                                           struct tacc_type *ty,
+                                           tacc_bool in_prelude);
 void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
                                               int offset,
                                               uint32_t reg,
@@ -73,5 +79,11 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
                                      struct tacc_callitf *itf,
                                      struct tacc_type *return_ty);
 uint32_t tacc_target_cg_reg_class_of_type(struct tacc_type *ty);
+void tacc_target_cg_copy_param(struct tacc_cg_state *state,
+                               struct tacc_callitf_part *param,
+                               struct tacc_local_var *locvar);
+void tacc_target_cg_prepare_arg(struct tacc_cg_state *state,
+                                struct tacc_slot *slot,
+                                struct tacc_callitf_part *itf_part);
 
 #endif

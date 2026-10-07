@@ -270,7 +270,7 @@ void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
 void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
                                           struct tacc_callitf *itf) {
     int offset;
-    if (itf->retval_reg_class == REGC_FLOAT_X87) {
+    if (itf->retval_kind == CALLITF_RETVAL_FLOAT_X87) {
         offset = tacc_cg_ensure_top_is_scratch(state);
         tacc_cg_output(state, "\n\t fldt %d(%%rbp)", offset);
         return;
@@ -395,44 +395,13 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
     tacc_cg_output(state, "\n\t xchgq %s, %s", reg_name, reg_name_2);
 }
 
-static void tacc_target_cg_store(struct tacc_cg_state *state,
-                                 uint32_t reg,
-                                 int off,
-                                 struct tacc_type *ty,
-                                 tacc_bool in_prelude) {
-    char *op_suffix;
-    char *src_reg;
-
-    op_suffix = tacc_target_op_suffix(tacc_type_bit_width(ty));
-    src_reg = tacc_target_register_name(reg, tacc_type_bit_width(ty));
-    if (in_prelude) {
-        tacc_cg_output_prelude(
-            state, "\n\t mov%s %s, %d(%%rbp)", op_suffix, src_reg, off);
-    } else {
-        tacc_cg_output(
-            state, "\n\t mov%s %s, %d(%%rbp)", op_suffix, src_reg, off);
-    }
-}
-
-static void tacc_target_cg_copy_param(struct tacc_cg_state *state,
-                                      struct tacc_callitf_part *in_place,
-                                      struct tacc_local_var *locvar_place) {
-    switch (in_place->place.kind) {
-    case CALLITF_PLACE_REGISTER:
-        tacc_assert(ASSERT_TODO,
-                    in_place->place.extra.reg.reg_class == REGC_INT,
-                    "non-integral function parameters");
-        tacc_target_cg_store(state,
-                             in_place->place.extra.reg.reg,
-                             (int) (in_place->offset_from_param_start) +
-                                 locvar_place->offset,
-                             in_place->ty,
-                             1);
-        break;
-    case CALLITF_PLACE_STACK:
-        /* skip */
-        break;
-    }
+void tacc_target_cg_copy_param(struct tacc_cg_state *state,
+                               struct tacc_callitf_part *in_place,
+                               struct tacc_local_var *locvar_place) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(in_place);
+    TACC_UNUSED(locvar_place);
+    tacc_assert(ASSERT_ICE, 0, "no special argument places");
 }
 
 void tacc_target_cg_finalize(struct tacc_cg_state *state) {
@@ -453,8 +422,7 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
         param_ident_entry = tacc_ident_list_get(state->param_names, i);
         locvar_place =
             tacc_local_var_map_get(state->locals, param_ident_entry->content);
-        tacc_target_cg_copy_param(
-            state, param_entry->content, locvar_place->content);
+        tacc_cg_copy_param(state, param_entry->content, locvar_place->content);
     }
 
     /* non-volatile registers not allocated */
@@ -642,13 +610,7 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
     int offset;
 
     switch (itf->retval_kind) {
-    case CALLITF_RETVAL_NONE:
-        tacc_cg_push_void(state);
-        break;
-    case CALLITF_RETVAL_REGISTER:
-        tacc_assert(ASSERT_TODO,
-                    itf->retval_reg_class == REGC_FLOAT_X87,
-                    "returning non-x87 register");
+    case CALLITF_RETVAL_FLOAT_X87:
         offset = tacc_cg_alloc_scratch(state, 16, 4);
         tacc_cg_output(state, "\n\t fstpt %d(%%rbp)", offset);
         tacc_cg_push_scratch(
@@ -657,11 +619,10 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
         tacc_cg_convert_top(state, return_ty);
         break;
-    case CALLITF_RETVAL_REGISTER_PAIR:
-        tacc_assert(ASSERT_ICE, 0, "should not return regpair");
-        break;
-    case CALLITF_RETVAL_OUTPARAM:
-        tacc_assert(ASSERT_TODO, 0, "outparam returns");
+    default:
+        tacc_assert(ASSERT_ICE,
+                    0,
+                    "this retval should have been normalized by generic code");
         break;
     }
 }
@@ -669,12 +630,50 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
 void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
                                          int offset,
                                          uint32_t reg,
-                                         struct tacc_type *ty) {
-    tacc_cg_output(state,
-                   "\n\t mov%s %s, %d(%%rbp)",
-                   tacc_target_op_suffix(tacc_type_bit_width(ty)),
-                   tacc_target_register_name(reg, tacc_type_bit_width(ty)),
-                   offset);
+                                         struct tacc_type *ty,
+                                         tacc_bool in_prelude) {
+    if (in_prelude) {
+        tacc_cg_output_prelude(
+            state,
+            "\n\t mov%s %s, %d(%%rbp)",
+            tacc_target_op_suffix(tacc_type_bit_width(ty)),
+            tacc_target_register_name(reg, tacc_type_bit_width(ty)),
+            offset);
+    } else {
+        tacc_cg_output(state,
+                       "\n\t mov%s %s, %d(%%rbp)",
+                       tacc_target_op_suffix(tacc_type_bit_width(ty)),
+                       tacc_target_register_name(reg, tacc_type_bit_width(ty)),
+                       offset);
+    }
+}
+
+void tacc_target_cg_store_f_reg_to_scratch(struct tacc_cg_state *state,
+                                           int offset,
+                                           uint32_t reg,
+                                           struct tacc_type *ty,
+                                           tacc_bool in_prelude) {
+    char *op;
+
+    if (ty->kind == TYK_FLOAT) {
+        op = "movss";
+    } else {
+        op = "movsd";
+    }
+
+    if (in_prelude) {
+        tacc_cg_output_prelude(state,
+                               "\n\t %s %s, %d(%%rbp)",
+                               op,
+                               tacc_target_register_as_xmm(reg),
+                               offset);
+    } else {
+        tacc_cg_output(state,
+                       "\n\t %s %s, %d(%%rbp)",
+                       op,
+                       tacc_target_register_as_xmm(reg),
+                       offset);
+    }
 }
 
 void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
@@ -837,4 +836,13 @@ void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
         state,
         offset,
         tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
+}
+
+void tacc_target_cg_prepare_arg(struct tacc_cg_state *state,
+                                struct tacc_slot *slot,
+                                struct tacc_callitf_part *itf_part) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(slot);
+    TACC_UNUSED(itf_part);
+    tacc_assert(ASSERT_ICE, 0, "no special argument places");
 }

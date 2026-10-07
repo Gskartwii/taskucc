@@ -135,6 +135,9 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
 void tacc_cg_move(struct tacc_cg_state *state,
                   struct tacc_slot *slot,
                   uint32_t permissible_regs);
+void tacc_cg_copy_param(struct tacc_cg_state *state,
+                        struct tacc_callitf_part *param,
+                        struct tacc_local_var *locvar);
 void tacc_cg_int_pair(struct tacc_cg_state *state, struct tacc_val *val);
 void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,

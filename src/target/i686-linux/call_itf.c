@@ -13,7 +13,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
 
     part = tacc_callitf_part_new();
 
-    part->ty = arg_type;
+    part->access_as_type = arg_type;
     part->place.kind = CALLITF_PLACE_STACK;
     part->place.extra.stack.offset = (int) (state->used_stack);
     part->place.extra.stack.align_p2 = 2;
@@ -39,8 +39,6 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     state.used_stack = 8;
     ret->implicit_stack_use = 8;
 
-    ret->retval_kind = CALLITF_RETVAL_REGISTER;
-    ret->retval_reg = REG_EAX;
     switch (ty->return_type->kind) {
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -54,18 +52,19 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     case TYK_PTR:
         /* TODO: for enums, consider if representation type differs from int */
     case TYK_ENUM:
-        ret->retval_reg_class = REGC_INT;
+        ret->retval_kind = CALLITF_RETVAL_REGISTER;
+        ret->retval_reg = REG_EAX;
         break;
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
         ret->retval_kind = CALLITF_RETVAL_REGISTER_PAIR;
-        ret->retval_reg_class = REGC_INT;
+        ret->retval_reg = REG_EAX;
         ret->retval_reg_2 = REG_EDX;
         break;
     case TYK_FLOAT:
     case TYK_DOUBLE:
     case TYK_LONGDOUBLE:
-        ret->retval_reg_class = REGC_FLOAT_X87;
+        ret->retval_kind = CALLITF_RETVAL_FLOAT_X87;
         ret->retval_reg = 0;
         break;
     case TYK_VOID:

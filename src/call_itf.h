@@ -5,22 +5,20 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum tacc_target_reg_class {
-    REGC_INT,
-    REGC_FLOAT,
-    REGC_FIRST_TARGET_SPECIFIC,
-};
-
 enum tacc_callitf_place_kind {
     CALLITF_PLACE_REGISTER,
+    CALLITF_PLACE_FLOAT_REGISTER,
     CALLITF_PLACE_STACK,
+    CALLITF_PLACE_FIRST_TARGET_SPECIAL,
 };
 
 enum tacc_callitf_retval_kind {
     CALLITF_RETVAL_NONE,
     CALLITF_RETVAL_REGISTER,
+    CALLITF_RETVAL_FLOAT_REGISTER,
     CALLITF_RETVAL_REGISTER_PAIR,
     CALLITF_RETVAL_OUTPARAM,
+    CALLITF_RETVAL_FIRST_TARGET_SPECIAL,
 };
 
 struct tacc_callitf_place {
@@ -28,7 +26,6 @@ struct tacc_callitf_place {
     union {
         struct {
             uint32_t reg;
-            uint32_t reg_class;
         } reg;
         struct {
             int offset;
@@ -42,7 +39,7 @@ struct tacc_callitf_part {
     size_t param_idx;
     size_t offset_from_param_start;
     struct tacc_callitf_place place;
-    struct tacc_type *ty;
+    struct tacc_type *access_as_type;
 };
 
 DECL_DYNARRAY_OVER(tacc_callitf_part_list,
@@ -65,7 +62,6 @@ struct tacc_callitf {
      */
     uint32_t retval_reg;
     uint32_t retval_reg_2;
-    uint32_t retval_reg_class;
 
     size_t implicit_stack_use;
 

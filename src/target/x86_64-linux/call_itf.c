@@ -63,29 +63,17 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:
-        part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT;
-        goto alloc_int;
     case TYK_USHORT:
     case TYK_SSHORT:
-        part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT;
-        goto alloc_int;
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ENUM:
-        part->ty = arg_type;
-        part->place.extra.reg.reg_class = REGC_INT;
-        goto alloc_int;
     case TYK_ULONG:
     case TYK_SLONG:
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_PTR:
-        part->place.extra.reg.reg_class = REGC_INT;
-
-    alloc_int:
-        part->ty = arg_type;
+        part->access_as_type = arg_type;
         if (state->int_regs_used < 6) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
@@ -100,14 +88,9 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         break;
     case TYK_FLOAT:
     case TYK_DOUBLE:
-        part->ty = arg_type;
+        part->access_as_type = arg_type;
         if (state->float_regs_used < 6) {
-            part->place.kind = CALLITF_PLACE_REGISTER;
-            if (arg_type->kind == TYK_FLOAT) {
-                part->place.extra.reg.reg_class = REGC_FLOAT;
-            } else {
-                part->place.extra.reg.reg_class = REGC_FLOAT;
-            }
+            part->place.kind = CALLITF_PLACE_FLOAT_REGISTER;
             part->place.extra.reg.reg =
                 tacc_callitf_float_areg(state->int_regs_used);
             state->float_regs_used = state->float_regs_used + 1;
@@ -120,7 +103,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         }
         break;
     case TYK_LONGDOUBLE:
-        part->ty = arg_type;
+        part->access_as_type = arg_type;
         part->place.kind = CALLITF_PLACE_STACK;
         state->used_stack = (uint32_t) tacc_align_up(state->used_stack, 4);
         part->place.extra.stack.offset = (int) (state->used_stack);
@@ -162,40 +145,30 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     state.float_regs_used = 0;
     ret->implicit_stack_use = 16;
 
-    ret->retval_kind = CALLITF_RETVAL_REGISTER;
-    ret->retval_reg = REG_RAX;
     switch (ty->return_type->kind) {
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:
-        ret->retval_reg_class = REGC_INT;
-        break;
     case TYK_USHORT:
     case TYK_SSHORT:
-        ret->retval_reg_class = REGC_INT;
-        break;
     case TYK_UINT:
     case TYK_SINT:
     case TYK_ENUM:
-        ret->retval_reg_class = REGC_INT;
-        break;
     case TYK_ULONG:
     case TYK_SLONG:
     case TYK_ULONGLONG:
     case TYK_SLONGLONG:
     case TYK_PTR:
-        ret->retval_reg_class = REGC_INT;
+        ret->retval_kind = CALLITF_RETVAL_REGISTER;
+        ret->retval_reg = REG_RAX;
         break;
     case TYK_FLOAT:
-        ret->retval_reg_class = REGC_FLOAT;
-        ret->retval_reg = REGV_XMM0;
-        break;
     case TYK_DOUBLE:
-        ret->retval_reg_class = REGC_FLOAT;
+        ret->retval_kind = CALLITF_RETVAL_FLOAT_REGISTER;
         ret->retval_reg = REGV_XMM0;
         break;
     case TYK_LONGDOUBLE:
-        ret->retval_reg_class = REGC_FLOAT_X87;
+        ret->retval_kind = CALLITF_RETVAL_FLOAT_X87;
         ret->retval_reg = 0;
         break;
     case TYK_VOID:
