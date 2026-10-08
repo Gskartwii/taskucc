@@ -5,6 +5,7 @@
 #include "util.h"
 
 struct tacc_callitf_state {
+    struct tacc_type_list *basic_types;
     uint32_t int_regs_used;
     uint32_t float_regs_used;
     uint32_t used_stack;
@@ -111,23 +112,27 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
         tacc_callitf_part_list_push(parts, part);
         break;
     case TYK_LONGDOUBLE:
-        part->access_as_type = arg_type;
         state->int_regs_used =
             (uint32_t) tacc_align_up(state->int_regs_used, 1);
         if (state->int_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
+            part->access_as_type =
+                tacc_get_basic_type(state->basic_types, TYK_ULONGLONG);
             tacc_callitf_part_list_push(parts, part);
 
             part = tacc_callitf_part_new();
-            part->access_as_type = arg_type; /* FIXME: should be pseudo-UINT */
+            part->access_as_type =
+                tacc_get_basic_type(state->basic_types, TYK_ULONGLONG);
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg =
                 tacc_callitf_areg(state->int_regs_used + 1);
+            part->offset_from_param_start = 8;
             tacc_callitf_part_list_push(parts, part);
 
             state->int_regs_used = state->int_regs_used + 2;
         } else {
+            part->access_as_type = arg_type;
             part->place.kind = CALLITF_PLACE_STACK;
             state->used_stack = (uint32_t) tacc_align_up(state->used_stack, 4);
             part->place.extra.stack.offset = (int) (state->used_stack);
@@ -156,8 +161,8 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
     }
 }
 
-struct tacc_callitf *
-tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
+struct tacc_callitf *tacc_target_callitf_from_func_type(
+    struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
     struct tacc_callitf *ret;
     struct tacc_callitf_state state;
     struct tacc_type_list_entry *ty_entry;
@@ -167,6 +172,7 @@ tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
     state.used_stack = 16; /* ra and fp */
     state.int_regs_used = 0;
     state.float_regs_used = 0;
+    state.basic_types = basic_types;
     ret->implicit_stack_use = 16;
 
     switch (ty->return_type->kind) {

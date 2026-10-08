@@ -27,12 +27,14 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     return part;
 }
 
-struct tacc_callitf *
-tacc_target_callitf_from_func_type(struct tacc_function_type *ty) {
+struct tacc_callitf *tacc_target_callitf_from_func_type(
+    struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
     struct tacc_callitf *ret;
     struct tacc_callitf_state state;
     struct tacc_type_list_entry *ty_entry;
     size_t i;
+
+    TACC_UNUSED(basic_types);
 
     ret = tacc_callitf_new();
     /* args start at ebp + 8 */

@@ -317,7 +317,8 @@ void tacc_cg_call(struct tacc_cg_state *state,
     struct tacc_slot *current_param;
     struct tacc_target_place_register *reg_place;
 
-    itf = tacc_target_callitf_from_func_type(fn_type->extra.function);
+    itf = tacc_target_callitf_from_func_type(state->compiler->basic_types,
+                                             fn_type->extra.function);
     /*
      * spill everything to stack to make it easier to handle calling convention;
      * not only the current args but everything else as well
@@ -383,10 +384,12 @@ void tacc_cg_call(struct tacc_cg_state *state,
             tacc_assert(ASSERT_TODO,
                         tacc_type_is_scalar(current_param->ty),
                         "non-scalar spill loads");
-            tacc_target_cg_load_scratch_part(state,
-                                             current_param->place.offset,
-                                             itf_part->place.extra.reg.reg,
-                                             itf_part->access_as_type);
+            tacc_target_cg_load_scratch_part(
+                state,
+                current_param->place.offset +
+                    (int) (itf_part->offset_from_param_start),
+                itf_part->place.extra.reg.reg,
+                itf_part->access_as_type);
         } else if (itf_part->place.kind == CALLITF_PLACE_STACK) {
             tacc_target_cg_move_scratch_to_stack(
                 state,
@@ -810,7 +813,8 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     struct tacc_callitf_part_list_entry *itf_part_entry;
 
     state->func_type = func_type;
-    state->interface = tacc_target_callitf_from_func_type(func_type);
+    state->interface = tacc_target_callitf_from_func_type(
+        state->compiler->basic_types, func_type);
     state->func_name = tacc_declarator_name(func_def->func_declaration);
     state->num_local_bytes = (size_t) (state->interface->frame_offset);
 

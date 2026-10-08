@@ -4,7 +4,7 @@
 #include "../call_itf.h"
 #include "type.h"
 
-struct tacc_callitf *
-tacc_target_callitf_from_func_type(struct tacc_function_type *ty);
+struct tacc_callitf *tacc_target_callitf_from_func_type(
+    struct tacc_type_list *basic_types, struct tacc_function_type *ty);
 
 #endif
