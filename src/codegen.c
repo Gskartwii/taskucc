@@ -1048,17 +1048,28 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
     oldest_matching = 0;
     for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
         slot_entry = tacc_slot_list_get(state->stack, i);
-        if (slot_entry->content->place_kind == PLACE_REGISTER ||
-            slot_entry->content->place_kind == PLACE_REGISTER_PAIR) {
+        if (slot_entry->content->place_kind == PLACE_REGISTER) {
             if ((slot_entry->content->place.reg->reg & desired_registers) !=
                 0) {
                 if (!found_matching) {
                     found_matching = 1;
                     oldest_matching = i;
                 }
-                occupied_registers =
-                    occupied_registers | slot_entry->content->place.reg->reg;
             }
+            occupied_registers =
+                occupied_registers | slot_entry->content->place.reg->reg;
+        } else if (slot_entry->content->place_kind == PLACE_REGISTER_PAIR) {
+            if (((slot_entry->content->place.pair.reg->reg |
+                  slot_entry->content->place.pair.reg_2->reg) &
+                 desired_registers) != 0) {
+                if (!found_matching) {
+                    found_matching = 1;
+                    oldest_matching = i;
+                }
+            }
+            occupied_registers = occupied_registers |
+                                 slot_entry->content->place.pair.reg->reg |
+                                 slot_entry->content->place.pair.reg_2->reg;
         }
     }
     if (occupied_registers == desired_registers) {
