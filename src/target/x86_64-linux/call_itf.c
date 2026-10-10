@@ -92,7 +92,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
         if (state->float_regs_used < 6) {
             part->place.kind = CALLITF_PLACE_FLOAT_REGISTER;
             part->place.extra.reg.reg =
-                tacc_callitf_float_areg(state->int_regs_used);
+                tacc_callitf_float_areg(state->float_regs_used);
             state->float_regs_used = state->float_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
