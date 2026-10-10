@@ -1145,11 +1145,11 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
             break;
         case EX_LT:
             tacc_cg_output(
-                state, "seta %s", tacc_target_register_as_8(out_reg));
+                state, "\n\t seta %s", tacc_target_register_as_8(out_reg));
             break;
         case EX_LE:
             tacc_cg_output(
-                state, "setnb %s", tacc_target_register_as_8(out_reg));
+                state, "\n\t setnb %s", tacc_target_register_as_8(out_reg));
             break;
         default:
             tacc_assert(ASSERT_ICE, 0, "bad comparison binop");
