@@ -298,7 +298,7 @@ static void tacc_cg_binop(struct tacc_cg_state *state,
         return;
     }
 
-    if (tacc_type_is_floating(output_type)) {
+    if (tacc_type_is_floating(over_type) || tacc_type_is_floating(top_type)) {
         tacc_target_cg_float_binop(state, kind, output_type);
         return;
     }
