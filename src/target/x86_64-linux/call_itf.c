@@ -136,6 +136,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     struct tacc_callitf *ret;
     struct tacc_callitf_state state;
     struct tacc_type_list_entry *ty_entry;
+    struct tacc_callitf_part *part;
     size_t i;
 
     TACC_UNUSED(basic_types);
@@ -191,9 +192,9 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
 
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
-        tacc_callitf_part_list_push(
-            ret->param_parts,
-            tacc_target_callitf_part_from_arg(ty_entry->content, &state));
+        part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
+        part->param_idx = i;
+        tacc_callitf_part_list_push(ret->param_parts, part);
     }
 
     ret->frame_offset = 0;

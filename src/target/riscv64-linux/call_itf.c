@@ -62,10 +62,13 @@ uint32_t tacc_callitf_float_areg(uint32_t index) {
 static void
 tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
                                    struct tacc_callitf_state *state,
-                                   struct tacc_callitf_part_list *parts) {
+                                   struct tacc_callitf_part_list *parts,
+                                   size_t param_idx) {
     struct tacc_callitf_part *part;
 
     part = tacc_callitf_part_new();
+    part->param_idx = param_idx;
+
     switch (arg_type->kind) {
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -122,6 +125,7 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
             tacc_callitf_part_list_push(parts, part);
 
             part = tacc_callitf_part_new();
+            part->param_idx = param_idx;
             part->access_as_type =
                 tacc_get_basic_type(state->basic_types, TYK_ULONGLONG);
             part->place.kind = CALLITF_PLACE_REGISTER;
@@ -221,7 +225,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
         tacc_target_callitf_parts_from_arg(
-            ty_entry->content, &state, ret->param_parts);
+            ty_entry->content, &state, ret->param_parts, i);
     }
 
     ret->frame_offset = 16;
