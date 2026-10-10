@@ -5,6 +5,7 @@
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "soft_u64.h"
 #include "statement.h"
 #include "target/call_itf.h"
 #include "target/codegen.h"
@@ -97,6 +98,211 @@ static void tacc_cg_deref(struct tacc_cg_state *state) {
     } else {
         tacc_assert(ASSERT_TODO, 0, "load of non-arithmetic type");
     }
+}
+
+static struct tacc_type *
+tacc_cg_usual_arithmetic_conversions(struct tacc_cg_state *state) {
+    struct tacc_type *top_type;
+    struct tacc_type *over_type;
+    struct tacc_type *output_type;
+    enum tacc_type_kind output_type_kind;
+    enum tacc_conversion_kind conversion_kind;
+
+    top_type = tacc_cg_top_type(state);
+    over_type = tacc_cg_over_type(state);
+    output_type_kind = tacc_type_usual_arithmetic_conversions(
+        &conversion_kind, over_type, top_type);
+    output_type =
+        tacc_get_basic_type(state->compiler->basic_types, output_type_kind);
+    if (conversion_kind == CONV_BOTH || conversion_kind == CONV_LEFT) {
+        tacc_cg_swap(state);
+        tacc_cg_convert_top(state, output_type);
+        tacc_cg_swap(state);
+    }
+    if (conversion_kind == CONV_BOTH || conversion_kind == CONV_RIGHT) {
+        tacc_cg_convert_top(state, output_type);
+    }
+    return output_type;
+}
+
+static void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val) {
+    struct tacc_val *v_val;
+
+    v_val = tacc_val_new();
+    v_val->type = tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
+    v_val->value.int_value = tacc_u64_new();
+    tacc_u64_from_i32(v_val->value.int_value, val);
+
+    tacc_target_cg_int(state, v_val);
+}
+
+static void tacc_cg_sizeof(struct tacc_cg_state *state, struct tacc_type *ty) {
+    tacc_cg_const_sint(state, (int) tacc_type_size(ty));
+    tacc_cg_convert_top(state, tacc_get_size_type(state->compiler));
+}
+
+static struct tacc_type *tacc_cg_int_promote(struct tacc_cg_state *state) {
+    struct tacc_type *type;
+
+    type = tacc_cg_top_type(state);
+    if (tacc_type_kind_needs_promotions(type->kind)) {
+        type = tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
+        tacc_cg_convert_top(state, type);
+    }
+    return type;
+}
+
+static void tacc_cg_binop(struct tacc_cg_state *state,
+                          enum tacc_expr_kind kind) {
+    struct tacc_type *top_type;
+    struct tacc_type *over_type;
+    struct tacc_type *output_type;
+
+    top_type = tacc_cg_top_type(state);
+    over_type = tacc_cg_over_type(state);
+
+    switch (kind) {
+    case EX_ADD:
+        if (tacc_type_is_arithmetic(top_type) &&
+            tacc_type_is_arithmetic(over_type)) {
+            output_type = tacc_cg_usual_arithmetic_conversions(state);
+        } else if (top_type->kind == TYK_PTR &&
+                   tacc_type_is_integral(over_type)) {
+            tacc_cg_swap(state);
+            tacc_cg_sizeof(state, top_type->extra.pointer.pointee);
+            tacc_cg_binop(state, EX_MUL);
+            output_type = top_type;
+        } else {
+            tacc_assert(ASSERT_DIAG,
+                        over_type->kind == TYK_PTR &&
+                            tacc_type_is_integral(top_type),
+                        "invalid operands for +");
+            tacc_cg_sizeof(state, top_type->extra.pointer.pointee);
+            tacc_cg_binop(state, EX_MUL);
+            output_type = over_type;
+        }
+        break;
+    case EX_SUB:
+        if (tacc_type_is_arithmetic(top_type) &&
+            tacc_type_is_arithmetic(over_type)) {
+            output_type = tacc_cg_usual_arithmetic_conversions(state);
+        } else {
+            tacc_assert(ASSERT_DIAG,
+                        over_type->kind == TYK_PTR,
+                        "invalid operands for -");
+            if (top_type->kind == TYK_PTR) {
+                tacc_assert(
+                    ASSERT_DIAG,
+                    tacc_type_is_compatible(over_type->extra.pointer.pointee,
+                                            top_type->extra.pointer.pointee),
+                    "incompatible pointees in operands of -");
+                output_type = tacc_get_ptrdiff_type(state->compiler);
+            } else {
+                tacc_assert(ASSERT_DIAG,
+                            tacc_type_is_integral(top_type),
+                            "pointer subtraction requires an integer operand");
+                tacc_cg_convert_top(state,
+                                    tacc_get_ptrdiff_type(state->compiler));
+                output_type = over_type;
+            }
+        }
+        break;
+    case EX_MUL:
+    case EX_DIV:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_arithmetic(top_type) &&
+                        tacc_type_is_arithmetic(over_type),
+                    "invalid operands for multiplicative operator");
+        output_type = tacc_cg_usual_arithmetic_conversions(state);
+        break;
+    case EX_REM:
+    case EX_BAND:
+    case EX_BOR:
+    case EX_BXOR:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_integral(top_type) &&
+                        tacc_type_is_integral(over_type),
+                    "need integral operands");
+        output_type = tacc_cg_usual_arithmetic_conversions(state);
+        break;
+    case EX_SHL:
+    case EX_SHR:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_integral(top_type) &&
+                        tacc_type_is_integral(over_type),
+                    "need integral operands");
+        tacc_cg_swap(state);
+        output_type = tacc_cg_int_promote(state);
+        tacc_cg_swap(state);
+        tacc_cg_int_promote(state);
+        break;
+    case EX_EQ:
+    case EX_NE:
+        output_type =
+            tacc_get_basic_type(state->compiler->basic_types, TYK_BOOL);
+        if (tacc_type_is_arithmetic(top_type) &&
+            tacc_type_is_arithmetic(over_type)) {
+            tacc_cg_usual_arithmetic_conversions(state);
+        } else if (top_type->kind == TYK_PTR && over_type->kind == TYK_PTR) {
+            tacc_assert(
+                ASSERT_DIAG,
+                top_type->extra.pointer.pointee->kind == TYK_VOID ||
+                    over_type->extra.pointer.pointee->kind == TYK_VOID ||
+                    tacc_type_is_compatible(top_type->extra.pointer.pointee,
+                                            over_type->extra.pointer.pointee),
+                "incompatible pointee types in equality comparison");
+        } else {
+            tacc_assert(
+                ASSERT_DIAG,
+                (top_type->kind == TYK_PTR || over_type->kind == TYK_PTR) &&
+                    (tacc_type_is_integral(top_type) ||
+                     tacc_type_is_integral(over_type)),
+                "invalid types in equality comparison");
+            /*
+             * more lenient than C99: permit comparison with any integer
+             * constant and not just a null pointer constant.
+             * TODO: actually check for null pointer constant, but that's
+             * hard...
+             */
+            if (tacc_type_is_integral(top_type)) {
+                tacc_cg_convert_top(state,
+                                    tacc_get_uintptr_type(state->compiler));
+            } else {
+                tacc_cg_swap(state);
+                tacc_cg_convert_top(state,
+                                    tacc_get_uintptr_type(state->compiler));
+                tacc_cg_swap(state);
+            }
+        }
+        break;
+    case EX_LE:
+    case EX_LT:
+    case EX_GE:
+    case EX_GT:
+        output_type =
+            tacc_get_basic_type(state->compiler->basic_types, TYK_BOOL);
+        if (tacc_type_is_arithmetic(top_type) &&
+            tacc_type_is_arithmetic(over_type)) {
+            tacc_cg_usual_arithmetic_conversions(state);
+        } else {
+            tacc_assert(
+                ASSERT_DIAG,
+                top_type->kind == TYK_PTR && over_type->kind == TYK_PTR &&
+                    tacc_type_is_compatible(top_type->extra.pointer.pointee,
+                                            over_type->extra.pointer.pointee),
+                "invalid types for relational operators");
+        }
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "invalid binop");
+        return;
+    }
+
+    if (tacc_type_is_floating(output_type)) {
+        tacc_target_cg_float_binop(state, kind, output_type);
+        return;
+    }
+    tacc_target_cg_binop(state, kind, output_type);
 }
 
 static void tacc_cg_compile_lval(struct tacc_cg_state *state,
@@ -552,31 +758,36 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         }
         break;
 
-    case EX_UNINIT:
-    case EX_CHAR_LIT:
-    case EX_STRING_LIT:
     case EX_ADD:
     case EX_SUB:
     case EX_MUL:
     case EX_DIV:
     case EX_REM:
-    case EX_POS:
-    case EX_NEG:
     case EX_BAND:
     case EX_BOR:
     case EX_BXOR:
-    case EX_BNOT:
     case EX_SHL:
     case EX_SHR:
-    case EX_AND:
-    case EX_OR:
-    case EX_NOT:
     case EX_EQ:
     case EX_NE:
     case EX_LE:
     case EX_LT:
     case EX_GE:
     case EX_GT:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_compile_expr(state, expr->op2);
+        tacc_cg_binop(state, expr->kind);
+        break;
+
+    case EX_UNINIT:
+    case EX_CHAR_LIT:
+    case EX_STRING_LIT:
+    case EX_AND:
+    case EX_OR:
+    case EX_POS:
+    case EX_NEG:
+    case EX_NOT:
+    case EX_BNOT:
     case EX_ADD_ASSI:
     case EX_SUB_ASSI:
     case EX_MUL_ASSI:
@@ -612,6 +823,14 @@ struct tacc_type *tacc_cg_top_type(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_top(state);
+
+    return slot->ty;
+}
+
+struct tacc_type *tacc_cg_over_type(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_over(state);
 
     return slot->ty;
 }
@@ -1347,6 +1566,15 @@ uint32_t tacc_cg_ensure_top_is_single_f(struct tacc_cg_state *state,
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_top(state);
+
+    return tacc_cg_ensure_freg(state, slot, regs_ok);
+}
+
+uint32_t tacc_cg_ensure_over_is_single_f(struct tacc_cg_state *state,
+                                         uint32_t regs_ok) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_over(state);
 
     return tacc_cg_ensure_freg(state, slot, regs_ok);
 }

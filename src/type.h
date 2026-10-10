@@ -201,6 +201,7 @@ struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
 struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
                                                      struct tacc_type *ty);
 tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind);
+tacc_bool tacc_type_is_signed(struct tacc_type *type);
 tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_kind_is_floating(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_arithmetic(enum tacc_type_kind kind);
@@ -221,6 +222,7 @@ enum tacc_type_kind
 tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
                                        struct tacc_type *left,
                                        struct tacc_type *right);
+tacc_bool tacc_type_kind_needs_promotions(enum tacc_type_kind kind);
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind);
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind);
 void tacc_gen_basic_types(struct tacc_target *target,

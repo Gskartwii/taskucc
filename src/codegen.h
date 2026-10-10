@@ -109,6 +109,7 @@ void tacc_cg_output_prelude(struct tacc_cg_state *state, char *fmt, ...);
 struct tacc_slot *tacc_cg_get_top(struct tacc_cg_state *state);
 struct tacc_slot *tacc_cg_get_over(struct tacc_cg_state *state);
 struct tacc_type *tacc_cg_top_type(struct tacc_cg_state *state);
+struct tacc_type *tacc_cg_over_type(struct tacc_cg_state *state);
 tacc_bool tacc_cg_stack_is_empty(struct tacc_cg_state *state);
 void tacc_cg_dup(struct tacc_cg_state *state);
 void tacc_cg_swap(struct tacc_cg_state *state);
@@ -151,6 +152,8 @@ uint32_t tacc_cg_ensure_top_is_single_f(struct tacc_cg_state *state,
                                         uint32_t acceptable_registers);
 uint32_t tacc_cg_ensure_over_is_single(struct tacc_cg_state *state,
                                        uint32_t acceptable_registers);
+uint32_t tacc_cg_ensure_over_is_single_f(struct tacc_cg_state *state,
+                                         uint32_t acceptable_registers);
 int tacc_cg_ensure_top_is_scratch(struct tacc_cg_state *state);
 struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
                                               struct tacc_type *ty,

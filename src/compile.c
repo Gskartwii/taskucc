@@ -931,3 +931,27 @@ int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
 
     return index;
 }
+
+struct tacc_type *tacc_get_ptrdiff_type(struct tacc_compiler *compiler) {
+    if (compiler->target->pointer_ty->bit_width == 32) {
+        return tacc_get_basic_type(compiler->basic_types, TYK_SINT);
+    } else {
+        return tacc_get_basic_type(compiler->basic_types, TYK_SLONG);
+    }
+}
+
+struct tacc_type *tacc_get_size_type(struct tacc_compiler *compiler) {
+    if (compiler->target->pointer_ty->bit_width == 32) {
+        return tacc_get_basic_type(compiler->basic_types, TYK_UINT);
+    } else {
+        return tacc_get_basic_type(compiler->basic_types, TYK_ULONG);
+    }
+}
+
+struct tacc_type *tacc_get_uintptr_type(struct tacc_compiler *compiler) {
+    if (compiler->target->pointer_ty->bit_width == 32) {
+        return tacc_get_basic_type(compiler->basic_types, TYK_UINT);
+    } else {
+        return tacc_get_basic_type(compiler->basic_types, TYK_ULONG);
+    }
+}

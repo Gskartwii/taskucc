@@ -38,6 +38,10 @@ tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
     }
 }
 
+tacc_bool tacc_type_is_signed(struct tacc_type *type) {
+    return tacc_type_kind_is_signed(type->kind);
+}
+
 struct tacc_u64 *tacc_type_max_val(struct tacc_type *type) {
     tacc_assert(ASSERT_ICE,
                 tacc_type_kind_is_integral(type->kind),
@@ -541,6 +545,11 @@ void tacc_field_free(struct tacc_field *field) {
     tacc_free(field);
 }
 
+tacc_bool tacc_type_kind_needs_promotions(enum tacc_type_kind kind) {
+    return kind == TYK_SCHAR || kind == TYK_UCHAR || kind == TYK_BOOL ||
+           kind == TYK_USHORT || kind == TYK_SSHORT;
+}
+
 enum tacc_type_kind
 tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
                                        struct tacc_type *left,
@@ -554,9 +563,52 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
     a_type = left->kind;
     b_type = right->kind;
 
-    tacc_assert(ASSERT_TODO,
+    if (a_type == TYK_LONGDOUBLE) {
+        *kind_out = CONV_RIGHT;
+        return TYK_LONGDOUBLE;
+    }
+    if (b_type == TYK_LONGDOUBLE) {
+        *kind_out = CONV_LEFT;
+        return TYK_LONGDOUBLE;
+    }
+    if (a_type == TYK_DOUBLE) {
+        *kind_out = CONV_RIGHT;
+        return TYK_DOUBLE;
+    }
+    if (b_type == TYK_DOUBLE) {
+        *kind_out = CONV_LEFT;
+        return TYK_DOUBLE;
+    }
+    if (a_type == TYK_FLOAT) {
+        *kind_out = CONV_RIGHT;
+        return TYK_FLOAT;
+    }
+    if (b_type == TYK_FLOAT) {
+        *kind_out = CONV_LEFT;
+        return TYK_FLOAT;
+    }
+
+    tacc_assert(ASSERT_ICE,
                 tacc_type_is_integral(left) && tacc_type_is_integral(right),
-                "arith conversions for non-integral types");
+                "arith conversions for non-arithmetic types");
+
+    if (tacc_type_kind_needs_promotions(a_type)) {
+        if (tacc_type_kind_needs_promotions(b_type)) {
+            *kind_out = CONV_BOTH;
+            return TYK_SINT;
+        }
+        if (b_type == TYK_SINT) {
+            *kind_out = CONV_LEFT;
+            return TYK_SINT;
+        }
+        a_type = TYK_SINT;
+    } else if (tacc_type_kind_needs_promotions(b_type)) {
+        if (a_type == TYK_SINT) {
+            *kind_out = CONV_RIGHT;
+            return TYK_SINT;
+        }
+        b_type = TYK_SINT;
+    }
 
     if (a_type == b_type) {
         *kind_out = CONV_NONE;

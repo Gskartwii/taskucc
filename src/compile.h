@@ -74,4 +74,8 @@ tacc_compile_resolve_global(struct tacc_compiler *compiler, uint32_t name_ref);
 int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
                                   struct tacc_f128 *float_value);
 
+struct tacc_type *tacc_get_ptrdiff_type(struct tacc_compiler *compiler);
+struct tacc_type *tacc_get_size_type(struct tacc_compiler *compiler);
+struct tacc_type *tacc_get_uintptr_type(struct tacc_compiler *compiler);
+
 #endif
