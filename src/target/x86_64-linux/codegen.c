@@ -863,7 +863,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
     size_t width;
 
     out_place = tacc_target_place_register_new();
-    width = tacc_type_bit_width(output_type);
+    width = tacc_type_bit_width(tacc_cg_top_type(state));
     is_signed = tacc_type_is_signed(tacc_cg_top_type(state));
 
     if (binop_kind == EX_DIV || binop_kind == EX_REM) {
