@@ -864,14 +864,13 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
 
     out_place = tacc_target_place_register_new();
     width = tacc_type_bit_width(output_type);
+    is_signed = tacc_type_is_signed(tacc_cg_top_type(state));
 
     if (binop_kind == EX_DIV || binop_kind == EX_REM) {
         tacc_cg_ensure_over_is_single(state, REG_RAX);
         r_reg = tacc_cg_ensure_top_is_single(
             state, REG_VOLATILE & ~(REG_RAX | REG_RDX));
         tacc_target_cg_alloc_reg(state, REG_RDX);
-
-        is_signed = tacc_type_kind_is_signed(output_type->kind);
 
         tacc_assert(ASSERT_ICE,
                     width >= 32,
@@ -936,7 +935,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_SHL:
     case EX_SHR:
-        if (tacc_type_kind_is_signed(output_type->kind)) {
+        if (is_signed) {
             if (binop_kind == EX_SHL) {
                 op = "sal";
             } else {
@@ -963,7 +962,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_LE:
         is_cmp = 1;
-        if (tacc_type_is_signed(tacc_cg_top_type(state))) {
+        if (is_signed) {
             op = "setle";
         } else {
             op = "setbe";
@@ -971,7 +970,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_LT:
         is_cmp = 1;
-        if (tacc_type_is_signed(tacc_cg_top_type(state))) {
+        if (is_signed) {
             op = "setle";
         } else {
             op = "setbe";
@@ -979,7 +978,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_GE:
         is_cmp = 1;
-        if (tacc_type_is_signed(tacc_cg_top_type(state))) {
+        if (is_signed) {
             op = "setge";
         } else {
             op = "setae";
@@ -987,7 +986,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_GT:
         is_cmp = 1;
-        if (tacc_type_is_signed(tacc_cg_top_type(state))) {
+        if (is_signed) {
             op = "setg";
         } else {
             op = "seta";
