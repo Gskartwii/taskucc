@@ -1163,6 +1163,7 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
         /* reuse scratch */
         tacc_cg_output(state, "\n\t fstpt %d(%%rbp)", offset);
         tacc_cg_push_scratch(state, offset, output_type);
+        tacc_target_place_register_free(out_place);
     } else {
         tacc_cg_output(state,
                        "\n\t %ss%s %s, %s",
@@ -1170,7 +1171,7 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
                        op_suffix,
                        tacc_target_register_as_xmm(r_reg),
                        tacc_target_register_as_xmm(l_reg));
+        out_place->reg = l_reg;
+        tacc_cg_push_freg(state, out_place, output_type);
     }
-    out_place->reg = l_reg;
-    tacc_cg_push_freg(state, out_place, output_type);
 }
