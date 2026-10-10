@@ -1099,7 +1099,7 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
         op = "ucom";
         out_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
         out_reg_2 = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~out_reg);
-        return;
+        break;
     case EX_LE:
     case EX_LT:
         is_cmp = 1;
