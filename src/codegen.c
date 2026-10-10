@@ -1557,7 +1557,7 @@ int tacc_cg_ensure_top_is_scratch(struct tacc_cg_state *state) {
 
     tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_SCRATCH,
-                "expected register at stack top");
+                "expected scratch at stack top");
     return slot->place.offset;
 }
 
