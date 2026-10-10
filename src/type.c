@@ -612,7 +612,7 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
 
     if (a_type == b_type) {
         *kind_out = CONV_NONE;
-        return 0;
+        return a_type;
     }
 
     a_rank = tacc_type_rank(a_type);
