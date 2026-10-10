@@ -576,47 +576,47 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
             base_type = TYK_UCHAR;
         }
         break;
-    case /*TYPESPEC_UNSIGNED | TYPESPEC_CHAR*/ 0x9:
+    case /* TYPESPEC_UNSIGNED | TYPESPEC_CHAR */ 0x9:
         base_type = TYK_UCHAR;
         break;
     case /* TYPESPEC_SIGNED | TYPESPEC_CHAR */ 0xa:
         base_type = TYK_SCHAR;
         break;
     case TYPESPEC_SHORT:
-    case /* TYPESPEC_SHORT | TYPESPEC_SIGNED */ 0x11:
+    case /* TYPESPEC_SHORT | TYPESPEC_SIGNED */ 0x12:
         base_type = TYK_SSHORT;
         break;
-    case /* TYPESPEC_SHORT | TYPESPEC_UNSIGNED */ 0x12:
+    case /* TYPESPEC_SHORT | TYPESPEC_UNSIGNED */ 0x11:
         base_type = TYK_USHORT;
         break;
     case 0:
     case TYPESPEC_INT:
     case TYPESPEC_SIGNED:
-    case /* TYPESPEC_INT | TYPESPEC_SIGNED */ 0x21:
+    case /* TYPESPEC_INT | TYPESPEC_SIGNED */ 0x22:
         base_type = TYK_SINT;
         break;
     case TYPESPEC_UNSIGNED:
-    case /* TYPESPEC_INT | TYPESPEC_UNSIGNED */ 0x22:
+    case /* TYPESPEC_INT | TYPESPEC_UNSIGNED */ 0x21:
         base_type = TYK_UINT;
         break;
     case TYPESPEC_LONG:
-    case /* TYPESPEC_LONG | TYPESPEC_SIGNED */ 0x41:
+    case /* TYPESPEC_LONG | TYPESPEC_SIGNED */ 0x42:
     case /* TYPESPEC_LONG | TYPESPEC_INT */ 0x60:
-    case /* TYPESPEC_LONG | TYPESPEC_INT | TYPESPEC_SIGNED */ 0x61:
+    case /* TYPESPEC_LONG | TYPESPEC_INT | TYPESPEC_SIGNED */ 0x62:
         base_type = TYK_SLONG;
         break;
-    case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED */ 0x42:
-    case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED | TYPESPEC_INT */ 0x62:
+    case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED */ 0x41:
+    case /* TYPESPEC_LONG | TYPESPEC_UNSIGNED | TYPESPEC_INT */ 0x61:
         base_type = TYK_ULONG;
         break;
     case TYPESPEC_LONG_2:
-    case /* TYPESPEC_LONG_2 | TYPESPEC_SIGNED */ 0x81:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_SIGNED */ 0x82:
     case /* TYPESPEC_LONG_2 | TYPESPEC_INT */ 0xa0:
-    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_SIGNED */ 0xa1:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_SIGNED */ 0xa2:
         base_type = TYK_SLONGLONG;
         break;
-    case /* TYPESPEC_LONG_2 | TYPESPEC_UNSIGNED */ 0x82:
-    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_UNSIGNED */ 0xa2:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_UNSIGNED */ 0x81:
+    case /* TYPESPEC_LONG_2 | TYPESPEC_INT | TYPESPEC_UNSIGNED */ 0xa1:
         base_type = TYK_ULONGLONG;
         break;
     case TYPESPEC_DOUBLE:
