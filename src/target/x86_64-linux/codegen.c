@@ -922,7 +922,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         op = "sub";
         break;
     case EX_MUL:
-        op = "mul";
+        op = "imul";
         break;
     case EX_BAND:
         op = "and";
