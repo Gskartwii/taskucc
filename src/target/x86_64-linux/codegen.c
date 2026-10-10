@@ -774,6 +774,8 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
         tacc_cg_output(
             state, "\n\t fldt (%s)", tacc_target_register_as_64(ptr_reg));
         tacc_cg_output(state, "\n\t fstpt %d(%%rbp)", offset);
+        tacc_cg_pop(state);
+        tacc_cg_push_scratch(state, offset, float_type);
         return;
     }
     reg = tacc_target_cg_alloc_freg(state, REGV_VOLATILE);
