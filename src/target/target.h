@@ -42,8 +42,4 @@ struct tacc_target {
 struct tacc_target *tacc_target_new(void);
 void tacc_target_free(struct tacc_target *free);
 
-struct tacc_target_place_register {
-    uint32_t reg;
-};
-
 #endif

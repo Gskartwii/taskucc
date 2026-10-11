@@ -22,10 +22,10 @@ struct tacc_slot {
     enum tacc_place_kind place_kind;
     struct tacc_type *ty;
     union {
-        struct tacc_target_place_register *reg;
+        uint32_t reg;
         struct {
-            struct tacc_target_place_register *reg;
-            struct tacc_target_place_register *reg_2;
+            uint32_t reg;
+            uint32_t reg_2;
         } pair;
         int offset;
     } place;
@@ -82,17 +82,17 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
                               struct tacc_function_type *func_type);
 void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot);
 void tacc_cg_push_reg(struct tacc_cg_state *state,
-                      struct tacc_target_place_register *reg,
+                      uint32_t reg,
                       struct tacc_type *ty);
 void tacc_cg_push_freg(struct tacc_cg_state *state,
-                       struct tacc_target_place_register *reg,
+                       uint32_t reg,
                        struct tacc_type *ty);
 void tacc_cg_push_scratch(struct tacc_cg_state *state,
                           int offset,
                           struct tacc_type *ty);
 void tacc_cg_push_reg_pair(struct tacc_cg_state *state,
-                           struct tacc_target_place_register *reg,
-                           struct tacc_target_place_register *reg_2,
+                           uint32_t reg,
+                           uint32_t reg_2,
                            struct tacc_type *ty);
 void tacc_cg_push_void(struct tacc_cg_state *state);
 
@@ -123,8 +123,6 @@ struct tacc_type *tacc_cg_push_func(struct tacc_cg_state *state,
 void tacc_cg_convert_top(struct tacc_cg_state *state,
                          struct tacc_type *to_type);
 
-struct tacc_target_place_register *tacc_target_place_register_new(void);
-void tacc_target_place_register_free(struct tacc_target_place_register *reg);
 uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
                                   uint32_t desired_registers);
 uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,

@@ -235,7 +235,6 @@ static char *tacc_target_op_suffix(size_t width) {
 
 void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
-    struct tacc_target_place_register *reg_place;
     size_t width;
     char *reg;
     char *op_suff;
@@ -259,9 +258,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
             state, "\n\t addq $0x%x, %s", val->value.int_value->low, reg);
     }
 
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = register_place;
-    tacc_cg_push_reg(state, reg_place, val->type);
+    tacc_cg_push_reg(state, register_place, val->type);
 }
 
 void tacc_target_cg_jump_to_return(struct tacc_cg_state *state) {
@@ -494,25 +491,21 @@ void tacc_target_cg_store_int(struct tacc_cg_state *state,
 
 void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
                                struct tacc_local_var *var) {
-    struct tacc_target_place_register *reg_place;
     uint32_t reg;
     char *reg_name;
 
     reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
 
     reg_name = tacc_target_register_as_64(reg);
     tacc_cg_output(state, "\n\t leaq %d(%%rbp), %s", var->offset, reg_name);
     tacc_cg_push_reg(
         state,
-        reg_place,
+        reg,
         tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
 }
 
 void tacc_target_cg_dup(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
-    struct tacc_target_place_register *reg_place;
     uint32_t reg;
     uint32_t new_reg;
 
@@ -520,15 +513,12 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
     reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
     new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
     tacc_target_cg_move_reg_reg(state, reg, new_reg);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = new_reg;
-    tacc_cg_push_reg(state, reg_place, slot->ty);
+    tacc_cg_push_reg(state, new_reg, slot->ty);
 }
 
 void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                                struct tacc_global_object *object) {
     uint32_t reg;
-    struct tacc_target_place_register *reg_place;
     char *reg_name;
     struct tacc_string *symbol_name;
 
@@ -539,10 +529,8 @@ void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                    "\n\t movabsq $%s, %s",
                    tacc_dynstring_as_str(symbol_name),
                    reg_name);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
     tacc_cg_push_reg(state,
-                     reg_place,
+                     reg,
                      tacc_type_to_pointer(state->compiler->target->pointer_ty,
                                           object->extra.obj_type,
                                           1));
@@ -693,7 +681,6 @@ void tacc_target_cg_convert_float(struct tacc_cg_state *state,
     uint32_t reg;
     int offset;
     struct tacc_slot *slot;
-    struct tacc_target_place_register *reg_place;
 
     slot = tacc_cg_get_top(state);
     if (tacc_type_is_compatible(slot->ty, to_type)) {
@@ -718,9 +705,7 @@ void tacc_target_cg_convert_float(struct tacc_cg_state *state,
                            offset,
                            tacc_target_register_as_xmm(reg));
         }
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
-        tacc_cg_push_freg(state, reg_place, to_type);
+        tacc_cg_push_freg(state, reg, to_type);
         return;
     }
 
@@ -764,7 +749,6 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
     int offset;
     uint32_t ptr_reg;
     uint32_t reg;
-    struct tacc_target_place_register *reg_place;
 
     ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
     if (float_type->kind == TYK_LONGDOUBLE) {
@@ -790,10 +774,8 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
                        tacc_target_register_as_64(ptr_reg),
                        tacc_target_register_as_xmm(reg));
     }
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
     tacc_cg_pop(state);
-    tacc_cg_push_freg(state, reg_place, float_type);
+    tacc_cg_push_freg(state, reg, float_type);
 }
 
 void tacc_target_cg_store_float(struct tacc_cg_state *state,
@@ -857,12 +839,10 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
     uint32_t l_reg;
     uint32_t r_reg;
     char *op;
-    struct tacc_target_place_register *out_place;
     tacc_bool is_signed;
     tacc_bool is_cmp;
     size_t width;
 
-    out_place = tacc_target_place_register_new();
     width = tacc_type_bit_width(tacc_cg_top_type(state));
     is_signed = tacc_type_is_signed(tacc_cg_top_type(state));
 
@@ -899,11 +879,11 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         tacc_cg_pop(state);
         tacc_cg_pop(state);
         if (binop_kind == EX_DIV) {
-            out_place->reg = REG_RAX;
+            l_reg = REG_RAX;
         } else {
-            out_place->reg = REG_RDX;
+            l_reg = REG_RDX;
         }
-        tacc_cg_push_reg(state, out_place, output_type);
+        tacc_cg_push_reg(state, l_reg, output_type);
         return;
     }
 
@@ -949,8 +929,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
             }
         }
 
-        out_place->reg = l_reg;
-        tacc_cg_push_reg(state, out_place, output_type);
+        tacc_cg_push_reg(state, l_reg, output_type);
         break;
     case EX_EQ:
         op = "sete";
@@ -1020,8 +999,7 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
                        tacc_target_register_name(r_reg, width),
                        tacc_target_register_name(l_reg, width));
     }
-    out_place->reg = l_reg;
-    tacc_cg_push_reg(state, out_place, output_type);
+    tacc_cg_push_reg(state, l_reg, output_type);
 }
 
 void tacc_target_cg_float_binop(struct tacc_cg_state *state,
@@ -1037,11 +1015,9 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
     tacc_bool is_cmp;
     char *op;
     char *op_suffix;
-    struct tacc_target_place_register *out_place;
     struct tacc_type *ty;
     enum tacc_expr_kind actual_binop_kind;
 
-    out_place = tacc_target_place_register_new();
     ty = tacc_cg_top_type(state);
     actual_binop_kind = binop_kind;
 
@@ -1156,8 +1132,7 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
         default:
             tacc_assert(ASSERT_ICE, 0, "bad comparison binop");
         }
-        out_place->reg = out_reg;
-        tacc_cg_push_reg(state, out_place, output_type);
+        tacc_cg_push_reg(state, out_reg, output_type);
         return;
     }
     if (is_ldouble) {
@@ -1165,7 +1140,6 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
         /* reuse scratch */
         tacc_cg_output(state, "\n\t fstpt %d(%%rbp)", offset);
         tacc_cg_push_scratch(state, offset, output_type);
-        tacc_target_place_register_free(out_place);
     } else {
         tacc_cg_output(state,
                        "\n\t %ss%s %s, %s",
@@ -1173,7 +1147,6 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
                        op_suffix,
                        tacc_target_register_as_xmm(r_reg),
                        tacc_target_register_as_xmm(l_reg));
-        out_place->reg = l_reg;
-        tacc_cg_push_freg(state, out_place, output_type);
+        tacc_cg_push_freg(state, l_reg, output_type);
     }
 }

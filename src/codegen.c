@@ -9,7 +9,6 @@
 #include "statement.h"
 #include "target/call_itf.h"
 #include "target/codegen.h"
-#include "target/target.h"
 #include "type.h"
 #include "util.h"
 
@@ -521,7 +520,6 @@ void tacc_cg_call(struct tacc_cg_state *state,
     struct tacc_callitf_part_list_entry *itf_part_entry;
     struct tacc_callitf_part *itf_part;
     struct tacc_slot *current_param;
-    struct tacc_target_place_register *reg_place;
 
     itf = tacc_target_callitf_from_func_type(state->compiler->basic_types,
                                              fn_type->extra.function);
@@ -617,16 +615,12 @@ void tacc_cg_call(struct tacc_cg_state *state,
         tacc_cg_push_void(state);
         break;
     case CALLITF_RETVAL_REGISTER:
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = itf->retval_reg;
         tacc_cg_push_reg(
-            state, reg_place, fn_type->extra.function->return_type);
+            state, itf->retval_reg, fn_type->extra.function->return_type);
         break;
     case CALLITF_RETVAL_FLOAT_REGISTER:
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = itf->retval_reg;
         tacc_cg_push_freg(
-            state, reg_place, fn_type->extra.function->return_type);
+            state, itf->retval_reg, fn_type->extra.function->return_type);
         break;
     case CALLITF_RETVAL_REGISTER_PAIR:
         tacc_assert(ASSERT_TODO, 0, "consume return of register pair");
@@ -1091,24 +1085,20 @@ void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
         state, tacc_type_size(slot->ty), tacc_type_alignment_p2(slot->ty));
     if (slot->place_kind == PLACE_REGISTER) {
         tacc_target_cg_store_reg_to_scratch(
-            state, offset, slot->place.reg->reg, slot->ty, 0);
-        tacc_target_place_register_free(slot->place.reg);
+            state, offset, slot->place.reg, slot->ty, 0);
         slot->place_kind = PLACE_SCRATCH;
         slot->place.offset = offset;
         return;
     }
     if (slot->place_kind == PLACE_FLOAT_REGISTER) {
         tacc_target_cg_store_f_reg_to_scratch(
-            state, offset, slot->place.reg->reg, slot->ty, 0);
-        tacc_target_place_register_free(slot->place.reg);
+            state, offset, slot->place.reg, slot->ty, 0);
         slot->place_kind = PLACE_SCRATCH;
         slot->place.offset = offset;
         return;
     }
     tacc_target_cg_store_reg_pair_to_scratch(
-        state, offset, slot->place.pair.reg->reg, slot->place.pair.reg_2->reg);
-    tacc_target_place_register_free(slot->place.pair.reg);
-    tacc_target_place_register_free(slot->place.pair.reg_2);
+        state, offset, slot->place.pair.reg, slot->place.pair.reg_2);
     slot->place_kind = PLACE_SCRATCH;
     slot->place.offset = offset;
 }
@@ -1166,33 +1156,21 @@ tacc_bool tacc_cg_stack_is_empty(struct tacc_cg_state *state) {
     return tacc_slot_list_len(state->stack) == 0;
 }
 
-void tacc_slot_free(struct tacc_slot *slot) {
-    if (slot->place_kind == PLACE_REGISTER) {
-        tacc_target_place_register_free(slot->place.reg);
-    }
-    if (slot->place_kind == PLACE_FLOAT_REGISTER) {
-        tacc_target_place_register_free(slot->place.reg);
-    }
-    if (slot->place_kind == PLACE_REGISTER_PAIR) {
-        tacc_target_place_register_free(slot->place.pair.reg);
-        tacc_target_place_register_free(slot->place.pair.reg_2);
-    }
-    tacc_free(slot);
-}
+void tacc_slot_free(struct tacc_slot *slot) { tacc_free(slot); }
 
 struct tacc_slot *tacc_slot_new(void) {
     struct tacc_slot *slot;
 
     slot = tacc_malloc(sizeof(struct tacc_slot));
     slot->place_kind = PLACE_REGISTER;
-    slot->place.reg = NULL;
+    slot->place.reg = 0;
     slot->ty = NULL;
 
     return slot;
 }
 
 void tacc_cg_push_reg(struct tacc_cg_state *state,
-                      struct tacc_target_place_register *reg,
+                      uint32_t reg,
                       struct tacc_type *ty) {
     struct tacc_slot *slot;
 
@@ -1204,7 +1182,7 @@ void tacc_cg_push_reg(struct tacc_cg_state *state,
     tacc_slot_list_push(state->stack, slot);
 }
 void tacc_cg_push_freg(struct tacc_cg_state *state,
-                       struct tacc_target_place_register *reg,
+                       uint32_t reg,
                        struct tacc_type *ty) {
     struct tacc_slot *slot;
 
@@ -1228,8 +1206,8 @@ void tacc_cg_push_scratch(struct tacc_cg_state *state,
     tacc_slot_list_push(state->stack, slot);
 }
 void tacc_cg_push_reg_pair(struct tacc_cg_state *state,
-                           struct tacc_target_place_register *reg,
-                           struct tacc_target_place_register *reg_2,
+                           uint32_t reg,
+                           uint32_t reg_2,
                            struct tacc_type *ty) {
     struct tacc_slot *slot;
 
@@ -1268,18 +1246,17 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
     for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
         slot_entry = tacc_slot_list_get(state->stack, i);
         if (slot_entry->content->place_kind == PLACE_REGISTER) {
-            if ((slot_entry->content->place.reg->reg & desired_registers) !=
-                0) {
+            if ((slot_entry->content->place.reg & desired_registers) != 0) {
                 if (!found_matching) {
                     found_matching = 1;
                     oldest_matching = i;
                 }
             }
             occupied_registers =
-                occupied_registers | slot_entry->content->place.reg->reg;
+                occupied_registers | slot_entry->content->place.reg;
         } else if (slot_entry->content->place_kind == PLACE_REGISTER_PAIR) {
-            if (((slot_entry->content->place.pair.reg->reg |
-                  slot_entry->content->place.pair.reg_2->reg) &
+            if (((slot_entry->content->place.pair.reg |
+                  slot_entry->content->place.pair.reg_2) &
                  desired_registers) != 0) {
                 if (!found_matching) {
                     found_matching = 1;
@@ -1287,13 +1264,13 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
                 }
             }
             occupied_registers = occupied_registers |
-                                 slot_entry->content->place.pair.reg->reg |
-                                 slot_entry->content->place.pair.reg_2->reg;
+                                 slot_entry->content->place.pair.reg |
+                                 slot_entry->content->place.pair.reg_2;
         }
     }
     if (occupied_registers == desired_registers) {
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
-        reg_chosen = slot_entry->content->place.reg->reg;
+        reg_chosen = slot_entry->content->place.reg;
         tacc_cg_slot_spill(state, slot_entry->content);
     } else {
         available = desired_registers & ~(occupied_registers);
@@ -1320,20 +1297,19 @@ uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,
     for (i = 0; i < tacc_slot_list_len(state->stack); i = i + 1) {
         slot_entry = tacc_slot_list_get(state->stack, i);
         if (slot_entry->content->place_kind == PLACE_FLOAT_REGISTER) {
-            if ((slot_entry->content->place.reg->reg & desired_registers) !=
-                0) {
+            if ((slot_entry->content->place.reg & desired_registers) != 0) {
                 if (!found_matching) {
                     found_matching = 1;
                     oldest_matching = i;
                 }
                 occupied_registers =
-                    occupied_registers | slot_entry->content->place.reg->reg;
+                    occupied_registers | slot_entry->content->place.reg;
             }
         }
     }
     if (occupied_registers == desired_registers) {
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
-        reg_chosen = slot_entry->content->place.reg->reg;
+        reg_chosen = slot_entry->content->place.reg;
         tacc_cg_slot_spill(state, slot_entry->content);
     } else {
         available = desired_registers & ~(occupied_registers);
@@ -1341,19 +1317,6 @@ uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,
     }
     state->clobbered_registers = state->clobbered_registers | reg_chosen;
     return reg_chosen;
-}
-
-struct tacc_target_place_register *tacc_target_place_register_new(void) {
-    struct tacc_target_place_register *reg;
-
-    reg = tacc_malloc(sizeof(struct tacc_target_place_register));
-    reg->reg = 0;
-
-    return reg;
-}
-
-void tacc_target_place_register_free(struct tacc_target_place_register *reg) {
-    tacc_free(reg);
 }
 
 void tacc_cg_state_free(struct tacc_cg_state *state) {
@@ -1377,13 +1340,13 @@ void tacc_cg_move(struct tacc_cg_state *state,
     uint32_t new_reg;
 
     if (slot->place_kind == PLACE_REGISTER &&
-        (slot->place.reg->reg & permissible_regs) != 0) {
+        (slot->place.reg & permissible_regs) != 0) {
         return;
     }
     if (slot->place_kind == PLACE_REGISTER) {
         new_reg = tacc_target_cg_alloc_reg(state, permissible_regs);
-        tacc_target_cg_move_reg_reg(state, slot->place.reg->reg, new_reg);
-        slot->place.reg->reg = new_reg;
+        tacc_target_cg_move_reg_reg(state, slot->place.reg, new_reg);
+        slot->place.reg = new_reg;
     } else {
         tacc_assert(ASSERT_TODO, 0, "move from stack to register");
     }
@@ -1398,8 +1361,8 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
     uint32_t old_high;
 
     if (slot->place_kind == PLACE_REGISTER_PAIR) {
-        old_low = slot->place.pair.reg->reg;
-        old_high = slot->place.pair.reg_2->reg;
+        old_low = slot->place.pair.reg;
+        old_high = slot->place.pair.reg_2;
         if ((old_low & permissible_low) != 0 &&
             (old_high & permissible_high) != 0) {
             return;
@@ -1408,27 +1371,26 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
         if ((old_low & permissible_high) != 0) {
             tacc_target_cg_xchg_reg_reg(state, old_low, old_high);
 
-            slot->place.pair.reg_2->reg = old_low;
-            slot->place.pair.reg->reg = old_high;
+            slot->place.pair.reg_2 = old_low;
+            slot->place.pair.reg = old_high;
             permissible_low = permissible_low & ~old_low;
             if ((old_high & permissible_low) != 0) {
                 /* exchange was sufficient to fix the pair. we're done. */
-                slot->place.pair.reg->reg = old_high;
+                slot->place.pair.reg = old_high;
                 return;
             }
 
             /* high is ok. find a new register for low word */
             new_reg = tacc_target_cg_alloc_reg(state, permissible_low);
-            tacc_target_cg_move_reg_reg(
-                state, slot->place.pair.reg->reg, new_reg);
-            slot->place.pair.reg->reg = new_reg;
+            tacc_target_cg_move_reg_reg(state, slot->place.pair.reg, new_reg);
+            slot->place.pair.reg = new_reg;
             return;
         }
         if ((old_high & permissible_low) != 0) {
             tacc_target_cg_xchg_reg_reg(state, old_low, old_high);
 
-            slot->place.pair.reg_2->reg = old_low;
-            slot->place.pair.reg->reg = old_high;
+            slot->place.pair.reg_2 = old_low;
+            slot->place.pair.reg = old_high;
             permissible_high = permissible_high & ~old_high;
 
             /*
@@ -1438,9 +1400,8 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
 
             /* low is ok. find a new register for high word. */
             new_reg = tacc_target_cg_alloc_reg(state, permissible_high);
-            tacc_target_cg_move_reg_reg(
-                state, slot->place.pair.reg_2->reg, new_reg);
-            slot->place.pair.reg_2->reg = new_reg;
+            tacc_target_cg_move_reg_reg(state, slot->place.pair.reg_2, new_reg);
+            slot->place.pair.reg_2 = new_reg;
             return;
         }
 
@@ -1451,10 +1412,9 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
          * part of this pair.
          */
         new_reg = tacc_target_cg_alloc_reg(state, permissible_high);
-        tacc_target_cg_move_reg_reg(
-            state, slot->place.pair.reg_2->reg, new_reg);
+        tacc_target_cg_move_reg_reg(state, slot->place.pair.reg_2, new_reg);
         new_reg = tacc_target_cg_alloc_reg(state, permissible_low & ~new_reg);
-        tacc_target_cg_move_reg_reg(state, slot->place.pair.reg->reg, new_reg);
+        tacc_target_cg_move_reg_reg(state, slot->place.pair.reg, new_reg);
     } else {
         tacc_assert(ASSERT_TODO, 0, "move from stack to register pair");
     }
@@ -1470,8 +1430,8 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
     tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_REGISTER_PAIR,
                 "expected register pair at stack top");
-    *lo_reg = slot->place.pair.reg->reg;
-    *hi_reg = slot->place.pair.reg_2->reg;
+    *lo_reg = slot->place.pair.reg;
+    *hi_reg = slot->place.pair.reg_2;
 }
 
 static uint32_t tacc_cg_ensure_reg(struct tacc_cg_state *state,
@@ -1485,21 +1445,20 @@ static uint32_t tacc_cg_ensure_reg(struct tacc_cg_state *state,
         tacc_target_cg_load_scratch_part(
             state, slot->place.offset, reg, slot->ty);
         slot->place_kind = PLACE_REGISTER;
-        slot->place.reg = tacc_target_place_register_new();
-        slot->place.reg->reg = reg;
+        slot->place.reg = reg;
         return reg;
     }
 
     tacc_assert(ASSERT_TODO,
                 slot->place_kind == PLACE_REGISTER,
                 "expected register at stack top");
-    old_reg = slot->place.reg->reg;
+    old_reg = slot->place.reg;
     if ((old_reg & regs_ok) != 0) {
         return old_reg;
     }
     reg = tacc_target_cg_alloc_reg(state, regs_ok);
     tacc_target_cg_move_reg_reg(state, old_reg, reg);
-    slot->place.reg->reg = reg;
+    slot->place.reg = reg;
     return reg;
 }
 
@@ -1514,21 +1473,20 @@ static uint32_t tacc_cg_ensure_freg(struct tacc_cg_state *state,
         tacc_target_cg_load_scratch_part(
             state, slot->place.offset, reg, slot->ty);
         slot->place_kind = PLACE_FLOAT_REGISTER;
-        slot->place.reg = tacc_target_place_register_new();
-        slot->place.reg->reg = reg;
+        slot->place.reg = reg;
         return reg;
     }
 
     tacc_assert(ASSERT_TODO,
                 slot->place_kind == PLACE_FLOAT_REGISTER,
                 "expected register at stack top");
-    old_reg = slot->place.reg->reg;
+    old_reg = slot->place.reg;
     if ((old_reg & regs_ok) != 0) {
         return old_reg;
     }
     reg = tacc_target_cg_alloc_freg(state, regs_ok);
     tacc_target_cg_move_f_reg_reg(state, old_reg, reg);
-    slot->place.reg->reg = reg;
+    slot->place.reg = reg;
     return reg;
 }
 

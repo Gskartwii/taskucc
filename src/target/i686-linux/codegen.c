@@ -109,8 +109,6 @@ void tacc_target_cg_int_pair(struct tacc_cg_state *state,
                              struct tacc_val *val) {
     enum tacc_target_register register_place;
     enum tacc_target_register register_place_2;
-    struct tacc_target_place_register *reg_place;
-    struct tacc_target_place_register *reg_place_2;
     char *reg;
 
     register_place = tacc_target_cg_alloc_reg(state, REG_ANY);
@@ -124,11 +122,7 @@ void tacc_target_cg_int_pair(struct tacc_cg_state *state,
     tacc_cg_output(
         state, "\n\t movl $0x%x, %s", val->value.int_value->high, reg);
 
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = register_place;
-    reg_place_2 = tacc_target_place_register_new();
-    reg_place_2->reg = register_place_2;
-    tacc_cg_push_reg_pair(state, reg_place, reg_place_2, val->type);
+    tacc_cg_push_reg_pair(state, register_place, register_place_2, val->type);
 }
 
 void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
@@ -150,7 +144,6 @@ void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
 
 void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     enum tacc_target_register register_place;
-    struct tacc_target_place_register *reg_place;
     char *reg;
     size_t width;
 
@@ -170,9 +163,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
                    val->value.int_value->low,
                    reg);
 
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = register_place;
-    tacc_cg_push_reg(state, reg_place, val->type);
+    tacc_cg_push_reg(state, register_place, val->type);
 }
 
 void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
@@ -213,7 +204,7 @@ void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
                                struct tacc_type *to_type,
                                tacc_bool is_sext) {
     struct tacc_slot *slot;
-    struct tacc_target_place_register *top_place;
+    uint32_t top_place;
     size_t from_width;
     size_t to_width;
 
@@ -223,8 +214,7 @@ void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
 
     if (from_width > 32 && to_width <= 32) {
         /* first cast to int and forget reg_2 */
-        top_place = tacc_target_place_register_new();
-        top_place->reg = slot->place.pair.reg->reg;
+        top_place = slot->place.pair.reg;
         if (tacc_type_kind_is_signed(slot->ty->kind)) {
             tacc_cg_pop(state);
             tacc_cg_push_reg(
@@ -248,8 +238,8 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
                             struct tacc_type *type,
                             tacc_bool is_sext) {
     struct tacc_slot *slot;
-    struct tacc_target_place_register *top_place;
-    struct tacc_target_place_register *top_place_2;
+    uint32_t top_place;
+    uint32_t top_place_2;
     enum tacc_target_register top_reg;
     enum tacc_target_register top_reg_2;
     size_t from_width;
@@ -274,12 +264,10 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
             state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_UINT),
             is_sext);
-        top_place = tacc_target_place_register_new();
-        top_place_2 = tacc_target_place_register_new();
         top_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
-        top_place->reg = top_reg;
+        top_place = top_reg;
         top_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY);
-        top_place_2->reg = top_reg_2;
+        top_place_2 = top_reg_2;
 
         reg_name = tacc_target_register_name(top_reg, 32);
         reg_name_2 = tacc_target_register_name(top_reg_2, 32);
@@ -351,8 +339,8 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
 
 void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                               struct tacc_type *int_type) {
-    struct tacc_target_place_register *reg_place;
-    struct tacc_target_place_register *reg_place_2;
+    uint32_t reg_place;
+    uint32_t reg_place_2;
     size_t load_width;
     uint32_t reg;
     uint32_t reg_2;
@@ -373,8 +361,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                        tacc_target_op_suffix(load_width),
                        tacc_target_register_as_32(reg),
                        tacc_target_register_name(reg, load_width));
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
+        reg_place = reg;
         tacc_cg_push_reg(state, reg_place, int_type);
         break;
     case 64:
@@ -386,10 +373,8 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                        "\n\t movl (%s), %s",
                        tacc_target_register_as_32(reg),
                        tacc_target_register_as_32(reg));
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = reg;
-        reg_place_2 = tacc_target_place_register_new();
-        reg_place_2->reg = reg_2;
+        reg_place = reg;
+        reg_place_2 = reg_2;
         tacc_cg_push_reg_pair(state, reg_place, reg_place_2, int_type);
         break;
     default:
@@ -442,13 +427,12 @@ void tacc_target_cg_store_int(struct tacc_cg_state *state,
 
 void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
                                struct tacc_local_var *var) {
-    struct tacc_target_place_register *reg_place;
+    uint32_t reg_place;
     uint32_t reg;
     char *reg_name;
 
     reg = tacc_target_cg_alloc_reg(state, REG_ANY);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
+    reg_place = reg;
 
     reg_name = tacc_target_register_as_32(reg);
     tacc_cg_output(state, "\n\t leal %d(%%ebp), %s", var->offset, reg_name);
@@ -472,8 +456,7 @@ static tacc_bool tacc_target_type_fits_in_single_reg(struct tacc_type *ty) {
 
 void tacc_target_cg_dup(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
-    struct tacc_target_place_register *reg_place;
-    struct tacc_target_place_register *reg_place_2;
+    uint32_t reg_place;
     uint32_t reg;
     uint32_t reg_2;
     uint32_t new_reg;
@@ -484,8 +467,7 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
         reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
         new_reg = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
         tacc_target_cg_move_reg_reg(state, reg, new_reg);
-        reg_place = tacc_target_place_register_new();
-        reg_place->reg = new_reg;
+        reg_place = new_reg;
         tacc_cg_push_reg(state, reg_place, slot->ty);
         return;
     }
@@ -495,17 +477,12 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
     new_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~(reg | new_reg));
     tacc_target_cg_move_reg_reg(state, reg, new_reg);
     tacc_target_cg_move_reg_reg(state, reg_2, new_reg_2);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = new_reg;
-    reg_place_2 = tacc_target_place_register_new();
-    reg_place_2->reg = new_reg_2;
-    tacc_cg_push_reg_pair(state, reg_place, reg_place_2, slot->ty);
+    tacc_cg_push_reg_pair(state, new_reg, new_reg_2, slot->ty);
 }
 
 void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                                struct tacc_global_object *object) {
     uint32_t reg;
-    struct tacc_target_place_register *reg_place;
     char *reg_name;
     struct tacc_string *symbol_name;
 
@@ -516,10 +493,8 @@ void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
                    "\n\t movl $%s, %s",
                    tacc_dynstring_as_str(symbol_name),
                    reg_name);
-    reg_place = tacc_target_place_register_new();
-    reg_place->reg = reg;
     tacc_cg_push_reg(state,
-                     reg_place,
+                     reg,
                      tacc_type_to_pointer(state->compiler->target->pointer_ty,
                                           object->extra.obj_type,
                                           1));
