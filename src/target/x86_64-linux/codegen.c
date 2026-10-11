@@ -971,9 +971,9 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
     case EX_LT:
         is_cmp = 1;
         if (is_signed) {
-            op = "setle";
+            op = "setl";
         } else {
-            op = "setbe";
+            op = "setb";
         }
         break;
     case EX_GE:
@@ -1113,7 +1113,9 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
 
     if (is_cmp) {
         if (is_ldouble) {
-            tacc_cg_output(state, "\n\t f%spp", op);
+            tacc_cg_output(state, "\n\t fxch %%st(1)");
+            tacc_cg_output(state, "\n\t f%sip", op);
+            tacc_cg_output(state, "\n\t fstp %%st(0)");
         } else {
             tacc_cg_output(state,
                            "\n\t %sis%s %s, %s",
