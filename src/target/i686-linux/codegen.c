@@ -606,7 +606,7 @@ void tacc_target_cg_call_top(struct tacc_cg_state *state) {
                 "expected callee pointer to be in scratch");
     tacc_cg_output(state, "\n\t movl %d(%%ebp), %%eax", slot->place.offset);
     tacc_cg_pop(state);
-    tacc_cg_output(state, "\n\t call %%eax");
+    tacc_cg_output(state, "\n\t call *%%eax");
 }
 
 void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
