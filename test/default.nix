@@ -14,7 +14,7 @@
   coreutils,
 }: let
   tinycc-src = fetchgit {
-    url = "https://repo.or.cz/tinycc.git";
+    url = "https://github.com/tinycc/tinycc.git";
     rev = "a338258d309c888bde96b2d1f206299231a54ddf";
     hash = "sha256-R1Kyycihw5rKu+vv/GzEMPAdaApW0lrIESjrbnEa2Dg=";
   };

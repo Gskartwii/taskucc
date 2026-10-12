@@ -141,6 +141,9 @@ void tacc_cg_int_pair(struct tacc_cg_state *state, struct tacc_val *val);
 void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,
                                 uint32_t *hi_reg);
+void tacc_cg_ensure_over_is_pair(struct tacc_cg_state *state,
+                                 uint32_t *lo_reg,
+                                 uint32_t *hi_reg);
 void tacc_cg_call(struct tacc_cg_state *state,
                   struct tacc_type *fn_type,
                   size_t num_args);

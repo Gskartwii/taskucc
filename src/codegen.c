@@ -623,7 +623,10 @@ void tacc_cg_call(struct tacc_cg_state *state,
             state, itf->retval_reg, fn_type->extra.function->return_type);
         break;
     case CALLITF_RETVAL_REGISTER_PAIR:
-        tacc_assert(ASSERT_TODO, 0, "consume return of register pair");
+        tacc_cg_push_reg_pair(state,
+                              itf->retval_reg,
+                              itf->retval_reg_2,
+                              fn_type->extra.function->return_type);
         break;
     case CALLITF_RETVAL_OUTPARAM:
         tacc_assert(ASSERT_TODO, 0, "consume return of outparam");
@@ -1420,6 +1423,106 @@ void tacc_cg_move_pair(struct tacc_cg_state *state,
     }
 }
 
+static void tacc_cg_ensure_slot_is_pair(struct tacc_cg_state *state,
+                                        struct tacc_slot *slot,
+                                        uint32_t *lo_reg,
+                                        uint32_t *hi_reg) {
+    tacc_bool lo_is_ok;
+    tacc_bool hi_is_ok;
+    tacc_bool swap_makes_low_ok;
+    tacc_bool swap_makes_high_ok;
+
+    lo_is_ok = (slot->place.pair.reg & *lo_reg) != 0;
+    hi_is_ok = (slot->place.pair.reg_2 & *hi_reg) != 0;
+    swap_makes_low_ok = (slot->place.pair.reg_2 & *lo_reg) != 0;
+    swap_makes_high_ok = (slot->place.pair.reg & *hi_reg) != 0;
+
+    if (lo_is_ok && hi_is_ok) {
+        /* current register allocation satisfies request */
+        *lo_reg = slot->place.pair.reg;
+        *hi_reg = slot->place.pair.reg_2;
+        return;
+    }
+    if (swap_makes_low_ok && swap_makes_high_ok) {
+        /* swap permits the requested allocation */
+        tacc_target_cg_xchg_reg_reg(
+            state, slot->place.pair.reg_2, slot->place.pair.reg);
+        *lo_reg = slot->place.pair.reg_2;
+        *hi_reg = slot->place.pair.reg;
+        slot->place.pair.reg = *lo_reg;
+        slot->place.pair.reg_2 = *hi_reg;
+        return;
+    }
+    if (lo_is_ok) {
+        /*
+         * low register has a suitable allocation, but we need to find a new
+         * candidate for high register
+         */
+        *lo_reg = slot->place.pair.reg;
+        tacc_assert(ASSERT_ICE,
+                    (*hi_reg & ~(*lo_reg)) != 0,
+                    "ensure_slot_is_pair: allocation is too hard");
+        *hi_reg = tacc_target_cg_alloc_reg(state, *hi_reg & ~(*lo_reg));
+        tacc_target_cg_move_reg_reg(state, slot->place.pair.reg_2, *hi_reg);
+        slot->place.pair.reg_2 = *hi_reg;
+        return;
+    }
+    if (hi_is_ok) {
+        /*
+         * high register has a suitable allocation, but we need to find a new
+         * candidate for low register
+         */
+        *hi_reg = slot->place.pair.reg_2;
+        tacc_assert(ASSERT_ICE,
+                    (*lo_reg & ~(*hi_reg)) != 0,
+                    "ensure_slot_is_pair: allocation is too hard");
+        *lo_reg = tacc_target_cg_alloc_reg(state, *lo_reg & ~(*hi_reg));
+        tacc_target_cg_move_reg_reg(state, slot->place.pair.reg, *lo_reg);
+        slot->place.pair.reg = *lo_reg;
+        return;
+    }
+    if (swap_makes_high_ok) {
+        /* swap makes progress requested allocation */
+        tacc_target_cg_xchg_reg_reg(
+            state, slot->place.pair.reg_2, slot->place.pair.reg);
+        *hi_reg = slot->place.pair.reg;
+        slot->place.pair.reg = slot->place.pair.reg_2;
+        slot->place.pair.reg_2 = *hi_reg;
+        /*
+         * hi_is_ok now holds and hi_reg is fixed; recurse to find a good value
+         * for low reg
+         */
+        tacc_cg_ensure_slot_is_pair(state, slot, lo_reg, hi_reg);
+        return;
+    }
+    if (swap_makes_low_ok) {
+        /* swap makes progress requested allocation */
+        tacc_target_cg_xchg_reg_reg(
+            state, slot->place.pair.reg_2, slot->place.pair.reg);
+        *lo_reg = slot->place.pair.reg_2;
+        slot->place.pair.reg_2 = slot->place.pair.reg;
+        slot->place.pair.reg = *lo_reg;
+        /*
+         * lo_is_ok now holds and lo_reg is fixed; recurse to find a good value
+         * for high reg
+         */
+        tacc_cg_ensure_slot_is_pair(state, slot, lo_reg, hi_reg);
+        return;
+    }
+
+    tacc_assert(
+        ASSERT_ICE,
+        ((*lo_reg | *hi_reg) &
+         (slot->place.pair.reg | slot->place.pair.reg_2)) == 0,
+        "ensure_slot_is_pair: allocation is too hard (assumption of disjointness violated)");
+    *lo_reg = tacc_target_cg_alloc_reg(state, *lo_reg);
+    *hi_reg = tacc_target_cg_alloc_reg(state, *hi_reg);
+    tacc_target_cg_move_reg_reg(state, slot->place.pair.reg, *lo_reg);
+    tacc_target_cg_move_reg_reg(state, slot->place.pair.reg_2, *hi_reg);
+    slot->place.pair.reg = *lo_reg;
+    slot->place.pair.reg_2 = *hi_reg;
+}
+
 void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
                                 uint32_t *lo_reg,
                                 uint32_t *hi_reg) {
@@ -1430,8 +1533,20 @@ void tacc_cg_ensure_top_is_pair(struct tacc_cg_state *state,
     tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_REGISTER_PAIR,
                 "expected register pair at stack top");
-    *lo_reg = slot->place.pair.reg;
-    *hi_reg = slot->place.pair.reg_2;
+    tacc_cg_ensure_slot_is_pair(state, slot, lo_reg, hi_reg);
+}
+
+void tacc_cg_ensure_over_is_pair(struct tacc_cg_state *state,
+                                 uint32_t *lo_reg,
+                                 uint32_t *hi_reg) {
+    struct tacc_slot *slot;
+
+    slot = tacc_cg_get_over(state);
+
+    tacc_assert(ASSERT_ICE,
+                slot->place_kind == PLACE_REGISTER_PAIR,
+                "expected register pair at stack top");
+    tacc_cg_ensure_slot_is_pair(state, slot, lo_reg, hi_reg);
 }
 
 static uint32_t tacc_cg_ensure_reg(struct tacc_cg_state *state,

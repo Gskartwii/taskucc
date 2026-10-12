@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include "compile.h"
 #include "machine.h"
+#include "predef_func.h"
 #include "target/codegen.h"
 #include "target/i686-linux/registers.h"
 #include "target/target.h"
@@ -390,8 +391,9 @@ void tacc_target_cg_store_int(struct tacc_cg_state *state,
     uint32_t addr_reg;
 
     store_width = tacc_type_bit_width(int_type);
-    reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
     if (store_width > 32) {
+        reg = REG_ANY;
+        reg_2 = REG_ANY;
         tacc_cg_ensure_top_is_pair(state, &reg, &reg_2);
     } else {
         reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
@@ -472,6 +474,8 @@ void tacc_target_cg_dup(struct tacc_cg_state *state) {
         return;
     }
 
+    reg = REG_ANY;
+    reg_2 = REG_ANY;
     tacc_cg_ensure_top_is_pair(state, &reg, &reg_2);
     new_reg = tacc_target_cg_alloc_reg(state, REG_ANY & ~reg);
     new_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~(reg | new_reg));
@@ -734,4 +738,606 @@ void tacc_target_cg_prepare_arg(struct tacc_cg_state *state,
     TACC_UNUSED(slot);
     TACC_UNUSED(itf_part);
     tacc_assert(ASSERT_ICE, 0, "no special argument places");
+}
+
+void tacc_target_cg_binop(struct tacc_cg_state *state,
+                          enum tacc_expr_kind binop_kind,
+                          struct tacc_type *output_type) {
+    uint32_t l_reg;
+    uint32_t l_reg_2;
+    uint32_t r_reg;
+    uint32_t r_reg_2;
+    enum tacc_predef_func_id func_id;
+    char *op;
+    struct tacc_type *ty;
+    tacc_bool is_signed;
+    tacc_bool is_cmp;
+    size_t width;
+
+    width = tacc_type_bit_width(tacc_cg_over_type(state));
+    is_signed = tacc_type_is_signed(tacc_cg_over_type(state));
+
+    if (width > 32) {
+        if (binop_kind == EX_SHL || binop_kind == EX_SHR) {
+            r_reg = tacc_cg_ensure_top_is_single(state, REG_ECX);
+            l_reg = REG_ANY & ~REG_ECX;
+            l_reg_2 = REG_ANY & ~REG_ECX;
+            tacc_cg_ensure_over_is_pair(state, &l_reg, &l_reg_2);
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+
+            tacc_cg_output(state, "\n\t test $0x20, %%cl");
+            tacc_cg_output(state, "\n\t jnz 1f");
+
+            /* shift < 32 */
+            if (binop_kind == EX_SHL) {
+                tacc_cg_output(state,
+                               "\n\t shldl %%cl, %s, %s",
+                               tacc_target_register_as_32(l_reg),
+                               tacc_target_register_as_32(l_reg_2));
+                tacc_cg_output(state,
+                               "\n\t shll %%cl, %s",
+                               tacc_target_register_as_32(l_reg));
+            } else {
+                tacc_cg_output(state,
+                               "\n\t shrdl %%cl, %s, %s",
+                               tacc_target_register_as_32(l_reg_2),
+                               tacc_target_register_as_32(l_reg));
+                if (is_signed) {
+                    tacc_cg_output(state,
+                                   "\n\t sarl %%cl, %s",
+                                   tacc_target_register_as_32(l_reg_2));
+                } else {
+                    tacc_cg_output(state,
+                                   "\n\t shrl %%cl, %s",
+                                   tacc_target_register_as_32(l_reg_2));
+                }
+            }
+            tacc_cg_output(state, "\n\t jmp 2f");
+            tacc_cg_output(state, "\n1:");
+
+            /* shift >= 32 */
+            if (binop_kind == EX_SHL) {
+                tacc_cg_output(state,
+                               "\n\t movl %s, %s",
+                               tacc_target_register_as_32(l_reg),
+                               tacc_target_register_as_32(l_reg_2));
+                tacc_cg_output(state,
+                               "\n\t shll %%cl, %s",
+                               tacc_target_register_as_32(l_reg_2));
+                tacc_cg_output(state,
+                               "\n\t xorl %s, %s",
+                               tacc_target_register_as_32(l_reg),
+                               tacc_target_register_as_32(l_reg));
+            } else {
+                tacc_cg_output(state,
+                               "\n\t movl %s, %s",
+                               tacc_target_register_as_32(l_reg_2),
+                               tacc_target_register_as_32(l_reg));
+                if (is_signed) {
+                    tacc_cg_output(state,
+                                   "\n\t sarl %%cl, %s",
+                                   tacc_target_register_as_32(l_reg));
+                    tacc_cg_output(state,
+                                   "\n\t sarl $31, %s",
+                                   tacc_target_register_as_32(l_reg_2));
+                } else {
+                    tacc_cg_output(state,
+                                   "\n\t shrl %%cl, %s",
+                                   tacc_target_register_as_32(l_reg));
+                    tacc_cg_output(state,
+                                   "\n\t xorl %s, %s",
+                                   tacc_target_register_as_32(l_reg_2),
+                                   tacc_target_register_as_32(l_reg_2));
+                }
+            }
+
+            tacc_cg_output(state, "\n2:");
+
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+            return;
+        }
+
+        l_reg = REG_ANY;
+        l_reg_2 = REG_ANY;
+        tacc_cg_ensure_over_is_pair(state, &l_reg, &l_reg_2);
+        r_reg = REG_ANY & ~(l_reg | l_reg_2);
+        r_reg_2 = r_reg;
+        tacc_cg_ensure_top_is_pair(state, &r_reg, &r_reg_2);
+
+        switch (binop_kind) {
+        case EX_ADD:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t addl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t adcl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+
+            break;
+        case EX_SUB:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t subl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t sbbl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+
+            break;
+        case EX_MUL:
+            ty = tacc_cg_push_func(state, PREDEF__TACCRT_MULDI3);
+            tacc_cg_rot(state);
+            tacc_cg_rot(state);
+            tacc_cg_call(state, ty, 2);
+            break;
+        case EX_DIV:
+            if (is_signed) {
+                func_id = PREDEF__TACCRT_DIVDI3;
+            } else {
+                func_id = PREDEF__TACCRT_UDIVDI3;
+            }
+            ty = tacc_cg_push_func(state, func_id);
+            tacc_cg_rot(state);
+            tacc_cg_rot(state);
+            tacc_cg_call(state, ty, 2);
+            break;
+        case EX_REM:
+            if (is_signed) {
+                func_id = PREDEF__TACCRT_MODDI3;
+            } else {
+                func_id = PREDEF__TACCRT_UMODDI3;
+            }
+            ty = tacc_cg_push_func(state, func_id);
+            tacc_cg_rot(state);
+            tacc_cg_rot(state);
+            tacc_cg_call(state, ty, 2);
+            break;
+        case EX_BAND:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t andl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t andl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+
+            break;
+        case EX_BOR:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t orl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t orl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+
+            break;
+        case EX_BXOR:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t xorl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t xorl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            tacc_cg_push_reg_pair(state, l_reg, l_reg_2, output_type);
+
+            break;
+        case EX_EQ:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg),
+                           tacc_target_register_as_32(r_reg));
+            tacc_cg_output(
+                state, "\n\t sete %s", tacc_target_register_as_8(r_reg));
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg_2),
+                           tacc_target_register_as_32(r_reg_2));
+            tacc_cg_output(
+                state, "\n\t sete %s", tacc_target_register_as_8(l_reg));
+            tacc_cg_output(state,
+                           "\n\t andb %s, %s",
+                           tacc_target_register_as_8(r_reg),
+                           tacc_target_register_as_8(l_reg));
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        case EX_NE:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg),
+                           tacc_target_register_as_32(r_reg));
+            tacc_cg_output(
+                state, "\n\t setne %s", tacc_target_register_as_8(r_reg));
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg_2),
+                           tacc_target_register_as_32(r_reg_2));
+            tacc_cg_output(
+                state, "\n\t setne %s", tacc_target_register_as_8(l_reg));
+            tacc_cg_output(state,
+                           "\n\t orb %s, %s",
+                           tacc_target_register_as_8(r_reg),
+                           tacc_target_register_as_8(l_reg));
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        case EX_LE:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg),
+                           tacc_target_register_as_32(r_reg));
+            tacc_cg_output(state,
+                           "\n\t sbbl %s, %s",
+                           tacc_target_register_as_32(l_reg_2),
+                           tacc_target_register_as_32(r_reg_2));
+            if (is_signed) {
+                tacc_cg_output(
+                    state, "\n\t setge %s", tacc_target_register_as_8(l_reg));
+            } else {
+                tacc_cg_output(
+                    state, "\n\t setae %s", tacc_target_register_as_8(l_reg));
+            }
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        case EX_LT:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t sbbl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            if (is_signed) {
+                tacc_cg_output(
+                    state, "\n\t setl %s", tacc_target_register_as_8(l_reg));
+            } else {
+                tacc_cg_output(
+                    state, "\n\t setb %s", tacc_target_register_as_8(l_reg));
+            }
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        case EX_GE:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(r_reg),
+                           tacc_target_register_as_32(l_reg));
+            tacc_cg_output(state,
+                           "\n\t sbbl %s, %s",
+                           tacc_target_register_as_32(r_reg_2),
+                           tacc_target_register_as_32(l_reg_2));
+            if (is_signed) {
+                tacc_cg_output(
+                    state, "\n\t setge %s", tacc_target_register_as_8(l_reg));
+            } else {
+                tacc_cg_output(
+                    state, "\n\t setae %s", tacc_target_register_as_8(l_reg));
+            }
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        case EX_GT:
+            tacc_cg_pop(state);
+            tacc_cg_pop(state);
+            tacc_cg_output(state,
+                           "\n\t cmpl %s, %s",
+                           tacc_target_register_as_32(l_reg),
+                           tacc_target_register_as_32(r_reg));
+            tacc_cg_output(state,
+                           "\n\t sbbl %s, %s",
+                           tacc_target_register_as_32(l_reg_2),
+                           tacc_target_register_as_32(r_reg_2));
+            if (is_signed) {
+                tacc_cg_output(
+                    state, "\n\t setl %s", tacc_target_register_as_8(l_reg));
+            } else {
+                tacc_cg_output(
+                    state, "\n\t setb %s", tacc_target_register_as_8(l_reg));
+            }
+            tacc_cg_push_reg(state, l_reg, output_type);
+            break;
+        default:
+            tacc_assert(ASSERT_ICE, 0, "bad binop");
+            break;
+        }
+        return;
+    }
+
+    if (binop_kind == EX_DIV || binop_kind == EX_REM) {
+        tacc_cg_ensure_over_is_single(state, REG_EAX);
+        r_reg =
+            tacc_cg_ensure_top_is_single(state, REG_ANY & ~(REG_EAX | REG_EDX));
+        tacc_target_cg_alloc_reg(state, REG_EDX);
+
+        tacc_assert(ASSERT_ICE,
+                    width == 32,
+                    "div: integer promotions didn't do what I thought");
+        if (is_signed) {
+            tacc_cg_output(state, "\n\t cltd");
+            tacc_cg_output(
+                state, "\n\t idivl %s", tacc_target_register_as_32(r_reg));
+        } else {
+            tacc_cg_output(state, "\n\t xor %%edx, %%edx");
+            tacc_cg_output(
+                state, "\n\t divl %s", tacc_target_register_as_32(r_reg));
+        }
+        tacc_cg_pop(state);
+        tacc_cg_pop(state);
+        if (binop_kind == EX_DIV) {
+            tacc_cg_push_reg(state, REG_EAX, output_type);
+        } else {
+            tacc_cg_push_reg(state, REG_EDX, output_type);
+        }
+        return;
+    }
+
+    is_cmp = 0;
+    switch (binop_kind) {
+    case EX_ADD:
+        op = "add";
+        break;
+    case EX_SUB:
+        op = "sub";
+        break;
+    case EX_MUL:
+        op = "imul";
+        break;
+    case EX_BAND:
+        op = "and";
+        break;
+    case EX_BOR:
+        op = "or";
+        break;
+    case EX_BXOR:
+        op = "xor";
+        break;
+    case EX_SHL:
+    case EX_SHR:
+        r_reg = tacc_cg_ensure_top_is_single(state, REG_ECX);
+        l_reg = tacc_cg_ensure_over_is_single(state, REG_ANY & ~REG_ECX);
+        tacc_cg_pop(state);
+        tacc_cg_pop(state);
+
+        if (is_signed) {
+            if (binop_kind == EX_SHL) {
+                op = "sal";
+            } else {
+                op = "sar";
+            }
+        } else {
+            if (binop_kind == EX_SHL) {
+                op = "shl";
+            } else {
+                op = "shr";
+            }
+        }
+
+        /* l-sized shift is always right; cl > sizeof(ty) is UB */
+        tacc_cg_output(
+            state, "\n\t %sl %%cl, %s", op, tacc_target_register_as_32(l_reg));
+
+        tacc_cg_push_reg(state, l_reg, output_type);
+        return;
+    case EX_EQ:
+        op = "sete";
+        is_cmp = 1;
+        break;
+    case EX_NE:
+        op = "setne";
+        is_cmp = 1;
+        break;
+    case EX_LE:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "setle";
+        } else {
+            op = "setbe";
+        }
+        break;
+    case EX_LT:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "setl";
+        } else {
+            op = "setb";
+        }
+        break;
+    case EX_GE:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "setge";
+        } else {
+            op = "setae";
+        }
+        break;
+    case EX_GT:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "setg";
+        } else {
+            op = "seta";
+        }
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
+        return;
+    }
+
+    l_reg = tacc_cg_ensure_over_is_single(state, REG_ANY);
+    r_reg = tacc_cg_ensure_top_is_single(state, REG_ANY & ~l_reg);
+
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    if (binop_kind == EX_SHL || binop_kind == EX_SHR) {
+        tacc_cg_output(state,
+                       "\n\t %s%s %s, %s",
+                       op,
+                       tacc_target_op_suffix(width),
+                       tacc_target_register_as_8(r_reg),
+                       tacc_target_register_name(l_reg, width));
+    } else if (is_cmp) {
+        tacc_cg_output(state,
+                       "\n\t cmp%s %s, %s",
+                       tacc_target_op_suffix(width),
+                       tacc_target_register_name(r_reg, width),
+                       tacc_target_register_name(l_reg, width));
+        tacc_cg_output(
+            state, "\n\t %s %s", op, tacc_target_register_as_8(l_reg));
+    } else {
+        tacc_cg_output(state,
+                       "\n\t %s%s %s, %s",
+                       op,
+                       tacc_target_op_suffix(width),
+                       tacc_target_register_name(r_reg, width),
+                       tacc_target_register_name(l_reg, width));
+    }
+    tacc_cg_push_reg(state, l_reg, output_type);
+}
+
+void tacc_target_cg_float_binop(struct tacc_cg_state *state,
+                                enum tacc_expr_kind binop_kind,
+                                struct tacc_type *output_type) {
+
+    uint32_t out_reg;
+    uint32_t out_reg_2;
+    char *access_suffix;
+    int offset;
+    tacc_bool is_cmp;
+    char *op;
+    struct tacc_type *ty;
+    enum tacc_expr_kind actual_binop_kind;
+
+    ty = tacc_cg_top_type(state);
+    actual_binop_kind = binop_kind;
+
+    if (binop_kind == EX_GE || binop_kind == EX_GT) {
+        tacc_cg_swap(state);
+        if (binop_kind == EX_GE) {
+            actual_binop_kind = EX_LE;
+        } else {
+            actual_binop_kind = EX_LT;
+        }
+    }
+
+    if (ty->kind == TYK_LONGDOUBLE) {
+        access_suffix = "t";
+    } else if (ty->kind == TYK_DOUBLE) {
+        access_suffix = "l";
+    } else {
+        access_suffix = "s";
+    }
+
+    offset = tacc_cg_ensure_top_is_scratch(state);
+    tacc_cg_output(state, "\n\t fld%s %d(%%ebp)", access_suffix, offset);
+    tacc_cg_pop(state);
+    offset = tacc_cg_ensure_top_is_scratch(state);
+    tacc_cg_output(state, "\n\t fld%s %d(%%ebp)", access_suffix, offset);
+    tacc_cg_pop(state);
+
+    is_cmp = 0;
+    switch (actual_binop_kind) {
+    case EX_ADD:
+        op = "add";
+        break;
+    case EX_SUB:
+        op = "sub";
+        break;
+    case EX_MUL:
+        op = "mul";
+        break;
+    case EX_DIV:
+        op = "div";
+        break;
+    case EX_EQ:
+    case EX_NE:
+        is_cmp = 1;
+        op = "ucom";
+        out_reg = tacc_target_cg_alloc_reg(state, REG_ANY);
+        out_reg_2 = tacc_target_cg_alloc_reg(state, REG_ANY & ~out_reg);
+        break;
+    case EX_LE:
+    case EX_LT:
+        is_cmp = 1;
+        op = "com";
+        out_reg = tacc_target_cg_alloc_reg(state, REG_ANY);
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
+        return;
+    }
+
+    if (is_cmp) {
+        tacc_cg_output(state, "\n\t fxch %%st(1)");
+        tacc_cg_output(state, "\n\t f%sip", op);
+        tacc_cg_output(state, "\n\t fstp %%st(0)");
+        switch (actual_binop_kind) {
+        case EX_EQ:
+            tacc_cg_output(
+                state, "\n\t setnp %s", tacc_target_register_as_8(out_reg));
+            tacc_cg_output(
+                state, "\n\t sete %s", tacc_target_register_as_8(out_reg_2));
+            tacc_cg_output(state,
+                           "\n\t and %s, %s",
+                           tacc_target_register_as_8(out_reg_2),
+                           tacc_target_register_as_8(out_reg));
+            break;
+        case EX_NE:
+            tacc_cg_output(
+                state, "\n\t setp %s", tacc_target_register_as_8(out_reg));
+            tacc_cg_output(
+                state, "\n\t setne %s", tacc_target_register_as_8(out_reg_2));
+            tacc_cg_output(state,
+                           "\n\t or %s, %s",
+                           tacc_target_register_as_8(out_reg_2),
+                           tacc_target_register_as_8(out_reg));
+            break;
+        case EX_LT:
+            tacc_cg_output(
+                state, "\n\t seta %s", tacc_target_register_as_8(out_reg));
+            break;
+        case EX_LE:
+            tacc_cg_output(
+                state, "\n\t setnb %s", tacc_target_register_as_8(out_reg));
+            break;
+        default:
+            tacc_assert(ASSERT_ICE, 0, "bad comparison binop");
+        }
+        tacc_cg_push_reg(state, out_reg, output_type);
+        return;
+    }
+    tacc_cg_output(state, "\n\t f%sp %%st(1)", op);
+    /* reuse scratch */
+    tacc_cg_output(state, "\n\t fstp%s %d(%%ebp)", access_suffix, offset);
+    tacc_cg_push_scratch(state, offset, output_type);
 }

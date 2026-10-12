@@ -843,8 +843,8 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
     tacc_bool is_cmp;
     size_t width;
 
-    width = tacc_type_bit_width(tacc_cg_top_type(state));
-    is_signed = tacc_type_is_signed(tacc_cg_top_type(state));
+    width = tacc_type_bit_width(tacc_cg_over_type(state));
+    is_signed = tacc_type_is_signed(tacc_cg_over_type(state));
 
     if (binop_kind == EX_DIV || binop_kind == EX_REM) {
         tacc_cg_ensure_over_is_single(state, REG_RAX);
@@ -887,12 +887,6 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         return;
     }
 
-    l_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE);
-    r_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE & ~l_reg);
-
-    tacc_cg_pop(state);
-    tacc_cg_pop(state);
-
     is_cmp = 0;
     switch (binop_kind) {
     case EX_ADD:
@@ -915,6 +909,11 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         break;
     case EX_SHL:
     case EX_SHR:
+        r_reg = tacc_cg_ensure_top_is_single(state, REG_RCX);
+        l_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE & ~REG_RCX);
+        tacc_cg_pop(state);
+        tacc_cg_pop(state);
+
         if (is_signed) {
             if (binop_kind == EX_SHL) {
                 op = "sal";
@@ -929,8 +928,15 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
             }
         }
 
+        /* width matters for distinction of l/q cases for signed right-shift */
+        tacc_cg_output(state,
+                       "\n\t %s%s %%cl, %s",
+                       op,
+                       tacc_target_op_suffix(width),
+                       tacc_target_register_name(l_reg, width));
+
         tacc_cg_push_reg(state, l_reg, output_type);
-        break;
+        return;
     case EX_EQ:
         op = "sete";
         is_cmp = 1;
@@ -975,6 +981,12 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
         tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
         return;
     }
+
+    l_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE);
+    r_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE & ~l_reg);
+
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
 
     if (binop_kind == EX_SHL || binop_kind == EX_SHR) {
         tacc_cg_output(state,
