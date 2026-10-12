@@ -6,24 +6,38 @@
 #define DECL_BINOP(output, left, right, op, suffix) \
     extern output binop_##suffix(left, right);
 
-#define CHECK_BINOP(output, left, right, op, suffix)             \
-    {                                                            \
-        left l = (left) check_n_l;                               \
-        right r = (right) check_n_r;                             \
-        if (!r) {                                                \
-            continue; /* avoid div by zero */                    \
-        }                                                        \
-        output expected = l op r;                                \
-        if (binop_##suffix(l, r) != expected) {                  \
-            printf("binop failed on (" #left ")%llu %s (" #right \
-                   ")%llu -> " #output ": %llu != %llu\n",       \
-                   (unsigned long long) check_n_l,               \
-                   #op,                                          \
-                   (unsigned long long) check_n_r,               \
-                   (unsigned long long) binop_##suffix(l, r),    \
-                   (unsigned long long) expected);               \
-            ok = 0;                                              \
-        }                                                        \
+#define GENERIC_PRINT_SPEC(expr)    \
+    _Generic(expr,                  \
+        _Bool: "%d",                \
+        unsigned char: "%d",        \
+        unsigned short: "%d",       \
+        unsigned int: "%u",         \
+        unsigned long: "%lu",       \
+        unsigned long long: "%llu", \
+        float: "%f",                \
+        double: "%lf",              \
+        long double: "%Lf")
+
+#define CHECK_BINOP(output, left, right, op, suffix)                  \
+    {                                                                 \
+        left l = (left) check_n_l;                                    \
+        right r = (right) check_n_r;                                  \
+        if (!r) {                                                     \
+            continue; /* avoid div by zero */                         \
+        }                                                             \
+        output expected = l op r;                                     \
+        if (binop_##suffix(l, r) != expected) {                       \
+            printf("binop failed on (" #left ") ");                   \
+            printf(GENERIC_PRINT_SPEC(left), l);                      \
+            printf(" %s (" #right ") ", #op);                         \
+            printf(GENERIC_PRINT_SPEC(right), r);                     \
+            printf(" -> " #output ": ");                              \
+            printf(GENERIC_PRINT_SPEC(output), binop_##suffix(l, r)); \
+            printf(" != ");                                           \
+            printf(GENERIC_PRINT_SPEC(output), expected);             \
+            printf("\n");                                             \
+            ok = 0;                                                   \
+        }                                                             \
     }
 
 #define BINOP_ACTION DECL_BINOP
