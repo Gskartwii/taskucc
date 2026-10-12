@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #define ZERO               \
+    local_ok = 1;          \
     tacc_u64_zero(&a);     \
     tacc_u64_zero(&b);     \
     tacc_u64_zero(&c);     \
@@ -13,6 +14,7 @@
     tacc_u64_zero(&exp_y);
 
 #define ZERO_F128           \
+    local_ok = 1;           \
     tacc_f128_zero(&a_f);   \
     tacc_f128_zero(&b_f);   \
     tacc_f128_zero(&c_f);   \
@@ -31,48 +33,53 @@
     data = read_test_val_f128(data, &b_f);   \
     data = read_test_val_f128(data, &exp_f);
 
-#define PRINT4(suite)                            \
-    printf("[%s] %x:%x ~ %x:%x = %x:%x ~ %x:%x", \
-           suite,                                \
-           a.high,                               \
-           a.low,                                \
-           b.high,                               \
-           b.low,                                \
-           exp_x.high,                           \
-           exp_x.low,                            \
-           exp_y.high,                           \
-           exp_y.low)
+#define PRINT4(suite)                                \
+    if (!local_ok) {                                 \
+        printf("[%s] %x:%x ~ %x:%x = %x:%x ~ %x:%x", \
+               suite,                                \
+               a.high,                               \
+               a.low,                                \
+               b.high,                               \
+               b.low,                                \
+               exp_x.high,                           \
+               exp_x.low,                            \
+               exp_y.high,                           \
+               exp_y.low);                           \
+    }
 
-#define PRINT3_F128(suite)                                                                                   \
-    printf(                                                                                                  \
-        "[%s] (-1)^%d * %x:%x:%x:%x * 2^%d ~ (-1)^%d * %x:%x:%x:%x * 2^%d = (-1)^%d * %x:%x:%x:%x * 2^%d  ", \
-        suite,                                                                                               \
-        a_f.sign,                                                                                            \
-        a_f.mant_a,                                                                                          \
-        a_f.mant_b,                                                                                          \
-        a_f.mant_c,                                                                                          \
-        a_f.mant_d,                                                                                          \
-        a_f.exponent,                                                                                        \
-        b_f.sign,                                                                                            \
-        b_f.mant_a,                                                                                          \
-        b_f.mant_b,                                                                                          \
-        b_f.mant_c,                                                                                          \
-        b_f.mant_d,                                                                                          \
-        b_f.exponent,                                                                                        \
-        exp_f.sign,                                                                                          \
-        exp_f.mant_a,                                                                                        \
-        exp_f.mant_b,                                                                                        \
-        exp_f.mant_c,                                                                                        \
-        exp_f.mant_d,                                                                                        \
-        exp_f.exponent)
+#define PRINT3_F128(suite)                                                                                       \
+    if (!local_ok) {                                                                                             \
+        printf(                                                                                                  \
+            "[%s] (-1)^%d * %x:%x:%x:%x * 2^%d ~ (-1)^%d * %x:%x:%x:%x * 2^%d = (-1)^%d * %x:%x:%x:%x * 2^%d  ", \
+            suite,                                                                                               \
+            a_f.sign,                                                                                            \
+            a_f.mant_a,                                                                                          \
+            a_f.mant_b,                                                                                          \
+            a_f.mant_c,                                                                                          \
+            a_f.mant_d,                                                                                          \
+            a_f.exponent,                                                                                        \
+            b_f.sign,                                                                                            \
+            b_f.mant_a,                                                                                          \
+            b_f.mant_b,                                                                                          \
+            b_f.mant_c,                                                                                          \
+            b_f.mant_d,                                                                                          \
+            b_f.exponent,                                                                                        \
+            exp_f.sign,                                                                                          \
+            exp_f.mant_a,                                                                                        \
+            exp_f.mant_b,                                                                                        \
+            exp_f.mant_c,                                                                                        \
+            exp_f.mant_d,                                                                                        \
+            exp_f.exponent);                                                                                     \
+    }
 
-#define CHECK2                      \
-    ok = ok & check_eq(&c, &exp_x); \
-    ok = ok & check_eq(&d, &exp_y); \
+#define CHECK2                                              \
+    local_ok = check_eq(&c, &exp_x) & check_eq(&d, &exp_y); \
+    ok = ok & local_ok;                                     \
     printf("\n");
 
-#define CHECK_F128                         \
-    ok = ok & check_eq_f128(&c_f, &exp_f); \
+#define CHECK_F128                          \
+    local_ok = check_eq_f128(&c_f, &exp_f); \
+    ok = ok & local_ok;                     \
     printf("\n");
 
 /* clang-format off */
@@ -246,27 +253,28 @@ int run_tests(void) {
 
     size_t i;
     tacc_bool ok;
+    tacc_bool local_ok;
     uint32_t *data;
 
     data = (uint32_t *) sdiv_test_data;
     ok = 1;
     for (i = 0; i < 10; i = i + 1) {
-        ZERO READ4 PRINT4("sdiv");
-        tacc_u64_sdiv(&c, &d, &a, &b);
+        ZERO READ4 tacc_u64_sdiv(&c, &d, &a, &b);
         CHECK2
+        PRINT4("sdiv")
     }
 
     data = (uint32_t *) f128add_test_data;
     for (i = 0; i < count_f128add_data; i = i + 1) {
-        ZERO_F128 READ3_F128 PRINT3_F128("f128_add");
-        tacc_f128_addl(&c_f, &a_f, &b_f);
+        ZERO_F128 READ3_F128 tacc_f128_addl(&c_f, &a_f, &b_f);
         CHECK_F128
+        PRINT3_F128("f128_add")
     }
     data = (uint32_t *) f128mul_test_data;
     for (i = 0; i < count_f128mul_data; i = i + 1) {
-        ZERO_F128 READ3_F128 PRINT3_F128("f128_mul");
-        tacc_f128_mull(&c_f, &a_f, &b_f);
+        ZERO_F128 READ3_F128 tacc_f128_mull(&c_f, &a_f, &b_f);
         CHECK_F128
+        PRINT3_F128("f128_mul")
     }
 
     data = (uint32_t *) fparse_test_data;
@@ -278,12 +286,14 @@ int run_tests(void) {
         f_strs = f_strs + sizeof(char *);
 
         ZERO_F128
-        printf("[fparse] %s ", fstr);
         iter = tacc_file_iter_new_str(fstr, fstr + strlen(fstr));
         floatscan(iter, 3, &c_f);
         tacc_free(iter);
         READ_F128(exp_f);
         CHECK_F128
+        if (!local_ok) {
+            printf("[fparse] %s\n", fstr);
+        }
     }
 
     data = (uint32_t *) fparse_musl_test_data;
@@ -295,12 +305,14 @@ int run_tests(void) {
         f_strs = f_strs + sizeof(char *);
 
         ZERO_F128
-        printf("[fparse-musl] %s ", fstr);
         iter = tacc_file_iter_new_str(fstr, fstr + strlen(fstr));
         floatscan(iter, 3, &c_f);
         tacc_free(iter);
         READ_F128(exp_f);
         CHECK_F128
+        if (!local_ok) {
+            printf("[fparse-musl] %s\n", fstr);
+        }
     }
 
     return !ok;
