@@ -773,6 +773,31 @@ static void tacc_compile_declare_predef(struct tacc_compiler *compiler,
     tacc_type_list_push(ret_ty->derived_func_types, func_ty);
 }
 
+static void tacc_compile_declare_predef_2(struct tacc_compiler *compiler,
+                                          enum tacc_predef_func_id id,
+                                          struct tacc_type *arg_ty_1,
+                                          struct tacc_type *arg_ty_2,
+                                          struct tacc_type *ret_ty) {
+    struct tacc_global_object *object;
+    struct tacc_type *func_ty;
+
+    object = tacc_global_object_new();
+    object->is_enumerator = 0;
+    object->name_ref = (uint32_t) -id;
+
+    func_ty = tacc_type_new();
+    func_ty->kind = TYK_FN;
+    func_ty->extra.function = tacc_function_type_new();
+    func_ty->extra.function->return_type = ret_ty;
+    func_ty->extra.function->param_types = tacc_type_list_new();
+    tacc_type_list_push(func_ty->extra.function->param_types, arg_ty_1);
+    tacc_type_list_push(func_ty->extra.function->param_types, arg_ty_2);
+    object->extra.obj_type = func_ty;
+
+    tacc_global_object_map_insert(compiler->global_objects, object);
+    tacc_type_list_push(ret_ty->derived_func_types, func_ty);
+}
+
 static void tacc_compile_add_predef_name(struct tacc_compiler *compiler,
                                          char *name) {
     struct tacc_string *name_string;
@@ -809,6 +834,11 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
     tacc_compile_add_predef_name(compiler, "__taccrt_trunctfdf2");
     tacc_compile_add_predef_name(compiler, "__taccrt_extendsftf2");
     tacc_compile_add_predef_name(compiler, "__taccrt_extenddftf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_muldi3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_divdi3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_udivdi3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_moddi3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_umoddi3");
     tacc_compile_declare_predef(
         compiler, PREDEF__TACCRT_FIXTFDI, longdouble, llongint);
     tacc_compile_declare_predef(
@@ -827,6 +857,16 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
         compiler, PREDEF__TACCRT_EXTENDSFTF2, sfloat, longdouble);
     tacc_compile_declare_predef(
         compiler, PREDEF__TACCRT_EXTENDDFTF2, dfloat, longdouble);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_MULDI3, llongint, llongint, llongint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_DIVDI3, llongint, llongint, llongint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_UDIVDI3, llonguint, llonguint, llonguint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_MODDI3, llongint, llongint, llongint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_UMODDI3, llonguint, llonguint, llonguint);
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {
