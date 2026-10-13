@@ -359,7 +359,8 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
          i = i + 1) {
         param_entry =
             tacc_callitf_part_list_get(state->interface->param_parts, i);
-        param_ident_entry = tacc_ident_list_get(state->param_names, i);
+        param_ident_entry = tacc_ident_list_get(
+            state->param_names, param_entry->content->param_idx);
         locvar_place =
             tacc_local_var_map_get(state->locals, param_ident_entry->content);
         tacc_cg_copy_param(state, param_entry->content, locvar_place->content);
