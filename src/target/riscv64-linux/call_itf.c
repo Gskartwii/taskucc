@@ -103,7 +103,7 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
         if (state->float_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_FLOAT_REGISTER;
             part->place.extra.reg.reg =
-                tacc_callitf_float_areg(state->int_regs_used);
+                tacc_callitf_float_areg(state->float_regs_used);
             state->float_regs_used = state->float_regs_used + 1;
         } else {
             part->place.kind = CALLITF_PLACE_STACK;
@@ -115,9 +115,7 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
         tacc_callitf_part_list_push(parts, part);
         break;
     case TYK_LONGDOUBLE:
-        state->int_regs_used =
-            (uint32_t) tacc_align_up(state->int_regs_used, 1);
-        if (state->int_regs_used < 8) {
+        if (state->int_regs_used < 7) {
             part->place.kind = CALLITF_PLACE_REGISTER;
             part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
             part->access_as_type =
