@@ -75,12 +75,16 @@
 #define CHECK2                                              \
     local_ok = check_eq(&c, &exp_x) & check_eq(&d, &exp_y); \
     ok = ok & local_ok;                                     \
-    printf("\n");
+    if (!local_ok) {                                        \
+        printf("\n");                                       \
+    }
 
 #define CHECK_F128                          \
     local_ok = check_eq_f128(&c_f, &exp_f); \
     ok = ok & local_ok;                     \
-    printf("\n");
+    if (!local_ok) {                        \
+        printf("\n");                       \
+    }
 
 /* clang-format off */
 uint32_t sdiv_test_data[] = {
