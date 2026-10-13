@@ -399,7 +399,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
         tacc_cg_output(state, "\n\t lh%s %s, (%s)", zext, reg_name, addr_name);
         break;
     case 32:
-        tacc_cg_output(state, "\n\t lw%s %s, (%s)", zext, reg_name, addr_name);
+        tacc_cg_output(state, "\n\t lw %s, (%s)", reg_name, addr_name);
         break;
     case 64:
         tacc_cg_output(state, "\n\t ld %s, (%s)", reg_name, addr_name);
@@ -527,8 +527,7 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
         tacc_cg_output(state, "\n\t ld %s, %d(s0)", reg_name, offset);
         break;
     case 32:
-        tacc_cg_output(
-            state, "\n\t lw%s %s, %d(s0)", signedness, reg_name, offset);
+        tacc_cg_output(state, "\n\t lw %s, %d(s0)", reg_name, offset);
         break;
     case 16:
         tacc_cg_output(
