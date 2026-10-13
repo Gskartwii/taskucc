@@ -16,3 +16,12 @@ unsigned long long __taccrt_umoddi3(unsigned long long x,
                                     unsigned long long y) {
     return x % y;
 }
+
+long double __taccrt_addtf3(long double x, long double y) { return x + y; }
+long double __taccrt_subtf3(long double x, long double y) { return x - y; }
+long double __taccrt_multf3(long double x, long double y) { return x * y; }
+long double __taccrt_divtf3(long double x, long double y) { return x / y; }
+int __taccrt_eqtf2(long double x, long double y) { return !(x == y); }
+int __taccrt_netf2(long double x, long double y) { return x != y; }
+int __taccrt_lttf2(long double x, long double y) { return (x < y) ? -1 : 0; }
+int __taccrt_letf2(long double x, long double y) { return (x <= y) ? -1 : 1; }

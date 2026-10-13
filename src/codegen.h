@@ -170,5 +170,6 @@ struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,
                                             uint32_t name_ref,
                                             int stack_offset);
 void tacc_local_var_free(struct tacc_local_var *var);
+void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val);
 
 #endif

@@ -839,6 +839,15 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
     tacc_compile_add_predef_name(compiler, "__taccrt_udivdi3");
     tacc_compile_add_predef_name(compiler, "__taccrt_moddi3");
     tacc_compile_add_predef_name(compiler, "__taccrt_umoddi3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_addtf3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_subtf3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_multf3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_divtf3");
+    tacc_compile_add_predef_name(compiler, "__taccrt_eqtf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_netf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_letf2");
+    tacc_compile_add_predef_name(compiler, "__taccrt_lttf2");
+
     tacc_compile_declare_predef(
         compiler, PREDEF__TACCRT_FIXTFDI, longdouble, llongint);
     tacc_compile_declare_predef(
@@ -867,6 +876,22 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
         compiler, PREDEF__TACCRT_MODDI3, llongint, llongint, llongint);
     tacc_compile_declare_predef_2(
         compiler, PREDEF__TACCRT_UMODDI3, llonguint, llonguint, llonguint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_ADDTF3, longdouble, longdouble, longdouble);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_SUBTF3, longdouble, longdouble, longdouble);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_MULTF3, longdouble, longdouble, longdouble);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_DIVTF3, longdouble, longdouble, longdouble);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_EQTF2, longdouble, longdouble, sint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_NETF2, longdouble, longdouble, sint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_LETF2, longdouble, longdouble, sint);
+    tacc_compile_declare_predef_2(
+        compiler, PREDEF__TACCRT_LTTF2, longdouble, longdouble, sint);
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {

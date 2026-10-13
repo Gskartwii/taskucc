@@ -124,7 +124,7 @@ tacc_cg_usual_arithmetic_conversions(struct tacc_cg_state *state) {
     return output_type;
 }
 
-static void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val) {
+void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val) {
     struct tacc_val *v_val;
 
     v_val = tacc_val_new();
