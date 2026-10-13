@@ -133,6 +133,7 @@ static void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val) {
     tacc_u64_from_i32(v_val->value.int_value, val);
 
     tacc_target_cg_int(state, v_val);
+    tacc_val_free(v_val);
 }
 
 static void tacc_cg_sizeof(struct tacc_cg_state *state, struct tacc_type *ty) {
