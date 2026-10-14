@@ -916,6 +916,7 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
 
     ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
     reg = tacc_target_cg_alloc_freg(state, REGV_VOLATILE);
+    tacc_cg_pop(state);
     if (float_type->kind == TYK_LONGDOUBLE) {
         offset = tacc_cg_alloc_scratch(state,
                                        tacc_type_size(float_type),
@@ -942,7 +943,6 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
                        tacc_target_f_register_as_32(reg),
                        tacc_target_register_as_64(ptr_reg));
     }
-    tacc_cg_pop(state);
     tacc_cg_push_freg(state, reg, float_type);
 }
 
