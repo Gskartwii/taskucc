@@ -366,15 +366,14 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
 }
 void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
                                    uint32_t from,
-                                   uint32_t to) {
-    struct tacc_type *ty;
+                                   uint32_t to,
+                                   struct tacc_type *as_ty) {
     char *reg_name;
     char *reg_name_2;
 
-    ty = tacc_cg_top_type(state);
     reg_name = tacc_target_register_as_xmm(from);
     reg_name_2 = tacc_target_register_as_xmm(to);
-    if (ty->kind == TYK_DOUBLE) {
+    if (as_ty->kind == TYK_DOUBLE) {
         tacc_cg_output(state, "\n\t movupd %s, %s", reg_name, reg_name_2);
     } else {
         tacc_cg_output(state, "\n\t movups %s, %s", reg_name, reg_name_2);

@@ -34,7 +34,8 @@ void tacc_target_cg_xchg_reg_reg(struct tacc_cg_state *state,
                                  uint32_t reg_b);
 void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
                                    uint32_t from_reg,
-                                   uint32_t to_reg);
+                                   uint32_t to_reg,
+                                   struct tacc_type *as_ty);
 void tacc_target_cg_dup(struct tacc_cg_state *state);
 void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
                                struct tacc_local_var *var);

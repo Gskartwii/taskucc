@@ -1601,7 +1601,7 @@ static uint32_t tacc_cg_ensure_freg(struct tacc_cg_state *state,
         return old_reg;
     }
     reg = tacc_target_cg_alloc_freg(state, regs_ok);
-    tacc_target_cg_move_f_reg_reg(state, old_reg, reg);
+    tacc_target_cg_move_f_reg_reg(state, old_reg, reg, slot->ty);
     slot->place.reg = reg;
     return reg;
 }

@@ -511,12 +511,13 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
 }
 void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
                                    uint32_t from,
-                                   uint32_t to) {
+                                   uint32_t to,
+                                   struct tacc_type *as_ty) {
     char *reg_name;
     char *reg_name_2;
 
-    reg_name = tacc_target_f_register_name(from, 64);
-    reg_name_2 = tacc_target_f_register_name(to, 64);
+    reg_name = tacc_target_f_register_name(from, tacc_type_bit_width(as_ty));
+    reg_name_2 = tacc_target_f_register_name(to, tacc_type_bit_width(as_ty));
     tacc_cg_output(state, "\n\t fmov %s, %s", reg_name_2, reg_name);
 }
 

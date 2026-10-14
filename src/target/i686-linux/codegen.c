@@ -136,10 +136,12 @@ void tacc_target_cg_move_reg_reg(struct tacc_cg_state *state,
 }
 void tacc_target_cg_move_f_reg_reg(struct tacc_cg_state *state,
                                    uint32_t from,
-                                   uint32_t to) {
+                                   uint32_t to,
+                                   struct tacc_type *as_ty) {
     TACC_UNUSED(state);
     TACC_UNUSED(from);
     TACC_UNUSED(to);
+    TACC_UNUSED(as_ty);
     tacc_assert(ASSERT_ICE, 0, "no fregs available");
 }
 
