@@ -202,7 +202,6 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
         part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
         part->param_idx = i;
         tacc_callitf_part_list_push(ret->param_parts, part);
-        tacc_callitf_part_list_push(ret->param_parts, part);
     }
 
     ret->frame_offset = 0;
