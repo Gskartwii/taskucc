@@ -728,21 +728,32 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
                                       int offset,
                                       uint32_t to_reg,
                                       struct tacc_type *ty) {
+    size_t width;
+    char *width_suffix;
+
+    width = tacc_type_bit_width(ty);
+
     if (tacc_type_is_floating(ty)) {
-        tacc_cg_output(
-            state,
-            "\n\t ldr %s, [fp, #%d]",
-            tacc_target_f_register_name(to_reg, tacc_type_bit_width(ty)),
-            offset);
+        tacc_cg_output(state,
+                       "\n\t ldr %s, [fp, #%d]",
+                       tacc_target_f_register_name(to_reg, width),
+                       offset);
     } else {
         tacc_assert(ASSERT_ICE,
                     tacc_type_is_integral(ty),
                     "cannot load scratch part of invalid type");
-        tacc_cg_output(
-            state,
-            "\n\t ldr %s, [fp, #%d]",
-            tacc_target_register_name(to_reg, tacc_type_bit_width(ty)),
-            offset);
+        if (width == 8) {
+            width_suffix = "b";
+        } else if (width == 16) {
+            width_suffix = "h";
+        } else {
+            width_suffix = "";
+        }
+        tacc_cg_output(state,
+                       "\n\t ldr%s %s, [fp, #%d]",
+                       width_suffix,
+                       tacc_target_register_name(to_reg, width),
+                       offset);
     }
 }
 
@@ -767,16 +778,29 @@ void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
                                          uint32_t reg,
                                          struct tacc_type *ty,
                                          tacc_bool in_prelude) {
+    char *width_suffix;
+    size_t width;
+
+    width = tacc_type_bit_width(ty);
+    if (width == 8) {
+        width_suffix = "b";
+    } else if (width == 16) {
+        width_suffix = "h";
+    } else {
+        width_suffix = "";
+    }
+
     if (in_prelude) {
-        tacc_cg_output_prelude(
-            state,
-            "\n\t str %s, [fp, #%d]",
-            tacc_target_register_name(reg, tacc_type_bit_width(ty)),
-            offset);
+        tacc_cg_output_prelude(state,
+                               "\n\t str%s %s, [fp, #%d]",
+                               width_suffix,
+                               tacc_target_register_name(reg, width),
+                               offset);
     } else {
         tacc_cg_output(state,
-                       "\n\t str %s, [fp, #%d]",
-                       tacc_target_register_name(reg, tacc_type_bit_width(ty)),
+                       "\n\t str%s %s, [fp, #%d]",
+                       width_suffix,
+                       tacc_target_register_name(reg, width),
                        offset);
     }
 }
