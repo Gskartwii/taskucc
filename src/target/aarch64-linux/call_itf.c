@@ -151,6 +151,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     TACC_UNUSED(basic_types);
 
     ret = tacc_callitf_new();
+    ret->frame_grows_upward = 1;
     state.used_stack = 0;
     state.int_regs_used = 0;
     state.float_regs_used = 0;
@@ -204,7 +205,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
         tacc_callitf_part_list_push(ret->param_parts, part);
     }
 
-    ret->frame_offset = 0;
+    ret->frame_offset = 16;
 
     return ret;
 }

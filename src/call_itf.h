@@ -2,6 +2,7 @@
 #define TACC_CALL_ITF_H
 
 #include "dynarray.h"
+#include "util.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -64,6 +65,7 @@ struct tacc_callitf {
     uint32_t retval_reg_2;
 
     size_t implicit_stack_use;
+    tacc_bool frame_grows_upward;
 
     int frame_offset;
 };

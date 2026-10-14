@@ -1668,9 +1668,15 @@ struct tacc_local_var *tacc_cg_alloc_variable(struct tacc_cg_state *state,
     size = tacc_type_size(ty);
     align = tacc_type_alignment_p2(ty);
     state->num_local_bytes = tacc_align_up(state->num_local_bytes, align);
-    state->num_local_bytes = state->num_local_bytes + size;
-    var = tacc_cg_add_variable(
-        state, ty, name_ref, -((int) (state->num_local_bytes)));
+    if (state->interface->frame_grows_upward) {
+        state->num_local_bytes = state->num_local_bytes + size;
+        var = tacc_cg_add_variable(
+            state, ty, name_ref, ((int) (state->num_local_bytes - size)));
+    } else {
+        state->num_local_bytes = state->num_local_bytes + size;
+        var = tacc_cg_add_variable(
+            state, ty, name_ref, -((int) (state->num_local_bytes)));
+    }
 
     return var;
 }
@@ -1691,11 +1697,18 @@ int tacc_cg_alloc_scratch(struct tacc_cg_state *state,
                 alignment_p2 <= 4,
                 "scratch alignment %d exceeds stack alignment of 16",
                 alignment_p2);
-    state->num_local_bytes =
-        tacc_align_up(state->num_local_bytes, alignment_p2);
-    state->num_local_bytes = state->num_local_bytes + actual_size;
-
-    return -((int) (state->num_local_bytes));
+    if (state->interface->frame_grows_upward) {
+        state->num_local_bytes =
+            tacc_align_up(state->num_local_bytes, alignment_p2);
+        state->num_local_bytes = state->num_local_bytes + actual_size;
+        return ((int) (state->num_local_bytes - actual_size)) +
+               state->interface->frame_offset;
+    } else {
+        state->num_local_bytes =
+            tacc_align_up(state->num_local_bytes, alignment_p2);
+        state->num_local_bytes = state->num_local_bytes + actual_size;
+        return -((int) (state->num_local_bytes));
+    }
 }
 
 struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,

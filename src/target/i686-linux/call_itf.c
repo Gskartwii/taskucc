@@ -38,6 +38,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     TACC_UNUSED(basic_types);
 
     ret = tacc_callitf_new();
+    ret->frame_grows_upward = 0;
     /* args start at ebp + 8 */
     state.used_stack = 8;
     ret->implicit_stack_use = 8;

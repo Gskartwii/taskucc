@@ -147,6 +147,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     state.int_regs_used = 0;
     state.float_regs_used = 0;
     ret->implicit_stack_use = 16;
+    ret->frame_grows_upward = 0;
 
     switch (ty->return_type->kind) {
     case TYK_UCHAR:

@@ -556,11 +556,9 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     struct tacc_local_var_map_entry *locvar_place;
     size_t i;
 
-    tacc_cg_output_prelude(state, "\n\t stp fp, lr, [sp, #-16]");
-    /* non-volatile registers not allocated */
     tacc_cg_output_prelude(state,
-                           "\n\t sub sp, sp, %d",
-                           ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
+                           "\n\t stp fp, lr, [sp, #-%d]!",
+                           ((int) (state->num_local_bytes + 0xF) & ~0xF));
     tacc_cg_output_prelude(state, "\n\t mov fp, sp");
 
     for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
@@ -576,9 +574,8 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
 
     tacc_cg_output(state, "\n\t mov sp, fp");
     tacc_cg_output(state,
-                   "\n\t add sp, sp, %d",
-                   ((int) (state->num_local_bytes + 0xF) & ~0xF) + 16);
-    tacc_cg_output(state, "\n\t ldp fp, lr, [sp, #-16]");
+                   "\n\t ldp fp, lr, [sp], #%d",
+                   ((int) (state->num_local_bytes + 0xF) & ~0xF));
     tacc_cg_output(state, "\n\t ret");
 }
 
