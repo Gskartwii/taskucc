@@ -1028,3 +1028,276 @@ void tacc_target_cg_prepare_arg(struct tacc_cg_state *state,
                    tacc_target_f_register_as_128(itf_part->place.extra.reg.reg),
                    slot->place.offset);
 }
+
+void tacc_target_cg_binop(struct tacc_cg_state *state,
+                          enum tacc_expr_kind binop_kind,
+                          struct tacc_type *output_type) {
+
+    uint32_t l_reg;
+    uint32_t r_reg;
+    uint32_t scratch;
+    size_t width;
+    char *op;
+    tacc_bool is_signed;
+    enum tacc_expr_kind actual_binop_kind;
+    tacc_bool is_cmp;
+
+    actual_binop_kind = binop_kind;
+    is_signed = tacc_type_is_signed(tacc_cg_over_type(state));
+    width = tacc_type_bit_width(tacc_cg_over_type(state));
+
+    if (binop_kind == EX_GE || binop_kind == EX_GT) {
+        tacc_cg_swap(state);
+        if (binop_kind == EX_GE) {
+            actual_binop_kind = EX_LE;
+        } else {
+            actual_binop_kind = EX_LT;
+        }
+    }
+
+    l_reg = tacc_cg_ensure_over_is_single(state, REG_VOLATILE);
+    r_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE & ~l_reg);
+    is_cmp = 0;
+
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    switch (actual_binop_kind) {
+    case EX_ADD:
+        op = "add";
+        break;
+    case EX_SUB:
+        op = "sub";
+        break;
+    case EX_MUL:
+        op = "mul";
+        break;
+    case EX_DIV:
+        if (is_signed) {
+            op = "sdiv";
+        } else {
+            op = "udiv";
+        }
+        break;
+    case EX_REM:
+        if (is_signed) {
+            op = "sdiv";
+        } else {
+            op = "udiv";
+        }
+        scratch =
+            tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~(l_reg | r_reg));
+        tacc_cg_output(state,
+                       "\n\t %s %s, %s, %s",
+                       op,
+                       tacc_target_register_name(scratch, width),
+                       tacc_target_register_name(l_reg, width),
+                       tacc_target_register_name(r_reg, width));
+        tacc_cg_output(state,
+                       "\n\t msub %s, %s, %s, %s",
+                       tacc_target_register_name(l_reg, width),
+                       tacc_target_register_name(scratch, width),
+                       tacc_target_register_name(r_reg, width),
+                       tacc_target_register_name(l_reg, width));
+        tacc_cg_push_reg(state, l_reg, output_type);
+        return;
+    case EX_BAND:
+        op = "and";
+        break;
+    case EX_BOR:
+        op = "orr";
+        break;
+    case EX_BXOR:
+        op = "eor";
+        break;
+    case EX_SHL:
+        op = "lsl";
+        break;
+    case EX_SHR:
+        if (is_signed) {
+            op = "asr";
+        } else {
+            op = "lsr";
+        }
+        break;
+    case EX_EQ:
+        is_cmp = 1;
+        op = "eq";
+        break;
+    case EX_NE:
+        is_cmp = 1;
+        op = "ne";
+        break;
+    case EX_LE:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "le";
+        } else {
+            op = "ls";
+        }
+        break;
+    case EX_LT:
+        is_cmp = 1;
+        if (is_signed) {
+            op = "lt";
+        } else {
+            op = "cc";
+        }
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
+        return;
+    }
+
+    if (is_cmp) {
+        tacc_cg_output(state,
+                       "\n\t cmp %s, %s",
+                       tacc_target_register_name(l_reg, width),
+                       tacc_target_register_name(r_reg, width));
+        tacc_cg_output(
+            state, "\n\t cset %s, %s", tacc_target_register_as_32(l_reg), op);
+        tacc_cg_push_reg(state, l_reg, output_type);
+        return;
+    }
+
+    tacc_cg_output(state,
+                   "\n\t %s %s, %s, %s",
+                   op,
+                   tacc_target_register_name(l_reg, width),
+                   tacc_target_register_name(l_reg, width),
+                   tacc_target_register_name(r_reg, width));
+    tacc_cg_push_reg(state, l_reg, output_type);
+}
+
+void tacc_target_cg_float_binop(struct tacc_cg_state *state,
+                                enum tacc_expr_kind binop_kind,
+                                struct tacc_type *output_type) {
+
+    uint32_t l_reg;
+    uint32_t r_reg;
+    uint32_t out_reg;
+    enum tacc_predef_func_id predef_func;
+    size_t width;
+    tacc_bool is_cmp;
+    char *op;
+    struct tacc_type *ty;
+    struct tacc_type *func_ty;
+    enum tacc_expr_kind actual_binop_kind;
+
+    ty = tacc_cg_top_type(state);
+    actual_binop_kind = binop_kind;
+    width = tacc_type_bit_width(ty);
+
+    if (binop_kind == EX_GE || binop_kind == EX_GT) {
+        tacc_cg_swap(state);
+        if (binop_kind == EX_GE) {
+            actual_binop_kind = EX_LE;
+        } else {
+            actual_binop_kind = EX_LT;
+        }
+    }
+
+    is_cmp = 0;
+    if (ty->kind == TYK_LONGDOUBLE) {
+        switch (actual_binop_kind) {
+        case EX_ADD:
+            predef_func = PREDEF__TACCRT_ADDTF3;
+            break;
+        case EX_SUB:
+            predef_func = PREDEF__TACCRT_SUBTF3;
+            break;
+        case EX_MUL:
+            predef_func = PREDEF__TACCRT_MULTF3;
+            break;
+        case EX_DIV:
+            predef_func = PREDEF__TACCRT_DIVTF3;
+            break;
+        case EX_EQ:
+            is_cmp = 1;
+            predef_func = PREDEF__TACCRT_EQTF2;
+            break;
+        case EX_NE:
+            is_cmp = 1;
+            predef_func = PREDEF__TACCRT_NETF2;
+            break;
+        case EX_LE:
+            is_cmp = 1;
+            predef_func = PREDEF__TACCRT_LETF2;
+            break;
+        case EX_LT:
+            is_cmp = 1;
+            predef_func = PREDEF__TACCRT_LTTF2;
+            break;
+        default:
+            tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
+            return;
+        }
+        func_ty = tacc_cg_push_func(state, predef_func);
+        tacc_cg_rot(state);
+        tacc_cg_rot(state);
+        tacc_cg_call(state, func_ty, 2);
+        if (is_cmp) {
+            tacc_cg_const_sint(state, 0);
+            tacc_target_cg_binop(state, actual_binop_kind, output_type);
+        }
+        return;
+    }
+
+    l_reg = tacc_cg_ensure_over_is_single_f(state, REG_VOLATILE);
+    r_reg = tacc_cg_ensure_top_is_single_f(state, REG_VOLATILE & ~l_reg);
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    switch (actual_binop_kind) {
+    case EX_ADD:
+        op = "fadd";
+        break;
+    case EX_SUB:
+        op = "fsub";
+        break;
+    case EX_MUL:
+        op = "fmul";
+        break;
+    case EX_DIV:
+        op = "fdiv";
+        break;
+    case EX_EQ:
+        op = "eq";
+        is_cmp = 1;
+        break;
+    case EX_NE:
+        op = "ne";
+        is_cmp = 1;
+        break;
+    case EX_LE:
+        op = "ls";
+        is_cmp = 1;
+        break;
+    case EX_LT:
+        op = "mi";
+        is_cmp = 1;
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "can't generate code for this binop");
+        return;
+    }
+
+    if (is_cmp) {
+        out_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+        tacc_cg_output(state,
+                       "\n\t fcmp %s, %s",
+                       tacc_target_f_register_name(l_reg, width),
+                       tacc_target_f_register_name(r_reg, width));
+        tacc_cg_output(
+            state, "\n\t cset %s, %s", tacc_target_register_as_32(out_reg), op);
+        tacc_cg_push_reg(state, out_reg, output_type);
+        return;
+    }
+    tacc_cg_output(state,
+                   "\n\t %s %s, %s, %s",
+                   op,
+                   tacc_target_f_register_name(l_reg, width),
+                   tacc_target_f_register_name(l_reg, width),
+                   tacc_target_f_register_name(r_reg, width));
+    tacc_cg_push_freg(state, l_reg, output_type);
+}
