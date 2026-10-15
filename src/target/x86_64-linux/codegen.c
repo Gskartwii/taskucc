@@ -1003,6 +1003,10 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
                        tacc_target_register_name(l_reg, width));
         tacc_cg_output(
             state, "\n\t %s %s", op, tacc_target_register_as_8(l_reg));
+        tacc_cg_output(state,
+                       "\n\t movzbl %s, %s",
+                       tacc_target_register_as_8(l_reg),
+                       tacc_target_register_as_32(l_reg));
     } else {
         tacc_cg_output(state,
                        "\n\t %s%s %s, %s",
@@ -1144,6 +1148,10 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
         default:
             tacc_assert(ASSERT_ICE, 0, "bad comparison binop");
         }
+        tacc_cg_output(state,
+                       "\n\t movzbl %s, %s",
+                       tacc_target_register_as_8(out_reg),
+                       tacc_target_register_as_32(out_reg));
         tacc_cg_push_reg(state, out_reg, output_type);
         return;
     }

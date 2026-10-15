@@ -7,7 +7,6 @@
 #include "dynarray.h"
 #include "machine.h"
 #include "predef_func.h"
-#include "target/target.h"
 #include "type.h"
 
 enum tacc_place_kind {

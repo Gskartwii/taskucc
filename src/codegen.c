@@ -239,7 +239,7 @@ static void tacc_cg_binop(struct tacc_cg_state *state,
     case EX_EQ:
     case EX_NE:
         output_type =
-            tacc_get_basic_type(state->compiler->basic_types, TYK_BOOL);
+            tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
         if (tacc_type_is_arithmetic(top_type) &&
             tacc_type_is_arithmetic(over_type)) {
             tacc_cg_usual_arithmetic_conversions(state);
@@ -280,7 +280,7 @@ static void tacc_cg_binop(struct tacc_cg_state *state,
     case EX_GE:
     case EX_GT:
         output_type =
-            tacc_get_basic_type(state->compiler->basic_types, TYK_BOOL);
+            tacc_get_basic_type(state->compiler->basic_types, TYK_SINT);
         if (tacc_type_is_arithmetic(top_type) &&
             tacc_type_is_arithmetic(over_type)) {
             tacc_cg_usual_arithmetic_conversions(state);
@@ -841,6 +841,16 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
     from_type = slot->ty;
+    if (to_type->kind == TYK_BOOL) {
+        if (from_type->kind == TYK_BOOL) {
+            return;
+        }
+        /* ((_Bool) x) === (x != 0) */
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        return;
+    }
+
     if (tacc_type_is_integral(from_type) && tacc_type_is_integral(to_type)) {
         if (tacc_int_type_has_compatible_repr(to_type, from_type)) {
             return;
