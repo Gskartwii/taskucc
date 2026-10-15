@@ -193,6 +193,8 @@ struct tacc_enumeration_type *tacc_enumeration_type_new(void);
 struct tacc_struct_type *tacc_struct_type_new(void);
 struct tacc_union_type *tacc_union_type_new(void);
 struct tacc_field *tacc_field_new(void);
+struct tacc_field *tacc_field_list_find(struct tacc_field_list *list,
+                                        char *name);
 struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
                                       enum tacc_type_kind kind);
 struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,

@@ -322,10 +322,15 @@ static void tacc_cg_binop(struct tacc_cg_state *state,
     tacc_target_cg_binop(state, kind, output_type);
 }
 
+static void tacc_cg_compile_expr(struct tacc_cg_state *state,
+                                 struct tacc_expr *expr);
+
 static void tacc_cg_compile_lval(struct tacc_cg_state *state,
                                  struct tacc_expr *expr) {
     struct tacc_local_var *var;
     struct tacc_global_object *object;
+    struct tacc_type *ty;
+    struct tacc_field *field;
 
     switch (expr->kind) {
     case EX_UNINIT:
@@ -398,11 +403,55 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
         }
         break;
 
-    case EX_STRING_LIT:
-    case EX_SUBSCRIPT:
     case EX_DEREF:
+        tacc_cg_compile_expr(state, expr->op1);
+        break;
+
+    case EX_SUBSCRIPT:
+        tacc_cg_compile_expr(state, expr->op1);
+        ty = tacc_cg_top_type(state);
+        tacc_assert(
+            ASSERT_DIAG, ty->kind == TYK_PTR, "subscript of non-pointer");
+        tacc_cg_binop(state, EX_ADD);
+        break;
+
     case EX_MEMBER:
     case EX_PTR_MEMBER:
+        if (expr->kind == EX_MEMBER) {
+            tacc_cg_compile_lval(state, expr->op1);
+        } else {
+            tacc_cg_compile_expr(state, expr->op1);
+        }
+        ty = tacc_cg_top_type(state);
+        tacc_assert(
+            ASSERT_DIAG, ty->kind == TYK_PTR, "taking member of invalid type");
+        ty = ty->extra.pointer.pointee;
+
+        if (ty->kind == TYK_UNION) {
+            field = tacc_field_list_find(
+                ty->extra.onion->fields,
+                tacc_dynstring_as_str(expr->extra.field_name));
+        } else {
+            tacc_assert(ASSERT_DIAG,
+                        ty->kind == TYK_STRUCT,
+                        "taking member of non-struct/non-union");
+            field = tacc_field_list_find(
+                ty->extra.structure->fields,
+                tacc_dynstring_as_str(expr->extra.field_name));
+        }
+        tacc_assert(ASSERT_DIAG,
+                    field != NULL,
+                    "no such field: %s",
+                    tacc_dynstring_as_str(expr->extra.field_name));
+        tacc_cg_const_sint(state, (int) field->offset);
+        tacc_target_cg_binop(
+            state,
+            EX_ADD,
+            tacc_type_to_pointer(
+                state->compiler->target->pointer_ty, field->type, 1));
+        break;
+
+    case EX_STRING_LIT:
     case EX_COMPOUND_LIT:
     case EX_NAME_OF_FUNC:
         tacc_assert(ASSERT_TODO, 0, "lvalue");
@@ -435,9 +484,6 @@ static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
                     "store of non-arithmetic type");
     }
 }
-
-static void tacc_cg_compile_expr(struct tacc_cg_state *state,
-                                 struct tacc_expr *expr);
 
 static void tacc_cg_arg_promote_top(struct tacc_cg_state *state) {
     struct tacc_type *ty;
@@ -682,6 +728,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
     struct tacc_f128 *float_val;
     struct tacc_global_object *global_object;
     struct tacc_slot *slot;
+    struct tacc_type *ty;
     int index;
 
     switch (expr->kind) {
@@ -794,15 +841,92 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         tacc_cg_binop(state, expr->kind);
         break;
 
+    case EX_ADDROF:
+    case EX_STRING_LIT:
+    case EX_NAME_OF_FUNC:
+        tacc_cg_compile_lval(state, expr->op1);
+        break;
+
+    case EX_DEREF:
+        tacc_cg_compile_expr(state, expr->op1);
+        ty = tacc_cg_top_type(state);
+        tacc_assert(
+            ASSERT_DIAG, ty->kind == TYK_PTR, "* operand is not pointer");
+        if (ty->extra.pointer.pointee->kind == TYK_FN) {
+            /* deref leads to function itself */
+            break;
+        }
+        tacc_cg_deref(state);
+        break;
+
+    case EX_MEMBER:
+    case EX_PTR_MEMBER:
+    case EX_SUBSCRIPT:
+        tacc_cg_compile_lval(state, expr);
+        tacc_cg_deref(state);
+        break;
+
+    case EX_CAST:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_convert_top(
+            state,
+            tacc_type_adjust_from_declarator(
+                state->compiler,
+                tacc_type_from_decl_type(state->compiler,
+                                         expr->extra.type->base_type),
+                expr->extra.type->type_extension));
+        break;
+
+    case EX_POS:
+        tacc_cg_compile_expr(state, expr->op1);
+        ty = tacc_cg_top_type(state);
+        if (tacc_type_is_floating(ty)) {
+            break;
+        }
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_arithmetic(ty),
+                    "unary + has non-arithmetic operand");
+        tacc_cg_int_promote(state);
+        /* no other mutations */
+        break;
+
+    case EX_NEG:
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_binop(state, EX_SUB);
+        break;
+
+    case EX_NOT:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_EQ);
+        break;
+
+    case EX_BNOT:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_const_sint(state, -1);
+        tacc_cg_binop(state, EX_BXOR);
+        break;
+
+    case EX_COMMA:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_pop(state);
+        tacc_cg_compile_expr(state, expr->op2);
+        break;
+
+    case EX_SIZEOF_TY:
+        tacc_cg_sizeof(state,
+                       tacc_type_adjust_from_declarator(
+                           state->compiler,
+                           tacc_type_from_decl_type(
+                               state->compiler, expr->extra.type->base_type),
+                           expr->extra.type->type_extension));
+        break;
+
     case EX_UNINIT:
     case EX_CHAR_LIT:
-    case EX_STRING_LIT:
     case EX_AND:
     case EX_OR:
-    case EX_POS:
-    case EX_NEG:
-    case EX_NOT:
-    case EX_BNOT:
     case EX_ADD_ASSI:
     case EX_SUB_ASSI:
     case EX_MUL_ASSI:
@@ -817,18 +941,9 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
     case EX_DECR_PRE:
     case EX_INCR_POST:
     case EX_DECR_POST:
-    case EX_SUBSCRIPT:
-    case EX_DEREF:
-    case EX_ADDROF:
-    case EX_MEMBER:
-    case EX_PTR_MEMBER:
-    case EX_COMMA:
-    case EX_CAST:
     case EX_SIZEOF:
-    case EX_SIZEOF_TY:
     case EX_SELECT:
     case EX_COMPOUND_LIT:
-    case EX_NAME_OF_FUNC:
         tacc_assert(ASSERT_TODO, 0, "unsupported expression in codegen");
         break;
     }
