@@ -71,6 +71,7 @@ struct tacc_cg_state {
     size_t num_local_bytes;
     uint32_t clobbered_registers;
     uint32_t func_name;
+    int label_counter;
 };
 
 struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler);
@@ -170,5 +171,7 @@ struct tacc_local_var *tacc_cg_add_variable(struct tacc_cg_state *state,
                                             int stack_offset);
 void tacc_local_var_free(struct tacc_local_var *var);
 void tacc_cg_const_sint(struct tacc_cg_state *state, int32_t val);
+int tacc_cg_new_label(struct tacc_cg_state *state);
+char *tacc_cg_func_name_as_str(struct tacc_cg_state *state);
 
 #endif

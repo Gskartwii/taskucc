@@ -92,5 +92,9 @@ void tacc_target_cg_binop(struct tacc_cg_state *state,
 void tacc_target_cg_float_binop(struct tacc_cg_state *state,
                                 enum tacc_expr_kind binop_kind,
                                 struct tacc_type *output_type);
+int tacc_target_cg_branch_if_false(struct tacc_cg_state *state,
+                                   int to_label_maybe);
+int tacc_target_cg_branch(struct tacc_cg_state *state, int to_label_maybe);
+void tacc_target_cg_emit_label(struct tacc_cg_state *state, int label_id);
 
 #endif

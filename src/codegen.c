@@ -66,6 +66,7 @@ struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     state->num_local_bytes = 0;
     state->clobbered_registers = 0;
     state->func_type = NULL;
+    state->label_counter = 0;
 
     return state;
 }
@@ -980,38 +981,51 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
     tacc_cg_pop(state);
 }
 
-void tacc_cg_compile_body_member(struct tacc_cg_state *state,
-                                 struct tacc_compound_member *member) {
-    if (member->kind == COMPOUND_MEMBER_DECL) {
-        tacc_cg_decl(state, member->member.declaration);
-        return;
-    }
-    switch (member->member.statement->kind) {
+void tacc_cg_compile_stmt(struct tacc_cg_state *state,
+                          struct tacc_statement *statement) {
+    int label_else;
+    int label_end;
+
+    switch (statement->kind) {
     case STMT_NULL:
         break;
 
     case STMT_RETURN:
         if (state->interface->retval_kind == CALLITF_RETVAL_NONE) {
             tacc_assert(ASSERT_DIAG,
-                        member->member.statement->extra.expr == NULL,
+                        statement->extra.expr == NULL,
                         "cannot return value as void");
         } else {
-            tacc_cg_compile_expr(state, member->member.statement->extra.expr);
+            tacc_cg_compile_expr(state, statement->extra.expr);
             tacc_cg_convert_top(state, state->func_type->return_type);
         }
         tacc_cg_return(state);
         break;
 
     case STMT_EXPRESSION:
-        tacc_cg_compile_expr(state, member->member.statement->extra.expr);
+        tacc_cg_compile_expr(state, statement->extra.expr);
         tacc_cg_pop(state);
+        break;
+
+    case STMT_IF:
+        tacc_cg_compile_expr(state, statement->extra.if_stmt->controlling);
+        tacc_cg_convert_top(
+            state, tacc_get_basic_type(state->compiler->basic_types, TYK_SINT));
+        label_else = tacc_target_cg_branch_if_false(state, 0);
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "stack not fully consumed by branch_if_zero");
+        tacc_cg_compile_stmt(state, statement->extra.if_stmt->then);
+        label_end = tacc_target_cg_branch(state, 0);
+        tacc_target_cg_emit_label(state, label_else);
+        tacc_cg_compile_stmt(state, statement->extra.if_stmt->otherwise);
+        tacc_target_cg_emit_label(state, label_end);
         break;
 
     case STMT_LABEL_NAMED:
     case STMT_CASE:
     case STMT_DEFAULT:
     case STMT_COMPOUND:
-    case STMT_IF:
     case STMT_SWITCH:
     case STMT_WHILE:
     case STMT_DO_WHILE:
@@ -1025,6 +1039,15 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
     tacc_assert(ASSERT_ICE,
                 tacc_cg_stack_is_empty(state),
                 "stack not fully consumed by end of body member");
+}
+
+void tacc_cg_compile_body_member(struct tacc_cg_state *state,
+                                 struct tacc_compound_member *member) {
+    if (member->kind == COMPOUND_MEMBER_DECL) {
+        tacc_cg_decl(state, member->member.declaration);
+        return;
+    }
+    tacc_cg_compile_stmt(state, member->member.statement);
 }
 
 void tacc_cg_compile_function(struct tacc_cg_state *state,
@@ -1776,4 +1799,14 @@ void tacc_cg_copy_param(struct tacc_cg_state *state,
         tacc_target_cg_copy_param(state, param, locvar);
         break;
     }
+}
+
+int tacc_cg_new_label(struct tacc_cg_state *state) {
+    state->label_counter = state->label_counter + 1;
+    return state->label_counter;
+}
+
+char *tacc_cg_func_name_as_str(struct tacc_cg_state *state) {
+    return tacc_dynstring_as_str(
+        tacc_compile_get_name(state->compiler, state->func_name));
 }

@@ -1301,3 +1301,47 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
                    tacc_target_f_register_name(r_reg, width));
     tacc_cg_push_freg(state, l_reg, output_type);
 }
+
+int tacc_target_cg_branch_if_false(struct tacc_cg_state *state,
+                                   int to_label_maybe) {
+    uint32_t b_reg;
+    int label;
+
+    b_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    tacc_cg_pop(state);
+
+    label = to_label_maybe;
+    if (label == 0) {
+        label = tacc_cg_new_label(state);
+    }
+
+    tacc_cg_output(state,
+                   "\n\t tst %s, %s",
+                   tacc_target_register_as_32(b_reg),
+                   tacc_target_register_as_32(b_reg));
+    tacc_cg_output(state,
+                   "\n\t b.eq .Ltacc_%s_%d",
+                   tacc_cg_func_name_as_str(state),
+                   label);
+
+    return label;
+}
+
+int tacc_target_cg_branch(struct tacc_cg_state *state, int to_label_maybe) {
+    int label;
+
+    label = to_label_maybe;
+    if (label == 0) {
+        label = tacc_cg_new_label(state);
+    }
+
+    tacc_cg_output(
+        state, "\n\t b .Ltacc_%s_%d", tacc_cg_func_name_as_str(state), label);
+
+    return label;
+}
+
+void tacc_target_cg_emit_label(struct tacc_cg_state *state, int label_id) {
+    tacc_cg_output(
+        state, "\n.Ltacc_%s_%d:", tacc_cg_func_name_as_str(state), label_id);
+}
