@@ -36,6 +36,20 @@ MK_DYNHASH_OVER_U32(tacc_local_var_map,
                     tacc_local_var_free,
                     tacc_local_var_map_free)
 
+static void tacc_label_free(int label) { TACC_UNUSED(label); }
+
+MK_DYNARRAY_OVER(tacc_label_list,
+                 tacc_label_list_entry,
+                 int,
+                 tacc_label_list_new,
+                 tacc_label_list_init,
+                 tacc_label_list_get,
+                 tacc_label_list_push,
+                 tacc_label_list_pop,
+                 tacc_label_list_len,
+                 tacc_label_free,
+                 tacc_label_list_free)
+
 void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...) {
     va_list va;
 
@@ -62,6 +76,8 @@ struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     state->prelude_buffer = tacc_dynstring_new();
     state->stack = tacc_slot_list_new();
     state->param_names = tacc_ident_list_new();
+    state->continue_stack = tacc_label_list_new();
+    state->break_stack = tacc_label_list_new();
     state->locals = tacc_local_var_map_new(0x100);
     state->num_local_bytes = 0;
     state->clobbered_registers = 0;
@@ -981,8 +997,14 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
     tacc_cg_pop(state);
 }
 
+static void tacc_cg_compile_compound_member_list(
+    struct tacc_cg_state *state, struct tacc_compound_member_list *list);
+
 void tacc_cg_compile_stmt(struct tacc_cg_state *state,
                           struct tacc_statement *statement) {
+    struct tacc_label_list_entry *lbl_entry;
+    int label_start;
+    int label_continue;
     int label_else;
     int label_end;
 
@@ -1009,12 +1031,12 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
 
     case STMT_IF:
         tacc_cg_compile_expr(state, statement->extra.if_stmt->controlling);
-        tacc_cg_convert_top(
-            state, tacc_get_basic_type(state->compiler->basic_types, TYK_SINT));
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
         label_else = tacc_target_cg_branch_if_false(state, 0);
         tacc_assert(ASSERT_ICE,
                     tacc_cg_stack_is_empty(state),
-                    "stack not fully consumed by branch_if_zero");
+                    "stack not fully consumed by branch_if_false");
         tacc_cg_compile_stmt(state, statement->extra.if_stmt->then);
         label_end = tacc_target_cg_branch(state, 0);
         tacc_target_cg_emit_label(state, label_else);
@@ -1022,17 +1044,127 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         tacc_target_cg_emit_label(state, label_end);
         break;
 
+    case STMT_COMPOUND:
+        tacc_cg_compile_compound_member_list(state,
+                                             statement->extra.sub_statements);
+        break;
+
+    case STMT_WHILE:
+        label_start = tacc_target_cg_emit_label(state, 0);
+        tacc_cg_compile_expr(state, statement->extra.details->controlling);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        label_end = tacc_target_cg_branch_if_false(state, 0);
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "stack not fully consumed by branch_if_false");
+
+        tacc_label_list_push(state->continue_stack, label_start);
+        tacc_label_list_push(state->break_stack, label_end);
+        tacc_cg_compile_stmt(state, statement->extra.details->body);
+        tacc_label_list_pop(state->continue_stack);
+        tacc_label_list_pop(state->break_stack);
+
+        tacc_target_cg_branch(state, label_start);
+        tacc_target_cg_emit_label(state, label_end);
+        break;
+
+    case STMT_DO_WHILE:
+        label_start = tacc_target_cg_emit_label(state, 0);
+        label_continue = tacc_cg_new_label(state);
+        label_end = tacc_cg_new_label(state);
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "stack not fully consumed by branch_if_false");
+
+        tacc_label_list_push(state->continue_stack, label_continue);
+        tacc_label_list_push(state->break_stack, label_end);
+        tacc_cg_compile_stmt(state, statement->extra.details->body);
+        tacc_label_list_pop(state->continue_stack);
+        tacc_label_list_pop(state->break_stack);
+
+        tacc_target_cg_emit_label(state, label_continue);
+        tacc_cg_compile_expr(state, statement->extra.details->controlling);
+
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_EQ);
+        tacc_target_cg_branch_if_false(state, label_start);
+        tacc_target_cg_emit_label(state, label_end);
+        break;
+
+    case STMT_CONTINUE:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_label_list_len(state->continue_stack) > 0,
+                    "continue used outside loop");
+        lbl_entry =
+            tacc_label_list_get(state->continue_stack,
+                                tacc_label_list_len(state->continue_stack) - 1);
+        tacc_target_cg_emit_label(state, lbl_entry->content);
+        break;
+
+    case STMT_BREAK:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_label_list_len(state->break_stack) > 0,
+                    "break used outside loop / switch");
+        lbl_entry = tacc_label_list_get(
+            state->break_stack, tacc_label_list_len(state->break_stack) - 1);
+        tacc_target_cg_emit_label(state, lbl_entry->content);
+        break;
+
+    case STMT_FOR:
+        if (statement->extra.for_statement->init_is_declaration) {
+            tacc_cg_decl(
+                state, statement->extra.for_statement->initializer.declaration);
+        } else if (statement->extra.for_statement->initializer.expr != NULL) {
+            tacc_cg_compile_expr(
+                state, statement->extra.for_statement->initializer.expr);
+            tacc_cg_pop(state);
+        }
+        tacc_assert(ASSERT_ICE,
+                    tacc_cg_stack_is_empty(state),
+                    "stack not fully consumed by end of for initializer");
+        label_start = tacc_target_cg_emit_label(state, 0);
+        if (statement->extra.for_statement->controlling != NULL) {
+            tacc_cg_compile_expr(state,
+                                 statement->extra.for_statement->controlling);
+            tacc_cg_const_sint(state, 0);
+            tacc_cg_binop(state, EX_NE);
+            label_end = tacc_target_cg_branch_if_false(state, 0);
+        } else {
+            label_end = tacc_cg_new_label(state);
+        }
+        label_continue = tacc_cg_new_label(state);
+
+        tacc_label_list_push(state->continue_stack, label_continue);
+        tacc_label_list_push(state->break_stack, label_end);
+        tacc_cg_compile_stmt(state, statement->extra.for_statement->body);
+        tacc_label_list_pop(state->continue_stack);
+        tacc_label_list_pop(state->break_stack);
+
+        tacc_target_cg_emit_label(state, label_continue);
+        if (statement->extra.for_statement->after) {
+            tacc_cg_compile_expr(state, statement->extra.for_statement->after);
+            tacc_cg_pop(state);
+            tacc_assert(
+                ASSERT_ICE,
+                tacc_cg_stack_is_empty(state),
+                "stack not fully consumed by end of for after-expression");
+        }
+        tacc_target_cg_branch(state, label_start);
+        tacc_target_cg_emit_label(state, label_end);
+        break;
+
     case STMT_LABEL_NAMED:
+        tacc_target_cg_emit_named_label(state, statement->extra.label);
+        break;
+
+    case STMT_GOTO:
+        tacc_target_cg_branch_named_label(state, statement->extra.label);
+        break;
+
     case STMT_CASE:
     case STMT_DEFAULT:
-    case STMT_COMPOUND:
     case STMT_SWITCH:
-    case STMT_WHILE:
-    case STMT_DO_WHILE:
-    case STMT_FOR:
-    case STMT_GOTO:
-    case STMT_CONTINUE:
-    case STMT_BREAK:
         tacc_assert(ASSERT_TODO, 0, "unsupported statement in codegen");
         break;
     }
@@ -1050,12 +1182,22 @@ void tacc_cg_compile_body_member(struct tacc_cg_state *state,
     tacc_cg_compile_stmt(state, member->member.statement);
 }
 
+static void tacc_cg_compile_compound_member_list(
+    struct tacc_cg_state *state, struct tacc_compound_member_list *list) {
+    size_t i;
+    struct tacc_compound_member_list_entry *entry;
+
+    for (i = 0; i < tacc_compound_member_list_len(list); i = i + 1) {
+        entry = tacc_compound_member_list_get(list, i);
+        tacc_cg_compile_body_member(state, entry->content);
+    }
+}
+
 void tacc_cg_compile_function(struct tacc_cg_state *state,
                               struct tacc_funcdef *func_def,
                               struct tacc_function_type *func_type) {
     size_t i;
     uint32_t param_name;
-    struct tacc_compound_member_list_entry *entry;
     struct tacc_declarator *declarator;
     struct tacc_function_param_list *param_list;
     struct tacc_function_param_list_entry *param_entry;
@@ -1104,12 +1246,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
             tacc_ident_list_push(state->param_names, param_name);
         }
     }
-
-    for (i = 0; i < tacc_compound_member_list_len(func_def->statements);
-         i = i + 1) {
-        entry = tacc_compound_member_list_get(func_def->statements, i);
-        tacc_cg_compile_body_member(state, entry->content);
-    }
+    tacc_cg_compile_compound_member_list(state, func_def->statements);
 }
 
 void tacc_cg_slot_spill(struct tacc_cg_state *state, struct tacc_slot *slot) {
@@ -1367,6 +1504,10 @@ void tacc_cg_state_free(struct tacc_cg_state *state) {
     tacc_slot_list_free(state->stack);
     tacc_free(state->stack);
     tacc_callitf_free(state->interface);
+    tacc_label_list_free(state->break_stack);
+    tacc_free(state->break_stack);
+    tacc_label_list_free(state->continue_stack);
+    tacc_free(state->continue_stack);
 
     tacc_free(state);
 }

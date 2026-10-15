@@ -57,6 +57,17 @@ DECL_DYNHASH_OVER_U32(tacc_local_var_map,
                       tacc_local_var_map_fill_count,
                       tacc_local_var_map_free)
 
+DECL_DYNARRAY_OVER(tacc_label_list,
+                   tacc_label_list_entry,
+                   int,
+                   tacc_label_list_new,
+                   tacc_label_list_init,
+                   tacc_label_list_get,
+                   tacc_label_list_push,
+                   tacc_label_list_pop,
+                   tacc_label_list_len,
+                   tacc_label_list_free)
+
 struct tacc_cg_state {
     struct tacc_function_type *func_type;
     struct tacc_target_cg_state *target_state;
@@ -67,6 +78,8 @@ struct tacc_cg_state {
     struct tacc_ident_list *param_names;
     struct tacc_local_var_map *locals;
     struct tacc_callitf *interface;
+    struct tacc_label_list *continue_stack;
+    struct tacc_label_list *break_stack;
 
     size_t num_local_bytes;
     uint32_t clobbered_registers;

@@ -1413,7 +1413,32 @@ int tacc_target_cg_branch(struct tacc_cg_state *state, int to_label_maybe) {
     return label;
 }
 
-void tacc_target_cg_emit_label(struct tacc_cg_state *state, int label_id) {
+int tacc_target_cg_emit_label(struct tacc_cg_state *state, int label_id_maybe) {
+    int label;
+
+    label = label_id_maybe;
+    if (label == 0) {
+        label = tacc_cg_new_label(state);
+    }
+
     tacc_cg_output(
-        state, "\n.Ltacc_%s_%d:", tacc_cg_func_name_as_str(state), label_id);
+        state, "\n.Ltacc_%s_%d:", tacc_cg_func_name_as_str(state), label);
+
+    return label;
+}
+
+void tacc_target_cg_branch_named_label(struct tacc_cg_state *state,
+                                       struct tacc_string *name) {
+    tacc_cg_output(state,
+                   "\n\t jmp .Ltaccnamed_%s_%s",
+                   tacc_cg_func_name_as_str(state),
+                   tacc_dynstring_as_str(name));
+}
+
+void tacc_target_cg_emit_named_label(struct tacc_cg_state *state,
+                                     struct tacc_string *name) {
+    tacc_cg_output(state,
+                   "\n.Ltaccnamed_%s_%s",
+                   tacc_cg_func_name_as_str(state),
+                   tacc_dynstring_as_str(name));
 }
