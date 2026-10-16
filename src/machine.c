@@ -145,21 +145,46 @@ struct tacc_val *tacc_val_from_int(int value, struct tacc_type *ty) {
     return val;
 }
 
+void tacc_ptr_val_free(struct tacc_ptr_val *ptr_val) {
+    if (ptr_val->base_name != NULL) {
+        tacc_dynstring_free(ptr_val->base_name);
+    }
+    tacc_free(ptr_val->offset);
+    tacc_free(ptr_val);
+}
+
 void tacc_val_free(struct tacc_val *val) {
-    if (tacc_val_is_integral(val)) {
+    if (val->type->kind == TYK_PTR) {
+        tacc_ptr_val_free(val->value.ptr_value);
+    } else if (tacc_val_is_integral(val)) {
         tacc_free(val->value.int_value);
     }
     tacc_free(val);
 }
 
+struct tacc_ptr_val *tacc_ptr_val_new(void) {
+    struct tacc_ptr_val *ptr_val;
+
+    ptr_val = tacc_malloc(sizeof(struct tacc_ptr_val));
+    ptr_val->base_name = NULL;
+    ptr_val->offset = tacc_u64_new();
+
+    return ptr_val;
+}
+
 struct tacc_val *tacc_val_zero(struct tacc_type *ty) {
     struct tacc_val *val;
 
+    val = tacc_val_new();
+    val->type = ty;
+
+    if (ty->kind == TYK_PTR) {
+        val->value.ptr_value = tacc_ptr_val_new();
+        return val;
+    }
     tacc_assert(ASSERT_TODO,
                 tacc_type_is_integral(ty),
                 "zero values for non-integral types");
-    val = tacc_val_new();
-    val->type = ty;
     val->value.int_value = tacc_u64_new();
 
     return val;

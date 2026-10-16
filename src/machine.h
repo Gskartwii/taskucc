@@ -6,15 +6,22 @@
 #include "target/target.h"
 #include "type.h"
 
+struct tacc_ptr_val {
+    struct tacc_string *base_name;
+    struct tacc_u64 *offset;
+};
+
 struct tacc_val {
     struct tacc_type *type;
 
     union {
         struct tacc_u64 *int_value;
+        struct tacc_ptr_val *ptr_value;
     } value;
 };
 
 struct tacc_val *tacc_val_new(void);
+struct tacc_ptr_val *tacc_ptr_val_new(void);
 struct tacc_val *tacc_val_clone(struct tacc_val *val);
 void tacc_val_free(struct tacc_val *val);
 tacc_bool tacc_val_is_integral(struct tacc_val *val);

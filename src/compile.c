@@ -174,7 +174,13 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
         tacc_assert(ASSERT_TODO, 0, "cannot output value of void type");
         return;
     case TYK_PTR:
-        tacc_assert(ASSERT_TODO, 0, "compile ptr constant");
+        bits = tacc_type_bit_width(val->type);
+        alignment = tacc_type_alignment_p2(val->type);
+        tacc_assert(ASSERT_TODO,
+                    val->value.ptr_value->base_name == NULL,
+                    "compile non-NULL ptr constant");
+        tacc_compile_output_directive(compiler, "p2align %d", (int) alignment);
+        tacc_compile_output_int(compiler, val->value.ptr_value->offset, bits);
         break;
     case TYK_STRUCT:
         tacc_assert(ASSERT_TODO, 0, "compile struct constant");
