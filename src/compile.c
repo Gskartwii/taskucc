@@ -251,6 +251,7 @@ static struct tacc_type *tacc_eval_enumerators(
     size_t i;
     struct tacc_enumerator_list_entry *entry;
     struct tacc_val *val;
+    struct tacc_global_object *obj;
     tacc_bool use_negative;
 
     use_negative = 0;
@@ -258,6 +259,10 @@ static struct tacc_type *tacc_eval_enumerators(
 
     for (i = 0; i < tacc_enumerator_list_len(enumerators); i = i + 1) {
         entry = tacc_enumerator_list_get(enumerators, i);
+        obj = tacc_global_object_new();
+        obj->is_enumerator = 1;
+        obj->name_ref = entry->content->name_ref;
+
         if (entry->content->value != NULL) {
             val = tacc_expr_const_eval(
                 entry->content->value, compiler->target, compiler->basic_types);
@@ -273,12 +278,20 @@ static struct tacc_type *tacc_eval_enumerators(
                             tacc_u64_sle(val->value.int_value,
                                          compiler->target->sint->max),
                         "enumerator value out of range");
+            obj->extra.enumerator_value = val;
+            tacc_u64_copy(&counter, val->value.int_value);
         } else {
             tacc_assert(ASSERT_DIAG,
                         counter.low != 0xFFFFFFFF || counter.high != 0xFFFFFFFF,
                         "enumerator overflow when implicitly incrementing");
-            tacc_u64_add_u32(&counter, &counter, 1);
+            val = tacc_val_new();
+            val->type = tacc_get_basic_type(compiler->basic_types, TYK_SINT);
+            val->value.int_value = tacc_u64_new();
+            tacc_u64_copy(val->value.int_value, &counter);
+            obj->extra.enumerator_value = val;
         }
+        tacc_u64_add_u32(&counter, &counter, 1);
+        tacc_compile_add_global_object(compiler, obj);
     }
 
     if (use_negative) {

@@ -208,6 +208,9 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
 }
 
 tacc_bool tacc_type_is_compatible(struct tacc_type *a, struct tacc_type *b) {
+    if (a == b) {
+        return 1;
+    }
     if (a->kind != b->kind) {
         return 0;
     }

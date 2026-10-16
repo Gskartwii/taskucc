@@ -1265,7 +1265,9 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         tacc_cg_compile_stmt(state, statement->extra.if_stmt->then);
         label_end = tacc_target_cg_branch(state, 0);
         tacc_target_cg_emit_label(state, label_else);
-        tacc_cg_compile_stmt(state, statement->extra.if_stmt->otherwise);
+        if (statement->extra.if_stmt->otherwise != NULL) {
+            tacc_cg_compile_stmt(state, statement->extra.if_stmt->otherwise);
+        }
         tacc_target_cg_emit_label(state, label_end);
         break;
 
