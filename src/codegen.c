@@ -143,7 +143,7 @@ static void tacc_cg_deref(struct tacc_cg_state *state) {
                 slot->ty->kind == TYK_PTR,
                 "attempt to dereference non-pointer");
     pointed_ty = slot->ty->extra.pointer.pointee;
-    if (tacc_type_is_integral(pointed_ty)) {
+    if (tacc_type_is_integral(pointed_ty) || pointed_ty->kind == TYK_PTR) {
         tacc_target_cg_deref_int(state, pointed_ty);
     } else if (tacc_type_is_floating(pointed_ty)) {
         tacc_target_cg_deref_float(state, pointed_ty);
