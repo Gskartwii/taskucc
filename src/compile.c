@@ -590,13 +590,38 @@ tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
     return ty;
 }
 
-static void tacc_compiler_add_new_named_type(struct tacc_compiler *compiler,
-                                             struct tacc_type *ty) {
+static struct tacc_type *tacc_compiler_add_new_named_type_or_bind(
+    struct tacc_compiler *compiler, struct tacc_type *ty) {
+    struct tacc_type *existing;
+    char *name;
+
+    existing = tacc_compiler_get_named_type(compiler, ty->name_ref);
+    if (existing == NULL) {
+        tacc_type_list_push(compiler->named_types, ty);
+        return ty;
+    }
+    name = tacc_dynstring_as_str(tacc_compile_get_name(compiler, ty->name_ref));
     tacc_assert(ASSERT_DIAG,
-                tacc_compiler_get_named_type(compiler, ty->name_ref) == NULL,
-                "type %s redeclared",
-                tacc_compile_get_name(compiler, ty->name_ref));
-    tacc_type_list_push(compiler->named_types, ty);
+                existing->kind == ty->kind,
+                "type tag for %s is incompatible with previous tagged type",
+                name);
+    if (ty->kind == TYK_STRUCT) {
+        tacc_assert(ASSERT_DIAG,
+                    existing->extra.structure == NULL,
+                    "struct %s redefined",
+                    name);
+        existing->extra.structure = ty->extra.structure;
+        ty->extra.structure = NULL;
+    } else {
+        tacc_assert(ASSERT_DIAG,
+                    existing->extra.onion == NULL,
+                    "union %s redefined",
+                    name);
+        existing->extra.onion = ty->extra.onion;
+    }
+    tacc_type_free(ty);
+
+    return existing;
 }
 
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
@@ -699,7 +724,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                 tacc_eval_enumerators(compiler, type->extra.enumerators);
             if (type->name_ref != 0) {
                 ty->name_ref = type->name_ref;
-                tacc_compiler_add_new_named_type(compiler, ty);
+                ty = tacc_compiler_add_new_named_type_or_bind(compiler, ty);
             } else {
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
@@ -741,7 +766,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                  * May result in merge of past forward-declaration,
                  * returning the tacc_type from that forward-declaration.
                  */
-                tacc_compiler_add_new_named_type(compiler, ty);
+                ty = tacc_compiler_add_new_named_type_or_bind(compiler, ty);
             } else {
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
