@@ -567,7 +567,8 @@ tacc_compiler_get_typedef(struct tacc_compiler *compiler, uint32_t name_ref) {
 static struct tacc_type *
 tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
                                          uint32_t name_ref,
-                                         enum tacc_type_kind kind) {
+                                         enum tacc_type_kind kind,
+                                         tacc_bool *made_new) {
     struct tacc_type *ty;
 
     ty = tacc_compiler_get_named_type(compiler, name_ref);
@@ -577,6 +578,7 @@ tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
             ty->kind == kind,
             "incompatible redeclaration of tag %s",
             tacc_dynstring_as_str(tacc_compile_get_name(compiler, name_ref)));
+        *made_new = 0;
         return ty;
     }
 
@@ -584,6 +586,7 @@ tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
     ty->name_ref = name_ref;
     ty->kind = kind;
     tacc_type_list_push(compiler->named_types, ty);
+    *made_new = 1;
     return ty;
 }
 
@@ -602,6 +605,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
     uint32_t typespec;
     struct tacc_type *ty;
     struct tacc_type_list_entry *entry;
+    tacc_bool is_forward_declare;
 
     typespec = type->spec_qual_flags & ~((uint32_t) TYPEQUAL_CONST |
                                          TYPEQUAL_RESTRICT | TYPEQUAL_VOLATILE);
@@ -713,7 +717,14 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                         type->name_ref != 0,
                         "anonymous unspecified struct/union");
             ty = tacc_compiler_get_named_type_or_forwdecl(
-                compiler, type->name_ref, base_type);
+                compiler, type->name_ref, base_type, &is_forward_declare);
+            if (is_forward_declare) {
+                if (base_type == TYK_STRUCT) {
+                    ty->extra.structure = NULL;
+                } else {
+                    ty->extra.onion = NULL;
+                }
+            }
         } else {
             ty = tacc_type_new();
             ty->kind = base_type;

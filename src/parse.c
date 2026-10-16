@@ -201,6 +201,22 @@ static struct tacc_tagged_ident *tacc_parse_registry_lookup_tagged(
     return NULL;
 }
 
+static tacc_bool tacc_parse_registry_tag_defined_here(
+    struct tacc_parse_registry *registry, char *name) {
+    struct tacc_ident_scope_list_entry *scope_entry;
+    struct tacc_tagged_ident_list_entry *ident_entry;
+    struct tacc_ident_scope *scope;
+
+    scope_entry = tacc_ident_scope_list_get(
+        registry->scopes, tacc_ident_scope_list_len(registry->scopes) - 1);
+    scope = scope_entry->content;
+    ident_entry = tacc_tagged_ident_list_get(scope->tagged_idents, name);
+    if (ident_entry != NULL) {
+        return 1;
+    }
+    return 0;
+}
+
 tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
                                      struct tacc_parse_registry *registry,
                                      uint32_t previous_flags) {
@@ -1254,6 +1270,15 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
         tacc_pp_tok_free(tacc_tok_iter_next(iter));
         if (tag_name == NULL) {
             name_ref = 0;
+        } else if (tacc_parse_registry_tag_defined_here(
+                       registry, tacc_dynstring_as_str(tag_name))) {
+            /*
+             * Tag defined in this very scope, by way of forward declaration.
+             * Bind to it.
+             */
+            existing = tacc_parse_registry_lookup_tagged(
+                registry, tacc_dynstring_as_str(tag_name));
+            name_ref = existing->name_ref;
         } else {
             name_ref = tacc_parse_registry_intern(registry, tag_name);
             if (kind == ID_ENUM) {
