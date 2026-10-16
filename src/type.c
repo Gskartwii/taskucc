@@ -208,10 +208,17 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
 }
 
 tacc_bool tacc_type_is_compatible(struct tacc_type *a, struct tacc_type *b) {
+    if (a->kind != b->kind) {
+        return 0;
+    }
+    if (a->kind == TYK_PTR) {
+        return tacc_type_is_compatible(a->extra.pointer.pointee,
+                                       b->extra.pointer.pointee);
+    }
     tacc_assert(ASSERT_TODO,
                 tacc_type_is_arithmetic(a),
                 "compatibility of non-arithmetic types");
-    return a->kind == b->kind;
+    return 1;
 }
 
 enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
@@ -705,4 +712,11 @@ struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
         tacc_assert(ASSERT_ICE, 0, "unknown tyk");
         return NULL;
     }
+}
+
+tacc_bool tacc_type_is_ptr_to(struct tacc_type *ty, enum tacc_type_kind kind) {
+    if (ty->kind != TYK_PTR) {
+        return 0;
+    }
+    return ty->extra.pointer.pointee->kind == kind;
 }

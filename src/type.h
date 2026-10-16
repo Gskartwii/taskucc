@@ -217,6 +217,7 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
 tacc_bool tacc_type_is_floating(struct tacc_type *type);
 tacc_bool tacc_type_is_arithmetic(struct tacc_type *type);
 tacc_bool tacc_type_is_integral(struct tacc_type *type);
+tacc_bool tacc_type_is_ptr_to(struct tacc_type *ty, enum tacc_type_kind kind);
 size_t tacc_type_bit_width(struct tacc_type *type);
 size_t tacc_type_alignment_p2(struct tacc_type *type);
 size_t tacc_type_size(struct tacc_type *type);

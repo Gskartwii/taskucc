@@ -510,7 +510,7 @@ static void tacc_cg_compile_assign(struct tacc_cg_state *state) {
                 tacc_type_is_compatible(slot_lval->ty->extra.pointer.pointee,
                                         pointed_ty),
                 "trying to store to incompatible pointer");
-    if (tacc_type_is_integral(pointed_ty)) {
+    if (tacc_type_is_integral(pointed_ty) || pointed_ty->kind == TYK_PTR) {
         tacc_target_cg_store_int(state, pointed_ty);
     } else if (tacc_type_is_floating(pointed_ty)) {
         tacc_target_cg_store_float(state, pointed_ty);
@@ -1009,6 +1009,26 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
     from_type = slot->ty;
+    if (tacc_type_is_compatible(from_type, to_type)) {
+        return;
+    }
+
+    if (from_type->kind == TYK_PTR && to_type->kind == TYK_PTR) {
+        /*
+         * caller should validate whether the standard permits this conversion
+         */
+        slot->ty = to_type;
+        return;
+    }
+    if (from_type->kind == TYK_PTR && tacc_type_is_integral(to_type)) {
+        from_type = tacc_get_uintptr_type(state->compiler);
+        slot->ty = from_type;
+    } else if (tacc_type_is_integral(from_type) && to_type->kind == TYK_PTR) {
+        tacc_cg_convert_top(state, tacc_get_uintptr_type(state->compiler));
+        slot->ty = to_type;
+        return;
+    }
+
     if (to_type->kind == TYK_BOOL) {
         if (from_type->kind == TYK_BOOL) {
             return;
@@ -1125,6 +1145,7 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
 
     switch (state->interface->retval_kind) {
     case CALLITF_RETVAL_NONE:
+        tacc_cg_push_void(state);
         break;
     case CALLITF_RETVAL_REGISTER:
         tacc_cg_ensure_top_is_single(state, state->interface->retval_reg);
