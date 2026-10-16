@@ -1014,6 +1014,7 @@ static void tacc_compile_typedef(struct tacc_compiler *compiler,
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
                            struct tacc_decl *decl) {
     struct tacc_type *type;
+    struct tacc_type *derived_type;
     struct tacc_global_object *global_object;
     size_t i;
     struct tacc_init_declarator_list_entry *entry;
@@ -1034,9 +1035,31 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         entry = tacc_init_declarator_list_get(decl->extra.declarators, i);
         data_name = tacc_declarator_name(entry->content->declarator);
         declarator = entry->content;
-        tacc_assert(ASSERT_TODO,
-                    declarator->declarator->kind == DECLARATOR_PLAIN,
-                    "non-plain declarator");
+        derived_type = tacc_type_adjust_from_declarator(
+            compiler, type, declarator->declarator);
+
+        if (derived_type->kind == TYK_FN) {
+            tacc_assert(ASSERT_DIAG,
+                        declarator->initializer == NULL,
+                        "initializer on a function declarator");
+            if (decl->storage_class == STORAGE_STATIC) {
+                continue;
+            }
+            tacc_assert(ASSERT_DIAG,
+                        decl->storage_class == STORAGE_EXTERN ||
+                            decl->storage_class == STORAGE_UNSPECIFIED,
+                        "bad storage class on function declaration");
+            /*
+             * A forward declaration.
+             * TODO: check that type is compatible with previous declarators.
+             */
+            tacc_compile_output_directive(
+                compiler,
+                "globl %s",
+                tacc_dynstring_as_str(
+                    tacc_compile_get_name(compiler, data_name)));
+            continue;
+        }
 
         global_object = tacc_global_object_new();
         global_object->is_enumerator = 0;
@@ -1045,7 +1068,7 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         tacc_compile_add_global_object(compiler, global_object);
 
         tacc_compile_data(compiler,
-                          type,
+                          derived_type,
                           tacc_compile_get_name(compiler, data_name),
                           declarator->initializer,
                           decl->storage_class);
