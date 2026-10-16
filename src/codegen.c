@@ -50,6 +50,41 @@ MK_DYNARRAY_OVER(tacc_label_list,
                  tacc_label_free,
                  tacc_label_list_free)
 
+static void tacc_cg_switch_case_free(struct tacc_cg_switch_case *sw_case) {
+    tacc_val_free(sw_case->discriminator);
+    tacc_free(sw_case);
+}
+
+MK_DYNARRAY_OVER(tacc_cg_switch_case_list,
+                 tacc_cg_switch_case_list_entry,
+                 struct tacc_cg_switch_case *,
+                 tacc_cg_switch_case_list_new,
+                 tacc_cg_switch_case_list_init,
+                 tacc_cg_switch_case_list_get,
+                 tacc_cg_switch_case_list_push,
+                 tacc_cg_switch_case_list_pop,
+                 tacc_cg_switch_case_list_len,
+                 tacc_cg_switch_case_free,
+                 tacc_cg_switch_case_list_free)
+
+static void tacc_cg_switch_free(struct tacc_cg_switch *cg_switch) {
+    tacc_cg_switch_case_list_free(cg_switch->cases);
+    tacc_free(cg_switch->cases);
+    tacc_free(cg_switch);
+}
+
+MK_DYNARRAY_OVER(tacc_cg_switch_list,
+                 tacc_cg_switch_list_entry,
+                 struct tacc_cg_switch *,
+                 tacc_cg_switch_list_new,
+                 tacc_cg_switch_list_init,
+                 tacc_cg_switch_list_get,
+                 tacc_cg_switch_list_push,
+                 tacc_cg_switch_list_pop,
+                 tacc_cg_switch_list_len,
+                 tacc_cg_switch_free,
+                 tacc_cg_switch_list_free)
+
 void tacc_cg_output(struct tacc_cg_state *state, char *fmt, ...) {
     va_list va;
 
@@ -78,6 +113,7 @@ struct tacc_cg_state *tacc_cg_state_new(struct tacc_compiler *compiler) {
     state->param_names = tacc_ident_list_new();
     state->continue_stack = tacc_label_list_new();
     state->break_stack = tacc_label_list_new();
+    state->switch_stack = tacc_cg_switch_list_new();
     state->locals = tacc_local_var_map_new(0x100);
     state->num_local_bytes = 0;
     state->clobbered_registers = 0;
@@ -443,7 +479,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
                     field != NULL,
                     "no such field: %s",
                     tacc_dynstring_as_str(expr->extra.field_name));
-        tacc_cg_const_sint(state, (int) field->offset);
+        tacc_cg_const_sint(state, (int) (field->offset));
         tacc_target_cg_binop(
             state,
             EX_ADD,
@@ -1115,13 +1151,66 @@ static void tacc_cg_return(struct tacc_cg_state *state) {
 static void tacc_cg_compile_compound_member_list(
     struct tacc_cg_state *state, struct tacc_compound_member_list *list);
 
+static void tacc_cg_end_switch(struct tacc_cg_state *state,
+                               int discriminator_offset,
+                               struct tacc_type *ty) {
+    struct tacc_cg_switch_list_entry *pending_switch_entry;
+    struct tacc_cg_switch_case_list_entry *case_entry;
+    size_t i;
+
+    pending_switch_entry = tacc_cg_switch_list_get(
+        state->switch_stack, tacc_cg_switch_list_len(state->switch_stack) - 1);
+    tacc_cg_push_scratch(state, discriminator_offset, ty);
+    for (i = 0;
+         i < tacc_cg_switch_case_list_len(pending_switch_entry->content->cases);
+         i = i + 1) {
+        case_entry = tacc_cg_switch_case_list_get(
+            pending_switch_entry->content->cases, i);
+        tacc_cg_dup(state);
+        tacc_target_cg_int(state, case_entry->content->discriminator);
+        tacc_cg_binop(state, EX_NE);
+        tacc_target_cg_branch_if_false(state, case_entry->content->label);
+    }
+    tacc_cg_pop(state);
+    if (pending_switch_entry->content->default_label != 0) {
+        tacc_target_cg_branch(state,
+                              pending_switch_entry->content->default_label);
+    }
+}
+
+static struct tacc_cg_switch *tacc_cg_switch_new(void) {
+    struct tacc_cg_switch *switcher;
+
+    switcher = tacc_malloc(sizeof(struct tacc_cg_switch));
+    switcher->cases = tacc_cg_switch_case_list_new();
+    switcher->default_label = 0;
+
+    return switcher;
+}
+
+static struct tacc_cg_switch_case *tacc_cg_switch_case_new(void) {
+    struct tacc_cg_switch_case *sw_case;
+
+    sw_case = tacc_malloc(sizeof(struct tacc_cg_switch_case));
+    sw_case->discriminator = NULL;
+    sw_case->label = 0;
+
+    return sw_case;
+}
+
 void tacc_cg_compile_stmt(struct tacc_cg_state *state,
                           struct tacc_statement *statement) {
     struct tacc_label_list_entry *lbl_entry;
+    struct tacc_cg_switch_list_entry *curr_switch_entry;
+    struct tacc_cg_switch_case *switch_case;
+    struct tacc_val *val;
+    struct tacc_slot *top;
+    struct tacc_type *ty;
     int label_start;
     int label_continue;
     int label_else;
     int label_end;
+    int controlling_expr_scratch_offset;
 
     switch (statement->kind) {
     case STMT_NULL:
@@ -1278,9 +1367,63 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         break;
 
     case STMT_CASE:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_cg_switch_list_len(state->switch_stack) > 0,
+                    "case <n>: outside a switch");
+        curr_switch_entry = tacc_cg_switch_list_get(
+            state->switch_stack,
+            tacc_cg_switch_list_len(state->switch_stack) - 1);
+        switch_case = tacc_cg_switch_case_new();
+        val = tacc_expr_const_eval(statement->extra.expr,
+                                   state->compiler->target,
+                                   state->compiler->basic_types);
+        tacc_assert(ASSERT_DIAG,
+                    val != NULL,
+                    "case discriminator is not an integer constant");
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_integral(val->type),
+                    "case discriminator is not an integer constant");
+        switch_case->label = tacc_target_cg_emit_label(state, 0);
+        switch_case->discriminator = val;
+
+        break;
     case STMT_DEFAULT:
+        tacc_assert(ASSERT_DIAG,
+                    tacc_cg_switch_list_len(state->switch_stack) > 0,
+                    "default: outside a switch");
+        curr_switch_entry = tacc_cg_switch_list_get(
+            state->switch_stack,
+            tacc_cg_switch_list_len(state->switch_stack) - 1);
+        curr_switch_entry->content->default_label =
+            tacc_target_cg_emit_label(state, 0);
+        break;
+
     case STMT_SWITCH:
-        tacc_assert(ASSERT_TODO, 0, "unsupported statement in codegen");
+        /* label to switch decision */
+        label_continue = tacc_target_cg_branch(state, 0);
+        /* label for break; */
+        label_end = tacc_cg_new_label(state);
+
+        tacc_cg_compile_expr(state, statement->extra.details->controlling);
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_integral(tacc_cg_top_type(state)),
+                    "switch controlling expression must have integral type");
+        tacc_cg_slot_spill(state, tacc_cg_get_top(state));
+        top = tacc_cg_get_top(state);
+        controlling_expr_scratch_offset = top->place.offset;
+        ty = top->ty;
+        tacc_cg_pop(state);
+
+        tacc_label_list_push(state->break_stack, label_end);
+        tacc_cg_switch_list_push(state->switch_stack, tacc_cg_switch_new());
+        tacc_cg_compile_stmt(state, statement->extra.details->body);
+        tacc_label_list_pop(state->break_stack);
+        tacc_target_cg_branch(state, label_end);
+
+        tacc_target_cg_emit_label(state, label_continue);
+        tacc_cg_end_switch(state, controlling_expr_scratch_offset, ty);
+
+        tacc_target_cg_emit_label(state, label_end);
         break;
     }
     tacc_assert(ASSERT_ICE,
@@ -1623,6 +1766,8 @@ void tacc_cg_state_free(struct tacc_cg_state *state) {
     tacc_free(state->break_stack);
     tacc_label_list_free(state->continue_stack);
     tacc_free(state->continue_stack);
+    tacc_cg_switch_list_free(state->switch_stack);
+    tacc_free(state->switch_stack);
 
     tacc_free(state);
 }

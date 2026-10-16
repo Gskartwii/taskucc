@@ -545,6 +545,22 @@ void tacc_field_free(struct tacc_field *field) {
     tacc_free(field);
 }
 
+struct tacc_field *tacc_field_list_find(struct tacc_field_list *list,
+                                        char *field_name) {
+    struct tacc_field_list_entry *field_entry;
+    size_t i;
+
+    for (i = 0; i < tacc_field_list_len(list); i = i + 1) {
+        field_entry = tacc_field_list_get(list, i);
+        if (!strcmp(tacc_dynstring_as_str(field_entry->content->name),
+                    field_name)) {
+            return field_entry->content;
+        }
+    }
+
+    return NULL;
+}
+
 tacc_bool tacc_type_kind_needs_promotions(enum tacc_type_kind kind) {
     return kind == TYK_SCHAR || kind == TYK_UCHAR || kind == TYK_BOOL ||
            kind == TYK_USHORT || kind == TYK_SSHORT;

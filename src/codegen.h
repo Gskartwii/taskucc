@@ -68,6 +68,38 @@ DECL_DYNARRAY_OVER(tacc_label_list,
                    tacc_label_list_len,
                    tacc_label_list_free)
 
+struct tacc_cg_switch_case {
+    struct tacc_val *discriminator;
+    int label;
+};
+
+DECL_DYNARRAY_OVER(tacc_cg_switch_case_list,
+                   tacc_cg_switch_case_list_entry,
+                   struct tacc_cg_switch_case *,
+                   tacc_cg_switch_case_list_new,
+                   tacc_cg_switch_case_list_init,
+                   tacc_cg_switch_case_list_get,
+                   tacc_cg_switch_case_list_push,
+                   tacc_cg_switch_case_list_pop,
+                   tacc_cg_switch_case_list_len,
+                   tacc_cg_switch_case_list_free)
+
+struct tacc_cg_switch {
+    int default_label;
+    struct tacc_cg_switch_case_list *cases;
+};
+
+DECL_DYNARRAY_OVER(tacc_cg_switch_list,
+                   tacc_cg_switch_list_entry,
+                   struct tacc_cg_switch *,
+                   tacc_cg_switch_list_new,
+                   tacc_cg_switch_list_init,
+                   tacc_cg_switch_list_get,
+                   tacc_cg_switch_list_push,
+                   tacc_cg_switch_list_pop,
+                   tacc_cg_switch_list_len,
+                   tacc_cg_switch_list_free)
+
 struct tacc_cg_state {
     struct tacc_function_type *func_type;
     struct tacc_target_cg_state *target_state;
@@ -80,6 +112,7 @@ struct tacc_cg_state {
     struct tacc_callitf *interface;
     struct tacc_label_list *continue_stack;
     struct tacc_label_list *break_stack;
+    struct tacc_cg_switch_list *switch_stack;
 
     size_t num_local_bytes;
     uint32_t clobbered_registers;
