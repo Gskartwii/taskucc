@@ -624,9 +624,12 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         base_type = TYK_SCHAR;
         break;
     case TYPESPEC_SHORT:
+    case /* TYPESPEC_SHORT | TYPESPEC_INT */ 0x30:
     case /* TYPESPEC_SHORT | TYPESPEC_SIGNED */ 0x12:
+    case /* TYPESPEC_SHORT | TYPESPEC_INT | TYPESPEC_SIGNED */ 0x32:
         base_type = TYK_SSHORT;
         break;
+    case /* TYPESPEC_SHORT | TYPESPEC_UNSIGNED | TYPESPEC_INT */ 0x31:
     case /* TYPESPEC_SHORT | TYPESPEC_UNSIGNED */ 0x11:
         base_type = TYK_USHORT;
         break;
