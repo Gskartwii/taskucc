@@ -1050,7 +1050,7 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         global_object = tacc_global_object_new();
         global_object->is_enumerator = 0;
         global_object->name_ref = data_name;
-        global_object->extra.obj_type = type;
+        global_object->extra.obj_type = derived_type;
         tacc_compile_add_global_object(compiler, global_object);
 
         if (derived_type->kind == TYK_FN) {
