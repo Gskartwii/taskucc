@@ -20,6 +20,9 @@ in
       tasku-gcc = callPackage ./nix/tasku-gcc.nix {
         srcFiles = common.src;
       };
+      tasku-tasku = targetPackages.callPackage ./nix/tasku-tasku.nix {
+        srcFiles = common.src;
+      };
       common = callPackage ./nix/common.nix {};
       tasku-both = symlinkJoin {
         name = "tasku";
