@@ -700,7 +700,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
         }
-        break;
+        return ty;
     case TYPESPEC_STRUCT:
     case TYPESPEC_UNION:
         if (typespec == TYPESPEC_STRUCT) {
