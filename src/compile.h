@@ -26,6 +26,21 @@ DECL_DYNHASH_OVER_U32(tacc_global_object_map,
                       tacc_global_object_map_fill_count,
                       tacc_global_object_map_free)
 
+struct tacc_named_type {
+    uint32_t name;
+    struct tacc_type *type;
+};
+
+DECL_DYNHASH_OVER_U32(tacc_type_map,
+                      tacc_type_map_entry,
+                      struct tacc_named_type *,
+                      tacc_type_map_new,
+                      tacc_type_map_init,
+                      tacc_type_map_get,
+                      tacc_type_map_insert,
+                      tacc_type_map_fill_count,
+                      tacc_type_map_free)
+
 DECL_DYNARRAY_OVER(tacc_ident_list,
                    tacc_ident_list_entry,
                    uint32_t,
@@ -42,6 +57,7 @@ struct tacc_compiler {
     struct tacc_type_list *basic_types;
     struct tacc_type_list *anonymous_types;
     struct tacc_type_list *named_types;
+    struct tacc_type_map *typedefs;
     struct tacc_global_object_map *global_objects;
 
     /* borrow */

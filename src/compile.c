@@ -45,6 +45,20 @@ MK_DYNHASH_OVER_U32(tacc_global_object_map,
                     tacc_global_object_free,
                     tacc_global_object_map_free)
 
+static void tacc_named_type_free(struct tacc_named_type *ty) { tacc_free(ty); }
+
+MK_DYNHASH_OVER_U32(tacc_type_map,
+                    name,
+                    tacc_type_map_entry,
+                    struct tacc_named_type *,
+                    tacc_type_map_new,
+                    tacc_type_map_init,
+                    tacc_type_map_get,
+                    tacc_type_map_insert,
+                    tacc_type_map_fill_count,
+                    tacc_named_type_free,
+                    tacc_type_map_free)
+
 struct tacc_global_object *tacc_global_object_new(void) {
     struct tacc_global_object *obj;
 
@@ -117,13 +131,21 @@ static void tacc_compile_output_int(struct tacc_compiler *compiler,
 
 static void tacc_compile_val(struct tacc_compiler *compiler,
                              struct tacc_val *val,
-                             struct tacc_string *name) {
+                             struct tacc_string *name,
+                             enum tacc_storage_class storage) {
     size_t bits;
     size_t alignment;
 
     tacc_compile_output_directive(compiler, "data");
-    tacc_compile_output_directive(
-        compiler, "global %s", tacc_dynstring_as_str(name));
+    if (storage == STORAGE_EXTERN || storage == STORAGE_UNSPECIFIED) {
+        tacc_compile_output_directive(
+            compiler, "global %s", tacc_dynstring_as_str(name));
+    } else {
+        tacc_assert(ASSERT_DIAG,
+                    storage == STORAGE_STATIC,
+                    "unexpected storage class on %s",
+                    tacc_dynstring_as_str(name));
+    }
     tacc_compile_output_directive(
         compiler, "type %s, %%object", tacc_dynstring_as_str(name));
 
@@ -178,7 +200,8 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
 static void tacc_compile_data(struct tacc_compiler *compiler,
                               struct tacc_type *for_type,
                               struct tacc_string *name,
-                              struct tacc_initializer *initializer) {
+                              struct tacc_initializer *initializer,
+                              enum tacc_storage_class storage) {
     struct tacc_sub_initializer_list_entry *entry;
     struct tacc_expr *expr;
     struct tacc_val *val;
@@ -209,7 +232,7 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
             tacc_val_convert(val, for_type);
             val->type = for_type;
         }
-        tacc_compile_val(compiler, val, name);
+        tacc_compile_val(compiler, val, name, storage);
         tacc_val_free(val);
         return;
     }
@@ -524,6 +547,18 @@ static struct tacc_type *tacc_compiler_get_named_type(
 }
 
 static struct tacc_type *
+tacc_compiler_get_typedef(struct tacc_compiler *compiler, uint32_t name_ref) {
+    struct tacc_type_map_entry *entry;
+
+    entry = tacc_type_map_get(compiler->typedefs, name_ref);
+    if (entry != NULL) {
+        return entry->content->type;
+    }
+
+    return NULL;
+}
+
+static struct tacc_type *
 tacc_compiler_get_named_type_or_forwdecl(struct tacc_compiler *compiler,
                                          uint32_t name_ref,
                                          enum tacc_type_kind kind) {
@@ -691,10 +726,15 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
         }
-        break;
+        return ty;
     case TYPESPEC_TYPEDEF:
-        tacc_assert(ASSERT_TODO, 0, "construct type from typedef");
-        return NULL;
+        ty = tacc_compiler_get_typedef(compiler, type->name_ref);
+        tacc_assert(ASSERT_DIAG,
+                    ty != NULL,
+                    "non-existent typedef: %s",
+                    tacc_dynstring_as_str(
+                        tacc_compile_get_name(compiler, type->name_ref)));
+        return ty;
     default:
         tacc_assert(ASSERT_ICE, 0, "type unsupported as of now");
         return NULL;
@@ -737,8 +777,17 @@ static void tacc_compile_function_def(struct tacc_compiler *compiler,
     func_name = tacc_compile_get_name(
         compiler,
         tacc_declarator_name(function_def->extra.func_def->func_declaration));
-    tacc_compile_output_directive(
-        compiler, "globl %s", tacc_dynstring_as_str(func_name));
+
+    if (function_def->storage_class == STORAGE_EXTERN ||
+        function_def->storage_class == STORAGE_UNSPECIFIED) {
+        tacc_compile_output_directive(
+            compiler, "globl %s", tacc_dynstring_as_str(func_name));
+    } else {
+        tacc_assert(ASSERT_DIAG,
+                    function_def->storage_class == STORAGE_STATIC,
+                    "unexpected storage class on function definition");
+    }
+
     tacc_compile_output(compiler, "\n%s:", tacc_dynstring_as_str(func_name));
     tacc_cg_finalize(state);
     tacc_compile_output(
@@ -914,6 +963,54 @@ struct tacc_string *tacc_compile_get_name(struct tacc_compiler *compiler,
     return entry->content;
 }
 
+struct tacc_named_type *tacc_named_type_new(void) {
+    struct tacc_named_type *named_type;
+
+    named_type = tacc_malloc(sizeof(struct tacc_named_type));
+    named_type->type = NULL;
+    named_type->name = 0;
+
+    return named_type;
+}
+
+static void tacc_compile_typedef(struct tacc_compiler *compiler,
+                                 struct tacc_decl *decl) {
+    struct tacc_type *type;
+    struct tacc_type *derived_type;
+    struct tacc_type *preexisting_type;
+    struct tacc_init_declarator_list_entry *entry;
+    struct tacc_init_declarator *declarator;
+    struct tacc_named_type *named_type;
+    uint32_t ty_name;
+    size_t i;
+
+    type = tacc_type_from_decl_type(compiler, decl->base_type);
+
+    for (i = 0; i < tacc_init_declarator_list_len(decl->extra.declarators);
+         i = i + 1) {
+        entry = tacc_init_declarator_list_get(decl->extra.declarators, i);
+        ty_name = tacc_declarator_name(entry->content->declarator);
+        declarator = entry->content;
+        tacc_assert(ASSERT_DIAG,
+                    declarator->initializer == NULL,
+                    "initializer on a typedef");
+        derived_type = tacc_type_adjust_from_declarator(
+            compiler, type, declarator->declarator);
+
+        preexisting_type = tacc_compiler_get_typedef(compiler, ty_name);
+        tacc_assert(
+            ASSERT_DIAG,
+            preexisting_type == NULL,
+            "redefinition of typedef %s",
+            tacc_dynstring_as_str(tacc_compile_get_name(compiler, ty_name)));
+        named_type = tacc_named_type_new();
+        named_type->name = ty_name;
+        named_type->type = derived_type;
+
+        tacc_type_map_insert(compiler->typedefs, named_type);
+    }
+}
+
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
                            struct tacc_decl *decl) {
     struct tacc_type *type;
@@ -927,9 +1024,10 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         tacc_compile_function_def(compiler, decl);
         return;
     }
-    tacc_assert(ASSERT_TODO,
-                decl->storage_class == STORAGE_UNSPECIFIED,
-                "different storage classes");
+    if (decl->storage_class == STORAGE_TYPEDEF) {
+        tacc_compile_typedef(compiler, decl);
+        return;
+    }
     type = tacc_type_from_decl_type(compiler, decl->base_type);
     for (i = 0; i < tacc_init_declarator_list_len(decl->extra.declarators);
          i = i + 1) {
@@ -949,7 +1047,8 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         tacc_compile_data(compiler,
                           type,
                           tacc_compile_get_name(compiler, data_name),
-                          declarator->initializer);
+                          declarator->initializer,
+                          decl->storage_class);
     }
     tacc_compile_output(compiler, "\n");
 }
