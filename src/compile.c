@@ -516,7 +516,7 @@ tacc_eval_union(struct tacc_compiler *compiler,
              j < tacc_struct_declarator_list_len(entry->content->declarators);
              j = j + 1) {
             declarator_entry =
-                tacc_struct_declarator_list_get(entry->content->declarators, i);
+                tacc_struct_declarator_list_get(entry->content->declarators, j);
             adjusted_ty = tacc_type_adjust_from_declarator(
                 compiler, base_ty, declarator_entry->content->underlying);
             field = tacc_field_new();
