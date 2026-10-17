@@ -884,9 +884,12 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         break;
 
     case EX_ADDROF:
+        tacc_cg_compile_lval(state, expr->op1);
+        break;
+
     case EX_STRING_LIT:
     case EX_NAME_OF_FUNC:
-        tacc_cg_compile_lval(state, expr->op1);
+        tacc_cg_compile_lval(state, expr);
         break;
 
     case EX_DEREF:
