@@ -15,6 +15,7 @@ in {
     "soft_u64.c"
     "soft_u128.c"
     "soft_float.c"
+    "global_object.c"
     "machine.c"
     "type.c"
     "expr.c"

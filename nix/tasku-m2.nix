@@ -65,6 +65,7 @@
     "soft_u128.h"
     "soft_float.h"
     "type.h"
+    "global_object.h"
     "machine.h"
     "expr.h"
     "target/${stdenvNoCC.targetPlatform.system}/registers.h"

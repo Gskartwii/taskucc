@@ -20,6 +20,12 @@ struct tacc_val {
     } value;
 };
 
+struct tacc_eval_context {
+    struct tacc_target *target;
+    struct tacc_type_list *basic_types;
+    struct tacc_global_object_map *global_objects;
+};
+
 struct tacc_val *tacc_val_new(void);
 struct tacc_ptr_val *tacc_ptr_val_new(void);
 struct tacc_val *tacc_val_clone(struct tacc_val *val);
@@ -38,7 +44,6 @@ void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
 struct tacc_val *tacc_val_from_int(int value, struct tacc_type *ty);
 struct tacc_val *tacc_val_zero(struct tacc_type *ty);
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
-                                      struct tacc_target *target,
-                                      struct tacc_type_list *basic_types);
+                                      struct tacc_eval_context *ctx);
 
 #endif

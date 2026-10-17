@@ -1,4 +1,5 @@
 #include "machine.h"
+#include "global_object.h"
 #include "soft_u64.h"
 #include "type.h"
 #include <string.h>
@@ -266,11 +267,11 @@ tacc_int_literal_eval(struct tacc_int_literal *literal,
 }
 
 struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
-                                      struct tacc_target *target,
-                                      struct tacc_type_list *basic_types) {
+                                      struct tacc_eval_context *ctx) {
     struct tacc_val *l_result;
     struct tacc_val *r_result;
-    struct tacc_type *sint_ty = tacc_get_basic_type(basic_types, TYK_SINT);
+    struct tacc_global_object_map_entry *obj_entry;
+    struct tacc_type *sint_ty = tacc_get_basic_type(ctx->basic_types, TYK_SINT);
 
     switch (expr->kind) {
     case EX_UNINIT:
@@ -278,7 +279,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         break;
     case EX_INT_LIT:
         return tacc_int_literal_eval(
-            expr->extra.int_literal, target, basic_types);
+            expr->extra.int_literal, ctx->target, ctx->basic_types);
     case EX_CHAR_LIT:
         tacc_assert(ASSERT_TODO, 0, "char-literal consteval");
         break;
@@ -289,8 +290,23 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(ASSERT_TODO, 0, "string consteval");
         break;
     case EX_IDENT:
-        tacc_assert(ASSERT_TODO, 0, "ident consteval");
-        break;
+        if (ctx->global_objects == NULL) {
+            break;
+        }
+        obj_entry = tacc_global_object_map_get(ctx->global_objects,
+                                               expr->extra.name_ref);
+        if (obj_entry == NULL) {
+            break;
+        }
+        if (!obj_entry->content->is_enumerator) {
+            break;
+        }
+        l_result = tacc_val_new();
+        l_result->type = sint_ty;
+        l_result->value.int_value = tacc_u64_new();
+        tacc_u64_copy(l_result->value.int_value,
+                      obj_entry->content->extra.enumerator_value);
+        return l_result;
     case EX_ADD:
         tacc_assert(ASSERT_TODO, 0, "add consteval");
         break;
@@ -331,7 +347,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(ASSERT_TODO, 0, ">> consteval");
         break;
     case EX_AND:
-        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
         if (l_result == NULL) {
             return NULL;
         }
@@ -345,7 +361,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         l_result = NULL;
 
-        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
         if (r_result == NULL) {
             return NULL;
         }
@@ -358,7 +374,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
         return tacc_val_from_int(1, sint_ty);
     case EX_OR:
-        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
         if (l_result == NULL) {
             return NULL;
         }
@@ -372,7 +388,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         l_result = NULL;
 
-        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
         if (r_result == NULL) {
             return NULL;
         }
@@ -385,7 +401,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
 
         return tacc_val_from_int(0, sint_ty);
     case EX_NOT:
-        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
         if (l_result == NULL) {
             return NULL;
         }
@@ -399,11 +415,11 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(l_result);
         return tacc_val_from_int(1, sint_ty);
     case EX_EQ:
-        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
         if (l_result == NULL) {
             return NULL;
         }
-        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
         if (r_result == NULL) {
             return NULL;
         }
@@ -411,7 +427,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                         tacc_val_is_arithmetic(r_result),
                     ASSERT_TODO,
                     "non-arithmetic eq consteval");
-        tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
         if (!tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
             tacc_val_free(r_result);
@@ -421,11 +438,11 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_val_free(r_result);
         return tacc_val_from_int(1, sint_ty);
     case EX_NE:
-        l_result = tacc_expr_const_eval(expr->op1, target, basic_types);
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
         if (l_result == NULL) {
             return NULL;
         }
-        r_result = tacc_expr_const_eval(expr->op2, target, basic_types);
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
         if (r_result == NULL) {
             return NULL;
         }
@@ -433,7 +450,8 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                         tacc_val_is_arithmetic(r_result),
                     ASSERT_TODO,
                     "non-arithmetic ne consteval");
-        tacc_val_usual_arithmetic_conversions(l_result, r_result, basic_types);
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
         if (tacc_val_is_eq(l_result, r_result)) {
             tacc_val_free(l_result);
             tacc_val_free(r_result);

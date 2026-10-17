@@ -1,5 +1,6 @@
 #include "codegen.h"
 #include "compile.h"
+#include "global_object.h"
 #include "machine.h"
 #include "predef_func.h"
 #include "target/codegen.h"

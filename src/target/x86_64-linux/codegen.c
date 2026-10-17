@@ -2,6 +2,7 @@
 #include "call_itf.h"
 #include "compile.h"
 #include "expr.h"
+#include "global_object.h"
 #include "machine.h"
 #include "target/codegen.h"
 #include "target/target.h"

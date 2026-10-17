@@ -3,6 +3,7 @@
 #include "decl.h"
 #include "dynstring.h"
 #include "expr.h"
+#include "global_object.h"
 #include "machine.h"
 #include "predef_func.h"
 #include "soft_float.h"
@@ -13,13 +14,6 @@
 #include <stdarg.h>
 
 static void tacc_ident_free(uint32_t ident) { TACC_UNUSED(ident); }
-
-static void tacc_global_object_free(struct tacc_global_object *obj) {
-    if (obj->is_enumerator) {
-        tacc_free(obj->extra.enumerator_value);
-    }
-    tacc_free(obj);
-}
 
 MK_DYNARRAY_OVER(tacc_ident_list,
                  tacc_ident_list_entry,
@@ -32,18 +26,6 @@ MK_DYNARRAY_OVER(tacc_ident_list,
                  tacc_ident_list_len,
                  tacc_ident_free,
                  tacc_ident_list_free)
-
-MK_DYNHASH_OVER_U32(tacc_global_object_map,
-                    name_ref,
-                    tacc_global_object_map_entry,
-                    struct tacc_global_object *,
-                    tacc_global_object_map_new,
-                    tacc_global_object_map_init,
-                    tacc_global_object_map_get,
-                    tacc_global_object_map_insert,
-                    tacc_global_object_map_fill_count,
-                    tacc_global_object_free,
-                    tacc_global_object_map_free)
 
 static void tacc_named_type_free(struct tacc_named_type *ty) { tacc_free(ty); }
 
@@ -58,16 +40,6 @@ MK_DYNHASH_OVER_U32(tacc_type_map,
                     tacc_type_map_fill_count,
                     tacc_named_type_free,
                     tacc_type_map_free)
-
-struct tacc_global_object *tacc_global_object_new(void) {
-    struct tacc_global_object *obj;
-
-    obj = tacc_malloc(sizeof(struct tacc_global_object));
-    obj->is_enumerator = 0;
-    obj->name_ref = 0;
-
-    return obj;
-}
 
 static void tacc_compile_add_global_object(struct tacc_compiler *compiler,
                                            struct tacc_global_object *obj) {
@@ -203,6 +175,17 @@ static void tacc_compile_val(struct tacc_compiler *compiler,
     }
 }
 
+struct tacc_val *tacc_compile_const_eval(struct tacc_compiler *compiler,
+                                         struct tacc_expr *expr) {
+    struct tacc_eval_context ctx;
+
+    ctx.basic_types = compiler->basic_types;
+    ctx.global_objects = compiler->global_objects;
+    ctx.target = compiler->target;
+
+    return tacc_expr_const_eval(expr, &ctx);
+}
+
 static void tacc_compile_data(struct tacc_compiler *compiler,
                               struct tacc_type *for_type,
                               struct tacc_string *name,
@@ -233,8 +216,7 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
             } else {
                 expr = initializer->value.expr;
             }
-            val = tacc_expr_const_eval(
-                expr, compiler->target, compiler->basic_types);
+            val = tacc_compile_const_eval(compiler, expr);
             tacc_val_convert(val, for_type);
             val->type = for_type;
         }
@@ -264,8 +246,7 @@ static struct tacc_type *tacc_eval_enumerators(
         obj->name_ref = entry->content->name_ref;
 
         if (entry->content->value != NULL) {
-            val = tacc_expr_const_eval(
-                entry->content->value, compiler->target, compiler->basic_types);
+            val = tacc_compile_const_eval(compiler, entry->content->value);
             tacc_assert(ASSERT_DIAG,
                         tacc_val_is_integral(val),
                         "enumerator must be integer constant");
@@ -389,10 +370,8 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                        ARRAYDIM_UNSPECIFIED_VLA) {
                 curr_type->kind = TYK_DECAYING_VLA;
             } else {
-                dimension = tacc_expr_const_eval(
-                    curr_declarator->extra.arr_decl->dim_expr,
-                    compiler->target,
-                    compiler->basic_types);
+                dimension = tacc_compile_const_eval(
+                    compiler, curr_declarator->extra.arr_decl->dim_expr);
                 if (dimension != NULL) {
                     curr_type->kind = TYK_ARRAY;
                     tacc_assert(ASSERT_DIAG,

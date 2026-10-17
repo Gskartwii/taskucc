@@ -4,6 +4,7 @@
 #include "decl.h"
 #include "dynstring.h"
 #include "expr.h"
+#include "global_object.h"
 #include "machine.h"
 #include "soft_u64.h"
 #include "statement.h"
@@ -769,8 +770,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
 
     switch (expr->kind) {
     case EX_INT_LIT:
-        val = tacc_expr_const_eval(
-            expr, state->compiler->target, state->compiler->basic_types);
+        val = tacc_compile_const_eval(state->compiler, expr);
         tacc_target_cg_int(state, val);
         slot = tacc_cg_get_top(state);
         slot->ty = val->type;
@@ -1401,9 +1401,7 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
             state->switch_stack,
             tacc_cg_switch_list_len(state->switch_stack) - 1);
         switch_case = tacc_cg_switch_case_new();
-        val = tacc_expr_const_eval(statement->extra.expr,
-                                   state->compiler->target,
-                                   state->compiler->basic_types);
+        val = tacc_compile_const_eval(state->compiler, statement->extra.expr);
         tacc_assert(ASSERT_DIAG,
                     val != NULL,
                     "case discriminator is not an integer constant");

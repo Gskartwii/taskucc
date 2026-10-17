@@ -1,6 +1,7 @@
 #include "codegen.h"
 #include "call_itf.h"
 #include "compile.h"
+#include "global_object.h"
 #include "machine.h"
 #include "target/aarch64-linux/registers.h"
 #include "target/codegen.h"

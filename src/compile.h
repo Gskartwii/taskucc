@@ -6,26 +6,6 @@
 #include "dynhash.h"
 #include "target/target.h"
 
-struct tacc_global_object {
-    uint32_t name_ref;
-
-    tacc_bool is_enumerator;
-    union {
-        struct tacc_u64 *enumerator_value;
-        struct tacc_type *obj_type;
-    } extra;
-};
-
-DECL_DYNHASH_OVER_U32(tacc_global_object_map,
-                      tacc_global_object_map_entry,
-                      struct tacc_global_object *,
-                      tacc_global_object_map_new,
-                      tacc_global_object_map_init,
-                      tacc_global_object_map_get,
-                      tacc_global_object_map_insert,
-                      tacc_global_object_map_fill_count,
-                      tacc_global_object_map_free)
-
 struct tacc_named_type {
     uint32_t name;
     struct tacc_type *type;
@@ -78,6 +58,8 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
 void tacc_compile_output_directive(struct tacc_compiler *compiler,
                                    char *directive_fmt,
                                    ...);
+struct tacc_val *tacc_compile_const_eval(struct tacc_compiler *compiler,
+                                         struct tacc_expr *expr);
 struct tacc_type *
 tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                                  struct tacc_type *base_type,

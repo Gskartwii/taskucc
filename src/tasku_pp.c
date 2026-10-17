@@ -1960,6 +1960,17 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
     tacc_file_iter_free(iter);
 }
 
+static struct tacc_val *tacc_pp_const_eval(struct tacc_tok_iter *iter,
+                                           struct tacc_expr *expr) {
+    struct tacc_eval_context ctx;
+
+    ctx.basic_types = iter->state->basic_types;
+    ctx.target = iter->state->target;
+    ctx.global_objects = NULL;
+
+    return tacc_expr_const_eval(expr, &ctx);
+}
+
 /* first: borrow, iter: owning */
 static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
                                     struct tacc_file_iter *iter) {
@@ -1987,8 +1998,7 @@ static void tacc_tok_iter_handle_if(struct tacc_tok_iter *first,
     expr = tacc_parse_new_expr(registry, tok_iter);
     tacc_parse_registry_free(registry);
 
-    val = tacc_expr_const_eval(
-        expr, first->state->target, first->state->basic_types);
+    val = tacc_pp_const_eval(first, expr);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(ASSERT_DIAG,
@@ -2057,8 +2067,7 @@ static void tacc_tok_iter_handle_elif(struct tacc_tok_iter *first,
     expr = tacc_parse_new_expr(registry, tok_iter);
     tacc_parse_registry_free(registry);
 
-    val = tacc_expr_const_eval(
-        expr, first->state->target, first->state->basic_types);
+    val = tacc_pp_const_eval(first, expr);
 
     tok = tacc_tok_iter_next(tok_iter);
     tacc_assert(ASSERT_DIAG,

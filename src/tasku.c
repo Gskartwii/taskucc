@@ -3,6 +3,7 @@
 #include "dynstring.h"
 #include "format.h"
 #include "gcc_compat.h"
+#include "global_object.h"
 #include "parse.h"
 #include "string_list.h"
 #include "target/target.h"
