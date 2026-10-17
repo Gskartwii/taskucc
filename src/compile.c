@@ -16,7 +16,7 @@ static void tacc_ident_free(uint32_t ident) { TACC_UNUSED(ident); }
 
 static void tacc_global_object_free(struct tacc_global_object *obj) {
     if (obj->is_enumerator) {
-        tacc_val_free(obj->extra.enumerator_value);
+        tacc_free(obj->extra.enumerator_value);
     }
     tacc_free(obj);
 }
@@ -278,17 +278,16 @@ static struct tacc_type *tacc_eval_enumerators(
                             tacc_u64_sle(val->value.int_value,
                                          compiler->target->sint->max),
                         "enumerator value out of range");
-            obj->extra.enumerator_value = val;
+            obj->extra.enumerator_value = tacc_u64_new();
+            tacc_u64_copy(obj->extra.enumerator_value, val->value.int_value);
             tacc_u64_copy(&counter, val->value.int_value);
+            tacc_val_free(val);
         } else {
             tacc_assert(ASSERT_DIAG,
                         counter.low != 0xFFFFFFFF || counter.high != 0xFFFFFFFF,
                         "enumerator overflow when implicitly incrementing");
-            val = tacc_val_new();
-            val->type = tacc_get_basic_type(compiler->basic_types, TYK_SINT);
-            val->value.int_value = tacc_u64_new();
-            tacc_u64_copy(val->value.int_value, &counter);
-            obj->extra.enumerator_value = val;
+            obj->extra.enumerator_value = tacc_u64_new();
+            tacc_u64_copy(obj->extra.enumerator_value, &counter);
         }
         tacc_u64_add_u32(&counter, &counter, 1);
         tacc_compile_add_global_object(compiler, obj);
@@ -742,7 +741,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                 tacc_type_list_push(compiler->anonymous_types, ty);
             }
         }
-        return ty;
+        return ty->extra.enumeration->underlying_type;
     case TYPESPEC_STRUCT:
     case TYPESPEC_UNION:
         if (typespec == TYPESPEC_STRUCT) {

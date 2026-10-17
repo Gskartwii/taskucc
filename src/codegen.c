@@ -799,10 +799,14 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
                                                         expr->extra.name_ref);
             if (global_object != NULL) {
                 if (global_object->is_enumerator) {
-                    tacc_target_cg_int(state,
-                                       global_object->extra.enumerator_value);
-                    slot = tacc_cg_get_top(state);
-                    slot->ty = global_object->extra.enumerator_value->type;
+                    val = tacc_val_new();
+                    val->type = tacc_get_basic_type(
+                        state->compiler->basic_types, TYK_SINT);
+                    val->value.int_value = tacc_u64_new();
+                    tacc_u64_copy(val->value.int_value,
+                                  global_object->extra.enumerator_value);
+                    tacc_target_cg_int(state, val);
+                    tacc_val_free(val);
                     break;
                 }
             }

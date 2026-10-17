@@ -11,7 +11,7 @@ struct tacc_global_object {
 
     tacc_bool is_enumerator;
     union {
-        struct tacc_val *enumerator_value;
+        struct tacc_u64 *enumerator_value;
         struct tacc_type *obj_type;
     } extra;
 };
