@@ -94,6 +94,10 @@ void tacc_target_cg_float_binop(struct tacc_cg_state *state,
                                 struct tacc_type *output_type);
 int tacc_target_cg_branch_if_false(struct tacc_cg_state *state,
                                    int to_label_maybe);
+uint32_t tacc_target_cg_branch_if_false_saving_reg(struct tacc_cg_state *state,
+                                                   int to_label);
+uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
+                                                  int to_label);
 int tacc_target_cg_branch(struct tacc_cg_state *state, int to_label_maybe);
 int tacc_target_cg_emit_label(struct tacc_cg_state *state, int label_id_maybe);
 void tacc_target_cg_branch_named_label(struct tacc_cg_state *state,

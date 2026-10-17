@@ -767,6 +767,8 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
     struct tacc_slot *slot;
     struct tacc_type *ty;
     int index;
+    uint32_t saved_reg;
+    int label_end;
 
     switch (expr->kind) {
     case EX_INT_LIT:
@@ -963,10 +965,36 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
                            expr->extra.type->type_extension));
         break;
 
+    case EX_AND:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        label_end = tacc_cg_new_label(state);
+        saved_reg = tacc_target_cg_branch_if_false_saving_reg(state, label_end);
+
+        tacc_cg_compile_expr(state, expr->op2);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        tacc_cg_ensure_top_is_single(state, saved_reg);
+        tacc_target_cg_emit_label(state, label_end);
+        break;
+
+    case EX_OR:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        label_end = tacc_cg_new_label(state);
+        saved_reg = tacc_target_cg_branch_if_true_saving_reg(state, label_end);
+
+        tacc_cg_compile_expr(state, expr->op2);
+        tacc_cg_const_sint(state, 0);
+        tacc_cg_binop(state, EX_NE);
+        tacc_cg_ensure_top_is_single(state, saved_reg);
+        tacc_target_cg_emit_label(state, label_end);
+        break;
+
     case EX_UNINIT:
     case EX_CHAR_LIT:
-    case EX_AND:
-    case EX_OR:
     case EX_ADD_ASSI:
     case EX_SUB_ASSI:
     case EX_MUL_ASSI:

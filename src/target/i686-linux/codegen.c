@@ -1443,3 +1443,41 @@ void tacc_target_cg_emit_named_label(struct tacc_cg_state *state,
                    tacc_cg_func_name_as_str(state),
                    tacc_dynstring_as_str(name));
 }
+
+uint32_t tacc_target_cg_branch_if_false_saving_reg(struct tacc_cg_state *state,
+                                                   int to_label) {
+    uint32_t b_reg;
+
+    b_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t testl %s, %s",
+                   tacc_target_register_as_32(b_reg),
+                   tacc_target_register_as_32(b_reg));
+    tacc_cg_output(state,
+                   "\n\t jz .Ltacc_%s_%d",
+                   tacc_cg_func_name_as_str(state),
+                   to_label);
+
+    return b_reg;
+}
+
+uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
+                                                  int to_label) {
+    uint32_t b_reg;
+
+    b_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t testl %s, %s",
+                   tacc_target_register_as_32(b_reg),
+                   tacc_target_register_as_32(b_reg));
+    tacc_cg_output(state,
+                   "\n\t jnz .Ltacc_%s_%d",
+                   tacc_cg_func_name_as_str(state),
+                   to_label);
+
+    return b_reg;
+}
