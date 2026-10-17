@@ -178,7 +178,9 @@ uint32_t tacc_u64_sub_u32(struct tacc_u64 *to,
 void tacc_u64_mul(struct tacc_u64 *to,
                   struct tacc_u64 *left,
                   struct tacc_u64 *right) {
-    uint32_t low = left->low * right->low;
+    uint32_t low;
+
+    low = left->low * right->low;
     to->high =
         (left->low >> ((unsigned) 16)) * (right->low >> ((unsigned) 16)) +
         left->high * right->low + left->low * right->high;
@@ -188,7 +190,9 @@ void tacc_u64_mul(struct tacc_u64 *to,
 void tacc_u64_mul_u32(struct tacc_u64 *to,
                       struct tacc_u64 *left,
                       uint32_t right) {
-    uint32_t low = left->low * right;
+    uint32_t low;
+
+    low = left->low * right;
     to->high = (left->low >> ((unsigned) 16)) * (right >> ((unsigned) 16)) +
                left->high * right;
     to->low = low;
@@ -307,8 +311,11 @@ tacc_bool tacc_u64_uge(struct tacc_u64 *left, struct tacc_u64 *right) {
            (left->high == right->high && left->low >= right->low);
 }
 tacc_bool tacc_u64_slt(struct tacc_u64 *left, struct tacc_u64 *right) {
-    int32_t l_hi = (int32_t) (left->high);
-    int32_t r_hi = (int32_t) (right->high);
+    int32_t l_hi;
+    int32_t r_hi;
+
+    l_hi = (int32_t) (left->high);
+    r_hi = (int32_t) (right->high);
 
     if (l_hi < r_hi) {
         return 1;
@@ -326,8 +333,11 @@ tacc_bool tacc_u64_slt_s32(struct tacc_u64 *left, int32_t right) {
 }
 
 tacc_bool tacc_u64_sgt(struct tacc_u64 *left, struct tacc_u64 *right) {
-    int32_t l_hi = (int32_t) (left->high);
-    int32_t r_hi = (int32_t) (right->high);
+    int32_t l_hi;
+    int32_t r_hi;
+
+    l_hi = (int32_t) (left->high);
+    r_hi = (int32_t) (right->high);
 
     if (l_hi < r_hi) {
         return 0;
@@ -345,8 +355,11 @@ tacc_bool tacc_u64_sgt_s32(struct tacc_u64 *left, int32_t right) {
 }
 
 tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right) {
-    int32_t l_hi = (int32_t) (left->high);
-    int32_t r_hi = (int32_t) (right->high);
+    int32_t l_hi;
+    int32_t r_hi;
+
+    l_hi = (int32_t) (left->high);
+    r_hi = (int32_t) (right->high);
 
     if (l_hi < r_hi) {
         return 1;
@@ -357,8 +370,11 @@ tacc_bool tacc_u64_sle(struct tacc_u64 *left, struct tacc_u64 *right) {
     return left->low <= right->low;
 }
 tacc_bool tacc_u64_sge(struct tacc_u64 *left, struct tacc_u64 *right) {
-    int32_t l_hi = (int32_t) (left->high);
-    int32_t r_hi = (int32_t) (right->high);
+    int32_t l_hi;
+    int32_t r_hi;
+
+    l_hi = (int32_t) (left->high);
+    r_hi = (int32_t) (right->high);
 
     if (l_hi < r_hi) {
         return 0;
@@ -421,8 +437,9 @@ void tacc_u64_sdiv(struct tacc_u64 *quot,
                    struct tacc_u64 *rem,
                    struct tacc_u64 *dividend,
                    struct tacc_u64 *divisor) {
-    tacc_bool result_negative =
-        tacc_u64_sign(dividend) != tacc_u64_sign(divisor);
+    tacc_bool result_negative;
+
+    result_negative = tacc_u64_sign(dividend) != tacc_u64_sign(divisor);
     if (tacc_u64_sign(dividend)) {
         tacc_u64_neg(dividend, dividend);
     }
