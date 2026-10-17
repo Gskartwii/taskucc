@@ -1279,6 +1279,8 @@ static void tacc_parse_tagged(enum pp_ident_kind kind,
             existing = tacc_parse_registry_lookup_tagged(
                 registry, tacc_dynstring_as_str(tag_name));
             name_ref = existing->name_ref;
+            tacc_dynstring_free(tag_name);
+            tag_name = NULL;
         } else {
             name_ref = tacc_parse_registry_intern(registry, tag_name);
             if (kind == ID_ENUM) {

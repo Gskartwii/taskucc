@@ -1410,6 +1410,8 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
                     "case discriminator is not an integer constant");
         switch_case->label = tacc_target_cg_emit_label(state, 0);
         switch_case->discriminator = val;
+        tacc_cg_switch_case_list_push(curr_switch_entry->content->cases,
+                                      switch_case);
 
         break;
     case STMT_DEFAULT:
@@ -1447,6 +1449,7 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
 
         tacc_target_cg_emit_label(state, label_continue);
         tacc_cg_end_switch(state, controlling_expr_scratch_offset, ty);
+        tacc_cg_switch_free(tacc_cg_switch_list_pop(state->switch_stack));
 
         tacc_target_cg_emit_label(state, label_end);
         break;

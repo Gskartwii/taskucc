@@ -384,7 +384,8 @@ tacc_type_adjust_from_declarator(struct tacc_compiler *compiler,
                         dimension,
                         tacc_get_basic_type(compiler->basic_types, TYK_UINT));
                     curr_type->extra.array->dimension =
-                        dimension->value.int_value;
+                        tacc_u64_clone(dimension->value.int_value);
+                    tacc_val_free(dimension);
                 } else {
                     curr_type->kind = TYK_VLA;
                     curr_type->extra.vla_size_expr =

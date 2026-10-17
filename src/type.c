@@ -275,6 +275,22 @@ enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     }
 }
 
+void tacc_struct_type_free(struct tacc_struct_type *type) {
+    tacc_field_list_free(type->fields);
+    tacc_free(type->fields);
+    tacc_free(type);
+}
+
+void tacc_union_type_free(struct tacc_union_type *type) {
+    tacc_field_list_free(type->fields);
+    tacc_free(type->fields);
+    tacc_free(type);
+}
+
+void tacc_enumeration_type_free(struct tacc_enumeration_type *type) {
+    tacc_free(type);
+}
+
 void tacc_type_free(struct tacc_type *type) {
     switch (type->kind) {
     case TYK_ARRAY:
@@ -285,6 +301,21 @@ void tacc_type_free(struct tacc_type *type) {
         break;
     case TYK_FN:
         tacc_function_type_free(type->extra.function);
+        break;
+    case TYK_STRUCT:
+        if (type->extra.structure != NULL) {
+            tacc_struct_type_free(type->extra.structure);
+        }
+        break;
+    case TYK_UNION:
+        if (type->extra.onion != NULL) {
+            tacc_union_type_free(type->extra.onion);
+        }
+        break;
+    case TYK_ENUM:
+        if (type->extra.enumeration != NULL) {
+            tacc_enumeration_type_free(type->extra.enumeration);
+        }
         break;
     default:
         break;
@@ -549,9 +580,7 @@ struct tacc_field *tacc_field_new(void) {
 }
 
 void tacc_field_free(struct tacc_field *field) {
-    if (field->name != NULL) {
-        tacc_dynstring_free(field->name);
-    }
+    /* field names are interned and should not be freed here */
     tacc_free(field);
 }
 
