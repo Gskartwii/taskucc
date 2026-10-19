@@ -161,13 +161,9 @@ struct tacc_funcdef {
     struct tacc_compound_member_list *statements;
 };
 
-enum tacc_init_designator_kind {
-    DESIGNATOR_NONE,
-    DESIGNATOR_NAMED,
-    DESIGNATOR_EXPR
-};
+enum tacc_init_designator_kind { DESIGNATOR_NAMED, DESIGNATOR_EXPR };
 
-struct tacc_sub_initializer {
+struct tacc_designator {
     enum tacc_init_designator_kind designator_kind;
     union {
         /* owning */
@@ -176,6 +172,11 @@ struct tacc_sub_initializer {
         /* owning */
         struct tacc_expr *expr;
     } designator;
+};
+
+struct tacc_sub_initializer {
+    /* owning */
+    struct tacc_designator_list *designator_chain;
 
     /* owning */
     struct tacc_initializer *value;
@@ -247,6 +248,17 @@ DECL_DYNARRAY_OVER(tacc_init_declarator_list,
                    tacc_init_declarator_list_len,
                    tacc_init_declarator_list_free)
 
+DECL_DYNARRAY_OVER(tacc_designator_list,
+                   tacc_designator_list_entry,
+                   struct tacc_designator *,
+                   tacc_designator_list_new,
+                   tacc_designator_list_init,
+                   tacc_designator_list_get,
+                   tacc_designator_list_push,
+                   tacc_designator_list_pop,
+                   tacc_designator_list_len,
+                   tacc_designator_list_free)
+
 DECL_DYNARRAY_OVER(tacc_sub_initializer_list,
                    tacc_sub_initializer_list_entry,
                    struct tacc_sub_initializer *,
@@ -314,6 +326,7 @@ void tacc_initializer_free(struct tacc_initializer *initializer);
 void tacc_sub_initializer_free(struct tacc_sub_initializer *sub_initializer);
 void tacc_init_declarator_free(struct tacc_init_declarator *init_declarator);
 void tacc_declarator_free(struct tacc_declarator *declarator);
+void tacc_designator_free(struct tacc_designator *designator);
 void tacc_decl_type_free(struct tacc_decl_type *ty);
 void tacc_struct_decl_free(struct tacc_struct_decl *decl);
 
@@ -321,6 +334,7 @@ struct tacc_enumerator *tacc_enumerator_new(void);
 struct tacc_declarator *tacc_declarator_new(void);
 struct tacc_init_declarator *tacc_init_declarator_new(void);
 struct tacc_initializer *tacc_initializer_new(void);
+struct tacc_designator *tacc_designator_new(void);
 struct tacc_sub_initializer *tacc_sub_initializer_new(void);
 struct tacc_function_param *tacc_function_param_new(void);
 struct tacc_array_declarator *tacc_array_declarator_new(void);

@@ -1,6 +1,7 @@
 #include "decl.h"
 #include "attribute.h"
 #include "dynarray.h"
+#include "dynstring.h"
 #include "expr.h"
 #include "statement.h"
 #include "string_list.h"
@@ -40,6 +41,18 @@ MK_DYNARRAY_OVER(tacc_init_declarator_list,
                  tacc_init_declarator_list_len,
                  tacc_init_declarator_free,
                  tacc_init_declarator_list_free)
+
+MK_DYNARRAY_OVER(tacc_designator_list,
+                 tacc_designator_list_entry,
+                 struct tacc_designator *,
+                 tacc_designator_list_new,
+                 tacc_designator_list_init,
+                 tacc_designator_list_get,
+                 tacc_designator_list_push,
+                 tacc_designator_list_pop,
+                 tacc_designator_list_len,
+                 tacc_designator_free,
+                 tacc_designator_list_free)
 
 MK_DYNARRAY_OVER(tacc_sub_initializer_list,
                  tacc_sub_initializer_list_entry,
@@ -328,10 +341,9 @@ void tacc_decl_type_free(struct tacc_decl_type *ty) {
 }
 
 void tacc_sub_initializer_free(struct tacc_sub_initializer *sub_initializer) {
-    if (sub_initializer->designator_kind == DESIGNATOR_EXPR) {
-        tacc_expr_free(sub_initializer->designator.expr);
-    } else if (sub_initializer->designator_kind == DESIGNATOR_NAMED) {
-        tacc_dynstring_free(sub_initializer->designator.name);
+    if (sub_initializer->designator_chain != NULL) {
+        tacc_designator_list_free(sub_initializer->designator_chain);
+        tacc_free(sub_initializer->designator_chain);
     }
     tacc_initializer_free(sub_initializer->value);
     tacc_free(sub_initializer);
@@ -355,11 +367,19 @@ void tacc_init_declarator_free(struct tacc_init_declarator *init_declarator) {
     tacc_free(init_declarator);
 }
 
+void tacc_designator_free(struct tacc_designator *designator) {
+    if (designator->designator_kind == DESIGNATOR_EXPR) {
+        tacc_expr_free(designator->designator.expr);
+    } else {
+        tacc_dynstring_free(designator->designator.name);
+    }
+    tacc_free(designator);
+}
+
 struct tacc_sub_initializer *tacc_sub_initializer_new(void) {
     struct tacc_sub_initializer *sub_initializer;
 
     sub_initializer = tacc_malloc(sizeof(struct tacc_sub_initializer));
-    sub_initializer->designator_kind = DESIGNATOR_NONE;
     sub_initializer->value = NULL;
 
     return sub_initializer;
@@ -373,6 +393,16 @@ struct tacc_initializer *tacc_initializer_new(void) {
     initializer->value.expr = NULL;
 
     return initializer;
+}
+
+struct tacc_designator *tacc_designator_new(void) {
+    struct tacc_designator *designator;
+
+    designator = tacc_malloc(sizeof(struct tacc_designator));
+    designator->designator_kind = DESIGNATOR_EXPR;
+    designator->designator.expr = NULL;
+
+    return designator;
 }
 
 struct tacc_init_declarator *tacc_init_declarator_new(void) {

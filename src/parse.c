@@ -2093,11 +2093,62 @@ static struct tacc_decl_list *tacc_parse_old_style_param_types(
     return old_style_param_list;
 }
 
+static struct tacc_designator_list *tacc_parse_designator_chain(
+    struct tacc_tok_iter *iter, struct tacc_parse_registry *registry) {
+    struct pp_tok *tok;
+    struct tacc_designator *designator;
+    struct tacc_designator_list *chain;
+    tacc_bool is_dot;
+
+    chain = NULL;
+
+    while (1) {
+        if (tacc_tok_iter_accept_tok(iter, TOK_DOT)) {
+            is_dot = 1;
+        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
+            is_dot = 0;
+        } else {
+            break;
+        }
+        designator = tacc_designator_new();
+        if (chain == NULL) {
+            chain = tacc_designator_list_new();
+        }
+        tacc_designator_list_push(chain, designator);
+
+        if (is_dot) {
+            designator->designator_kind = DESIGNATOR_NAMED;
+            tok = tacc_tok_iter_next(iter);
+            tacc_parse_assert(iter,
+                              tok->kind == TOK_IDENT &&
+                                  tok->ident_kind == ID_OTHER,
+                              "expected field name after . in initializer");
+            designator->designator.name = tacc_dynstring_clone(tok->str);
+            tacc_pp_tok_free(tok);
+            tok = NULL;
+        } else {
+            designator->designator_kind = DESIGNATOR_EXPR;
+            designator->designator.expr =
+                tacc_parse_new_constant_expression(registry, iter);
+            tacc_parse_assert(iter,
+                              tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
+                              "expected ] to end initializer designator");
+        }
+    }
+
+    if (chain != NULL) {
+        tacc_parse_assert(iter,
+                          tacc_tok_iter_accept_tok(iter, TOK_EQ),
+                          "expected = after initializer designator");
+    }
+
+    return chain;
+}
+
 static struct tacc_initializer *tacc_parse_initializer(
     struct tacc_tok_iter *iter, struct tacc_parse_registry *registry) {
     struct tacc_initializer *initializer;
     struct tacc_sub_initializer *sub_initializer;
-    struct pp_tok *tok;
 
     initializer = tacc_initializer_new();
 
@@ -2113,30 +2164,8 @@ static struct tacc_initializer *tacc_parse_initializer(
     while (!tacc_tok_iter_accept_tok(iter, TOK_RBRACKET)) {
         sub_initializer = tacc_sub_initializer_new();
 
-        if (tacc_tok_iter_accept_tok(iter, TOK_DOT)) {
-            sub_initializer->designator_kind = DESIGNATOR_NAMED;
-            tok = tacc_tok_iter_next(iter);
-            tacc_parse_assert(iter,
-                              tok->kind == TOK_IDENT &&
-                                  tok->ident_kind == ID_OTHER,
-                              "expected field name after . in initializer");
-            sub_initializer->designator.name = tacc_dynstring_clone(tok->str);
-            tacc_pp_tok_free(tok);
-            tok = NULL;
-            tacc_parse_assert(iter,
-                              tacc_tok_iter_accept_tok(iter, TOK_EQ),
-                              "expected = after initializer designator");
-        } else if (tacc_tok_iter_accept_tok(iter, TOK_LBRACE)) {
-            sub_initializer->designator_kind = DESIGNATOR_EXPR;
-            sub_initializer->designator.expr =
-                tacc_parse_new_constant_expression(registry, iter);
-            tacc_parse_assert(iter,
-                              tacc_tok_iter_accept_tok(iter, TOK_RBRACE),
-                              "expected ] to end initializer designator");
-            tacc_parse_assert(iter,
-                              tacc_tok_iter_accept_tok(iter, TOK_EQ),
-                              "expected = after initializer designator");
-        }
+        sub_initializer->designator_chain =
+            tacc_parse_designator_chain(iter, registry);
         sub_initializer->value = tacc_parse_initializer(iter, registry);
 
         tacc_sub_initializer_list_push(initializer->value.list,

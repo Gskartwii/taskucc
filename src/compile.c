@@ -207,7 +207,7 @@ static void tacc_compile_data(struct tacc_compiler *compiler,
                 entry =
                     tacc_sub_initializer_list_get(initializer->value.list, 0);
                 tacc_assert(ASSERT_DIAG,
-                            entry->content->designator_kind == DESIGNATOR_NONE,
+                            entry->content->designator_chain == NULL,
                             "designator used on scalar");
                 tacc_assert(ASSERT_DIAG,
                             entry->content->value->plain_expr,
