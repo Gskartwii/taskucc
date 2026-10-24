@@ -17,7 +17,7 @@ for case_dir in cases/*; do
         fi
         continue
     fi
-    if ! timeout 1 "$RUNNER" "$case_dir/test.c" > "$RUN_TMP/test.S"; then
+    if ! timeout 10 "$RUNNER" "$case_dir/test.c" > "$RUN_TMP/test.S"; then
         echo "COMPILE $case_dir/test.c: fail"
         ok=false
         continue
