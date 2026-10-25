@@ -394,13 +394,14 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     cstr_last = cstr_last + 1;
     *cstr_last = 0;
 
-    iter = tacc_file_iter_new_str(cstr_orig, cstr_last);
+    iter = tacc_file_iter_new_str(cstr, cstr_last);
 
     literal = tacc_int_literal_new();
     limit.high = 0xFFFFFFFF;
     limit.low = 0xFFFFFFFF;
     intscan(iter, base, &limit, literal->number);
 
+    iter->orig = cstr_orig;
     tacc_file_iter_free(iter);
     literal->base = base;
     if (count_l == 2) {
