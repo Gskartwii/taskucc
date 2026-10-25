@@ -259,7 +259,7 @@ static tacc_bool tacc_init_position_advance(struct tacc_init_eval_ctx *ctx,
         if (ty->kind == TYK_ARRAY || ty->kind == TYK_INCOMPLETE_ARRAY) {
             if (ty->kind == TYK_ARRAY) {
                 if (last_position_in_parent >=
-                    ty->extra.array->dimension->low) {
+                    (ty->extra.array->dimension->low - 1)) {
                     /* rewind */
                     continue;
                 }
@@ -270,6 +270,7 @@ static tacc_bool tacc_init_position_advance(struct tacc_init_eval_ctx *ctx,
                 last_offset +
                 (int) (tacc_type_size(ty->extra.array->element_type));
             position->type = ty->extra.array->element_type;
+            tacc_init_position_list_push(ctx->position, position);
             break;
         }
         if (ty->kind == TYK_UNION) {
@@ -279,7 +280,7 @@ static tacc_bool tacc_init_position_advance(struct tacc_init_eval_ctx *ctx,
                     ty->kind == TYK_STRUCT,
                     "advancing init position within invalid type");
         if (last_position_in_parent >=
-            tacc_field_list_len(ty->extra.structure->fields)) {
+            (tacc_field_list_len(ty->extra.structure->fields) - 1)) {
             continue;
         }
         field_entry = tacc_field_list_get(ty->extra.structure->fields,
@@ -289,6 +290,7 @@ static tacc_bool tacc_init_position_advance(struct tacc_init_eval_ctx *ctx,
         position->start_offset =
             entry->content->start_offset + (int) (field_entry->content->offset);
         position->type = field_entry->content->type;
+        tacc_init_position_list_push(ctx->position, position);
         break;
     }
     return 0;
@@ -309,7 +311,6 @@ static void tacc_init_gen_commands(struct tacc_initializer *initializer,
          i = i + 1) {
         entry = tacc_sub_initializer_list_get(initializer->value.list, i);
         if (entry->content->designator_chain != NULL) {
-            tacc_init_position_list_free(ctx->position);
             tacc_init_position_update(
                 entry->content->designator_chain, ctx, entry_depth);
         } else {
