@@ -22,6 +22,8 @@ DECL_DYNARRAY_OVER(tacc_init_command_list,
                    tacc_init_command_list_len,
                    tacc_init_command_list_free)
 
+void tacc_init_command_free(struct tacc_init_command *cmd);
+
 struct tacc_init_command_list *
 tacc_init_evaluate_initializer(struct tacc_initializer *initializer,
                                struct tacc_type *initialized_type,

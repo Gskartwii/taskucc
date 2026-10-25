@@ -4,6 +4,7 @@
 #include "dynstring.h"
 #include "expr.h"
 #include "global_object.h"
+#include "initializer.h"
 #include "machine.h"
 #include "predef_func.h"
 #include "soft_float.h"
@@ -101,80 +102,6 @@ static void tacc_compile_output_int(struct tacc_compiler *compiler,
     }
 }
 
-static void tacc_compile_val(struct tacc_compiler *compiler,
-                             struct tacc_val *val,
-                             struct tacc_string *name,
-                             enum tacc_storage_class storage) {
-    size_t bits;
-    size_t alignment;
-
-    tacc_compile_output_directive(compiler, "data");
-    if (storage == STORAGE_EXTERN || storage == STORAGE_UNSPECIFIED) {
-        tacc_compile_output_directive(
-            compiler, "global %s", tacc_dynstring_as_str(name));
-    } else {
-        tacc_assert(ASSERT_DIAG,
-                    storage == STORAGE_STATIC,
-                    "unexpected storage class on %s",
-                    tacc_dynstring_as_str(name));
-    }
-    tacc_compile_output_directive(
-        compiler, "type %s, %%object", tacc_dynstring_as_str(name));
-
-    if (tacc_type_is_integral(val->type)) {
-        bits = tacc_type_bit_width(val->type);
-        alignment = tacc_type_alignment_p2(val->type);
-
-        tacc_compile_output_directive(compiler, "p2align %d", (int) alignment);
-        tacc_compile_output(compiler, "\n%s:", tacc_dynstring_as_str(name));
-
-        tacc_compile_output_int(compiler, val->value.int_value, bits);
-        return;
-    }
-
-    switch (val->type->kind) {
-    case TYK_FLOAT:
-        tacc_assert(ASSERT_TODO, 0, "float support");
-        return;
-    case TYK_DOUBLE:
-        tacc_assert(ASSERT_TODO, 0, "float support");
-        return;
-    case TYK_LONGDOUBLE:
-        tacc_assert(ASSERT_TODO, 0, "float support");
-        return;
-    case TYK_VOID:
-        tacc_assert(ASSERT_TODO, 0, "cannot output value of void type");
-        return;
-    case TYK_PTR:
-        bits = tacc_type_bit_width(val->type);
-        alignment = tacc_type_alignment_p2(val->type);
-        tacc_assert(ASSERT_TODO,
-                    val->value.ptr_value->base_name == NULL,
-                    "compile non-NULL ptr constant");
-        tacc_compile_output_directive(compiler, "p2align %d", (int) alignment);
-        tacc_compile_output_int(compiler, val->value.ptr_value->offset, bits);
-        break;
-    case TYK_STRUCT:
-        tacc_assert(ASSERT_TODO, 0, "compile struct constant");
-        break;
-    case TYK_UNION:
-        tacc_assert(ASSERT_TODO, 0, "compile union constant");
-        break;
-    case TYK_ENUM:
-        tacc_assert(ASSERT_TODO, 0, "compile enum constant");
-        break;
-    case TYK_ARRAY:
-        tacc_assert(ASSERT_TODO, 0, "compile array constant");
-        break;
-    case TYK_FN:
-        tacc_assert(ASSERT_TODO, 0, "compile fn constant (?)");
-        break;
-    default:
-        tacc_assert(ASSERT_ICE, 0, "unexpected type kind");
-        return;
-    }
-}
-
 struct tacc_val *tacc_compile_const_eval(struct tacc_compiler *compiler,
                                          struct tacc_expr *expr) {
     struct tacc_eval_context ctx;
@@ -186,45 +113,84 @@ struct tacc_val *tacc_compile_const_eval(struct tacc_compiler *compiler,
     return tacc_expr_const_eval(expr, &ctx);
 }
 
+static void tacc_compile_serialize_int(char *buf,
+                                       struct tacc_type *as_type,
+                                       struct tacc_val *val) {
+    char *pos;
+    size_t length;
+    size_t i;
+    struct tacc_u64 aux;
+
+    length = tacc_type_size(as_type);
+    for (i = 0; i < length; i = i + 1) {
+        tacc_u64_rsh_n(&aux, val->value.int_value, (int) (8 * i));
+        pos = buf + i;
+        *pos = (char) (aux.low & 0xFF);
+    }
+}
+
 static void tacc_compile_data(struct tacc_compiler *compiler,
                               struct tacc_type *for_type,
                               struct tacc_string *name,
                               struct tacc_initializer *initializer,
                               enum tacc_storage_class storage) {
-    struct tacc_sub_initializer_list_entry *entry;
-    struct tacc_expr *expr;
+    struct tacc_eval_context ctx;
+    struct tacc_init_command_list *cmd_list;
+    struct tacc_init_command_list_entry *entry;
     struct tacc_val *val;
+    size_t obj_size;
+    size_t i;
+    char *obj_buf;
+    char *obj_location;
 
-    if (tacc_type_is_scalar(for_type)) {
-        if (initializer == NULL) {
-            val = tacc_val_zero(for_type);
-        } else {
-            if (!initializer->plain_expr) {
-                tacc_assert(
-                    ASSERT_DIAG,
-                    tacc_sub_initializer_list_len(initializer->value.list) == 1,
-                    "multiple initializers for a scalar");
-                entry =
-                    tacc_sub_initializer_list_get(initializer->value.list, 0);
-                tacc_assert(ASSERT_DIAG,
-                            entry->content->designator_chain == NULL,
-                            "designator used on scalar");
-                tacc_assert(ASSERT_DIAG,
-                            entry->content->value->plain_expr,
-                            "nested braced initializers for scalar");
-                expr = entry->content->value->value.expr;
-            } else {
-                expr = initializer->value.expr;
-            }
-            val = tacc_compile_const_eval(compiler, expr);
-            tacc_val_convert(val, for_type);
-            val->type = for_type;
-        }
-        tacc_compile_val(compiler, val, name, storage);
+    ctx.basic_types = compiler->basic_types;
+    ctx.global_objects = compiler->global_objects;
+    ctx.target = compiler->target;
+
+    /* may update for_type to turn it from incomplete to complete array */
+    cmd_list = tacc_init_evaluate_initializer(initializer, for_type, &ctx);
+    obj_size = tacc_type_size(for_type);
+    obj_buf = tacc_malloc(obj_size);
+    memset(obj_buf, 0, obj_size);
+
+    /*
+     * TODO: we take sizeof() at eval time; this means types defined therein
+     * would be defined at eval time... ugh.
+     */
+    for (i = 0; i < tacc_init_command_list_len(cmd_list); i = i + 1) {
+        entry = tacc_init_command_list_get(cmd_list, i);
+        obj_location = obj_buf + entry->content->offset;
+        tacc_assert(ASSERT_TODO,
+                    tacc_type_is_integral(entry->content->as_type),
+                    "non-integral static initializers");
+        val = tacc_expr_const_eval(entry->content->stored_expr, &ctx);
+        tacc_assert(
+            ASSERT_DIAG, val != NULL, "non-constant static initializer");
+        tacc_compile_serialize_int(obj_location, entry->content->as_type, val);
         tacc_val_free(val);
-        return;
+        val = NULL;
     }
-    tacc_assert(ASSERT_TODO, 0, "non-scalar data");
+    tacc_init_command_list_free(cmd_list);
+    tacc_free(cmd_list);
+    cmd_list = NULL;
+
+    tacc_compile_output_directive(compiler, "data");
+    if (storage == STORAGE_UNSPECIFIED || storage == STORAGE_EXTERN) {
+        tacc_compile_output_directive(
+            compiler, "global %s", tacc_dynstring_as_str(name));
+    }
+    tacc_compile_output_directive(
+        compiler, "type %s, %%object", tacc_dynstring_as_str(name));
+    tacc_compile_output(compiler, "\n%s:", tacc_dynstring_as_str(name));
+    tacc_compile_output_directive(
+        compiler, "p2align %d", tacc_type_alignment_p2(for_type));
+    for (i = 0; i < obj_size; i = i + 1) {
+        obj_location = obj_buf + i;
+        tacc_compile_output_directive(
+            compiler, "byte 0x%x", (uint32_t) ((*obj_location) & 0xFF));
+    }
+    tacc_free(obj_buf);
+    obj_buf = NULL;
 }
 
 static struct tacc_type *tacc_eval_enumerators(

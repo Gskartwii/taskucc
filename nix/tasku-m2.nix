@@ -67,6 +67,7 @@
     "type.h"
     "global_object.h"
     "machine.h"
+    "initializer.h"
     "expr.h"
     "target/${stdenvNoCC.targetPlatform.system}/registers.h"
     "target/call_itf.h"

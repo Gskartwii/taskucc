@@ -1,12 +1,24 @@
 #include "initializer.h"
-#include "compile.h"
 #include "decl.h"
 #include "dynarray.h"
 #include "dynstring.h"
 #include "expr.h"
 #include "machine.h"
+#include "soft_u64.h"
 #include "type.h"
 #include "util.h"
+
+MK_DYNARRAY_OVER(tacc_init_command_list,
+                 tacc_init_command_list_entry,
+                 struct tacc_init_command *,
+                 tacc_init_command_list_new,
+                 tacc_init_command_list_init,
+                 tacc_init_command_list_get,
+                 tacc_init_command_list_push,
+                 tacc_init_command_list_pop,
+                 tacc_init_command_list_len,
+                 tacc_init_command_free,
+                 tacc_init_command_list_free)
 
 struct tacc_init_eval_ctx {
     struct tacc_eval_context *const_eval_ctx;
@@ -70,11 +82,6 @@ MK_DYNARRAY_OVER(tacc_init_position_list,
                  tacc_init_position_list_len,
                  tacc_init_position_free,
                  tacc_init_position_list_free)
-
-static tacc_bool
-tacc_init_position_at_end(struct tacc_init_position_list *list) {
-    return tacc_init_position_list_len(list) == 0;
-}
 
 static struct tacc_init_position *tacc_init_position_new(void) {
     struct tacc_init_position *position;
@@ -297,6 +304,7 @@ static void tacc_init_gen_commands(struct tacc_initializer *initializer,
 
     entry_depth = tacc_init_position_list_len(ctx->position);
 
+    end_of_object = 0;
     for (i = 0; i < tacc_sub_initializer_list_len(initializer->value.list);
          i = i + 1) {
         entry = tacc_sub_initializer_list_get(initializer->value.list, i);
@@ -322,6 +330,38 @@ static void tacc_init_gen_commands(struct tacc_initializer *initializer,
     }
 }
 
+static void tacc_init_make_array_complete(struct tacc_type *initialized_type,
+                                          struct tacc_init_eval_ctx *ctx) {
+    struct tacc_init_command_list_entry *entry;
+    size_t max_size;
+    size_t end_size;
+    size_t type_size;
+    size_t i;
+
+    max_size = 0;
+
+    for (i = 0; i < tacc_init_command_list_len(ctx->init_commands); i = i + 1) {
+        entry = tacc_init_command_list_get(ctx->init_commands, i);
+        end_size = ((size_t) (entry->content->offset)) +
+                   tacc_type_size(entry->content->as_type);
+        if (end_size > max_size) {
+            max_size = end_size;
+        }
+    }
+
+    /* round up to complete units */
+    type_size = tacc_type_size(initialized_type->extra.array->element_type);
+    max_size = max_size + (type_size - (max_size % type_size));
+
+    /* make into complete array type */
+    initialized_type->kind = TYK_ARRAY;
+    initialized_type->extra.array->dimension = tacc_u64_new();
+    tacc_u64_from_u32(initialized_type->extra.array->dimension,
+                      (uint32_t) max_size);
+}
+
+void tacc_init_command_free(struct tacc_init_command *cmd) { tacc_free(cmd); }
+
 struct tacc_init_command_list *
 tacc_init_evaluate_initializer(struct tacc_initializer *initializer,
                                struct tacc_type *initialized_type,
@@ -340,9 +380,20 @@ tacc_init_evaluate_initializer(struct tacc_initializer *initializer,
 
     tacc_init_position_list_push(ctx.position, base_position);
 
-    tacc_init_gen_commands(initializer, &ctx);
+    if (initializer->plain_expr) {
+        tacc_assert(ASSERT_DIAG,
+                    tacc_type_is_scalar(initialized_type),
+                    "unbracketed initializer for non-scalar type");
+        tacc_init_store_val(initializer->value.expr, initialized_type, 0, &ctx);
+    } else {
+        tacc_init_gen_commands(initializer, &ctx);
+    }
     tacc_init_position_list_free(ctx.position);
     tacc_free(ctx.position);
+
+    if (initialized_type->kind == TYK_INCOMPLETE_ARRAY) {
+        tacc_init_make_array_complete(initialized_type, &ctx);
+    }
 
     return ctx.init_commands;
 }

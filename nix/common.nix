@@ -17,6 +17,7 @@ in {
     "soft_float.c"
     "global_object.c"
     "machine.c"
+    "initializer.c"
     "type.c"
     "expr.c"
     "attribute.c"
