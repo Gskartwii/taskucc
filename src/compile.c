@@ -1041,11 +1041,28 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         derived_type = tacc_type_adjust_from_declarator(
             compiler, type, declarator->declarator);
 
-        global_object = tacc_global_object_new();
-        global_object->is_enumerator = 0;
-        global_object->name_ref = data_name;
-        global_object->extra.obj_type = derived_type;
-        tacc_compile_add_global_object(compiler, global_object);
+        global_object = tacc_compile_resolve_global(compiler, data_name);
+        if (global_object == NULL) {
+            global_object = tacc_global_object_new();
+            global_object->is_enumerator = 0;
+            global_object->name_ref = data_name;
+            global_object->extra.obj_type = derived_type;
+            tacc_compile_add_global_object(compiler, global_object);
+        } else {
+            tacc_assert(ASSERT_DIAG,
+                        !global_object->is_enumerator,
+                        "enumerator name reused for external definition");
+            tacc_assert(ASSERT_DIAG,
+                        tacc_type_is_compatible(global_object->extra.obj_type,
+                                                derived_type),
+                        "global object redefinition has incompatible type");
+            if (declarator->initializer != NULL) {
+                tacc_assert(ASSERT_DIAG,
+                            global_object->is_tentative,
+                            "two initializers for global object");
+            }
+            /* TODO: check that storage classes are compatible */
+        }
 
         if (derived_type->kind == TYK_FN) {
             tacc_assert(ASSERT_DIAG,
@@ -1058,10 +1075,6 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
                         decl->storage_class == STORAGE_EXTERN ||
                             decl->storage_class == STORAGE_UNSPECIFIED,
                         "bad storage class on function declaration");
-            /*
-             * A forward declaration.
-             * TODO: check that type is compatible with previous declarators.
-             */
             tacc_compile_output_directive(
                 compiler,
                 "globl %s",
@@ -1070,11 +1083,17 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
             continue;
         }
 
-        tacc_compile_data(compiler,
-                          derived_type,
-                          tacc_compile_get_name(compiler, data_name),
-                          declarator->initializer,
-                          decl->storage_class);
+        if (declarator->initializer == NULL) {
+            global_object->is_tentative = 1;
+            tacc_global_object_list_push(compiler->maybe_tentative_globals,
+                                         global_object);
+        } else {
+            tacc_compile_data(compiler,
+                              derived_type,
+                              tacc_compile_get_name(compiler, data_name),
+                              declarator->initializer,
+                              decl->storage_class);
+        }
     }
     tacc_compile_output(compiler, "\n");
 }
@@ -1143,5 +1162,31 @@ struct tacc_type *tacc_get_uintptr_type(struct tacc_compiler *compiler) {
         return tacc_get_basic_type(compiler->basic_types, TYK_UINT);
     } else {
         return tacc_get_basic_type(compiler->basic_types, TYK_ULONG);
+    }
+}
+
+void tacc_compile_coda(struct tacc_compiler *compiler) {
+    struct tacc_global_object_list_entry *entry;
+    struct tacc_type *ty;
+    size_t i;
+
+    for (i = 0;
+         i < tacc_global_object_list_len(compiler->maybe_tentative_globals);
+         i = i + 1) {
+        entry =
+            tacc_global_object_list_get(compiler->maybe_tentative_globals, i);
+        if (!entry->content->is_tentative) {
+            /* defined after being initially tentative */
+            continue;
+        }
+        ty = entry->content->extra.obj_type;
+        tacc_compile_output_directive(compiler, "data");
+        tacc_compile_output_directive(
+            compiler, "p2align %d", tacc_type_alignment_p2(ty));
+        tacc_compile_output(compiler,
+                            "\n%s:",
+                            tacc_dynstring_as_str(tacc_compile_get_name(
+                                compiler, entry->content->name_ref)));
+        tacc_compile_output_directive(compiler, "zero %d", tacc_type_size(ty));
     }
 }

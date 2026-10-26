@@ -238,6 +238,7 @@ static void tacc_compile_ast(struct tacc_string_list *names,
     compiler.named_types = tacc_type_list_new();
     compiler.anonymous_types = tacc_type_list_new();
     compiler.global_objects = tacc_global_object_map_new(4096);
+    compiler.maybe_tentative_globals = tacc_global_object_list_new();
     compiler.names = names;
     compiler.predef_names = tacc_string_list_new();
     compiler.local_obj_index = 0;
@@ -249,14 +250,17 @@ static void tacc_compile_ast(struct tacc_string_list *names,
         entry = tacc_decl_list_get(ast->declarations, i);
         tacc_compile_top_decl(&compiler, entry->content);
     }
+    tacc_compile_coda(&compiler);
 
     tacc_global_object_map_free(compiler.global_objects);
+    tacc_global_object_list_free(compiler.maybe_tentative_globals);
     tacc_type_list_free(compiler.basic_types);
     tacc_type_list_free(compiler.named_types);
     tacc_type_list_free(compiler.anonymous_types);
     tacc_type_map_free(compiler.typedefs);
     tacc_string_list_free(compiler.predef_names);
     tacc_free(compiler.global_objects);
+    tacc_free(compiler.maybe_tentative_globals);
     tacc_free(compiler.anonymous_types);
     tacc_free(compiler.typedefs);
     tacc_free(compiler.basic_types);

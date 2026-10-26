@@ -39,6 +39,7 @@ struct tacc_compiler {
     struct tacc_type_list *named_types;
     struct tacc_type_map *typedefs;
     struct tacc_global_object_map *global_objects;
+    struct tacc_global_object_list *maybe_tentative_globals;
 
     /* borrow */
     struct tacc_string_list *names;
@@ -51,6 +52,7 @@ struct tacc_compiler {
 struct tacc_block_scope *tacc_block_scope_new(void);
 void tacc_block_scope_free(struct tacc_block_scope *scope);
 void tacc_compile_prelude(struct tacc_compiler *compiler);
+void tacc_compile_coda(struct tacc_compiler *compiler);
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                                            struct tacc_decl_type *type);
 void tacc_compile_top_decl(struct tacc_compiler *compiler,
