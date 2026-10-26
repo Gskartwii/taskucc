@@ -759,6 +759,30 @@ struct tacc_type *tacc_cg_push_func(struct tacc_cg_state *state,
     return object->extra.obj_type;
 }
 
+/* precondition: top must be generated from tacc_cg_compile_lval */
+static void tacc_cg_lval_to_rval(struct tacc_cg_state *state) {
+    struct tacc_slot *slot;
+    struct tacc_type *pointee;
+
+    slot = tacc_cg_get_top(state);
+    tacc_assert(ASSERT_ICE,
+                slot->ty->kind == TYK_PTR,
+                "lval compilation didn't produce pointer");
+    pointee = slot->ty->extra.pointer.pointee;
+    if (tacc_type_is_array(pointee)) {
+        slot->ty = tacc_type_to_pointer(state->compiler->target->pointer_ty,
+                                        pointee->extra.array->element_type,
+                                        1);
+    } else if (pointee->kind != TYK_FN) {
+        tacc_cg_deref(state);
+    } else {
+        /*
+         * this is a function designator. "convert" to function pointer by
+         * avoiding deref
+         */
+    }
+}
+
 static void tacc_cg_compile_expr(struct tacc_cg_state *state,
                                  struct tacc_expr *expr) {
     struct tacc_val *val;
@@ -814,18 +838,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
             }
         }
         tacc_cg_compile_lval(state, expr);
-        slot = tacc_cg_get_top(state);
-        tacc_assert(ASSERT_ICE,
-                    slot->ty->kind == TYK_PTR,
-                    "lval compilation didn't produce pointer");
-        if (slot->ty->extra.pointer.pointee->kind != TYK_FN) {
-            tacc_cg_deref(state);
-        } else {
-            /*
-             * this is a function designator. "convert" to function pointer by
-             * avoiding deref
-             */
-        }
+        tacc_cg_lval_to_rval(state);
         break;
 
     case EX_ASSI:
@@ -908,7 +921,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
     case EX_PTR_MEMBER:
     case EX_SUBSCRIPT:
         tacc_cg_compile_lval(state, expr);
-        tacc_cg_deref(state);
+        tacc_cg_lval_to_rval(state);
         break;
 
     case EX_CAST:

@@ -208,6 +208,7 @@ tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_kind_is_floating(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_arithmetic(enum tacc_type_kind kind);
 tacc_bool tacc_type_kind_is_scalar(enum tacc_type_kind type_kind);
+tacc_bool tacc_type_kind_is_array(enum tacc_type_kind type_kind);
 tacc_bool tacc_type_is_compatible(struct tacc_type *a, struct tacc_type *b);
 tacc_bool tacc_type_is_scalar(struct tacc_type *type);
 tacc_bool tacc_type_is_subset(struct tacc_type *subset,
@@ -217,6 +218,7 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
 tacc_bool tacc_type_is_floating(struct tacc_type *type);
 tacc_bool tacc_type_is_arithmetic(struct tacc_type *type);
 tacc_bool tacc_type_is_integral(struct tacc_type *type);
+tacc_bool tacc_type_is_array(struct tacc_type *type);
 tacc_bool tacc_type_is_ptr_to(struct tacc_type *ty, enum tacc_type_kind kind);
 size_t tacc_type_bit_width(struct tacc_type *type);
 size_t tacc_type_alignment_p2(struct tacc_type *type);

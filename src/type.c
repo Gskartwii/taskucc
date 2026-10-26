@@ -410,6 +410,18 @@ tacc_bool tacc_type_kind_is_floating(enum tacc_type_kind type_kind) {
     }
 }
 
+tacc_bool tacc_type_kind_is_array(enum tacc_type_kind type_kind) {
+    switch (type_kind) {
+    case TYK_ARRAY:
+    case TYK_INCOMPLETE_ARRAY:
+    case TYK_VLA:
+    case TYK_DECAYING_VLA:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 tacc_bool tacc_type_is_floating(struct tacc_type *ty) {
     return tacc_type_kind_is_floating(ty->kind);
 }
@@ -426,6 +438,10 @@ tacc_bool tacc_type_kind_is_arithmetic(enum tacc_type_kind kind) {
 
 tacc_bool tacc_type_is_arithmetic(struct tacc_type *type) {
     return tacc_type_kind_is_arithmetic(type->kind);
+}
+
+tacc_bool tacc_type_is_array(struct tacc_type *type) {
+    return tacc_type_kind_is_array(type->kind);
 }
 
 tacc_bool tacc_type_is_integral(struct tacc_type *type) {
