@@ -1084,9 +1084,11 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
         }
 
         if (declarator->initializer == NULL) {
-            global_object->is_tentative = 1;
-            tacc_global_object_list_push(compiler->maybe_tentative_globals,
-                                         global_object);
+            if (decl->storage_class != STORAGE_EXTERN) {
+                global_object->is_tentative = 1;
+                tacc_global_object_list_push(compiler->maybe_tentative_globals,
+                                             global_object);
+            }
         } else {
             tacc_compile_data(compiler,
                               derived_type,
