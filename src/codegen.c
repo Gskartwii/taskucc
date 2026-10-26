@@ -231,7 +231,7 @@ static void tacc_cg_binop(struct tacc_cg_state *state,
                         over_type->kind == TYK_PTR &&
                             tacc_type_is_integral(top_type),
                         "invalid operands for +");
-            tacc_cg_sizeof(state, top_type->extra.pointer.pointee);
+            tacc_cg_sizeof(state, over_type->extra.pointer.pointee);
             tacc_cg_binop(state, EX_MUL);
             output_type = over_type;
         }
