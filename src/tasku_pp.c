@@ -664,8 +664,20 @@ static void tacc_file_iter_lex_escape(struct tacc_file_iter *iter,
     case 'r':
     case 't':
     case 'v':
+        tacc_dynstring_push(str, '\\');
+        tacc_dynstring_push(str, ch);
+        return;
     case 'x':
         tacc_dynstring_push(str, '\\');
+        tacc_dynstring_push(str, ch);
+
+        ch = tacc_file_iter_consume_ch(iter);
+        tacc_assert(
+            ASSERT_DIAG, tacc_char_is_hex(ch), "invalid hex escape", ch);
+        tacc_dynstring_push(str, ch);
+        ch = tacc_file_iter_consume_ch(iter);
+        tacc_assert(
+            ASSERT_DIAG, tacc_char_is_hex(ch), "invalid hex escape", ch);
         tacc_dynstring_push(str, ch);
         return;
     default:

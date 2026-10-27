@@ -1126,6 +1126,7 @@ int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
         compiler,
         "p2align %d",
         (int) (compiler->target->ldouble_ty->alignment_p2));
+    tacc_compile_output(compiler, "\n.Lfloat_%d:", index);
     if (compiler->target->ldouble_ty->bit_width == 80) {
         tacc_f128_serialize_round_f80(&u64_part, &f80_high16, float_value);
         /* little endian */
@@ -1139,6 +1140,26 @@ int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
         tacc_compile_output_int(compiler, &u64_part, 64);
         tacc_compile_output_int(compiler, &u64_part_2, 64);
     }
+
+    return index;
+}
+
+int tacc_compile_emit_string_lit(struct tacc_compiler *compiler,
+                                 struct tacc_string *string) {
+    int index;
+    size_t i;
+
+    index = compiler->local_obj_index;
+    compiler->local_obj_index = index + 1;
+
+    tacc_compile_output_directive(compiler, "data");
+    tacc_compile_output(compiler, "\n.Lstring_%d:", index);
+
+    for (i = 0; i < tacc_dynstring_len(string); i = i + 1) {
+        tacc_compile_output_directive(
+            compiler, "byte 0x%x", (unsigned) tacc_dynstring_at(string, i));
+    }
+    tacc_compile_output_directive(compiler, "byte 0");
 
     return index;
 }

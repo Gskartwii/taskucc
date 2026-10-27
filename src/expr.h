@@ -125,6 +125,10 @@ struct tacc_expr {
         struct tacc_expr_list *op_list;
         struct tacc_type_name *type;
         struct tacc_string *field_name;
+
+        /* not null-terminated */
+        struct tacc_string *string_literal;
+
         uint32_t name_ref;
         struct tacc_int_literal *int_literal;
         struct tacc_float_literal *float_literal;

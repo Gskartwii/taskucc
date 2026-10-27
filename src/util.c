@@ -47,6 +47,19 @@ void tacc_free(void *allocation) {
 #endif
 }
 
+tacc_bool tacc_char_is_hex(char hex) {
+    if (hex >= '0' && hex <= '9') {
+        return 1;
+    }
+    if (hex >= 'a' && hex <= 'f') {
+        return 1;
+    }
+    if (hex >= 'A' && hex <= 'F') {
+        return 1;
+    }
+    return 0;
+}
+
 uint8_t tacc_hex_to_dec(char hex) {
     if (hex >= '0' && hex <= '9') {
         return (uint8_t) (hex - '0');

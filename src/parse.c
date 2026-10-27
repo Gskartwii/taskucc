@@ -8,6 +8,7 @@
 #include "expr.h"
 #include "statement.h"
 #include "tasku_pp.h"
+#include "util.h"
 #include <memory.h>
 #include <stdarg.h>
 #include <string.h>
@@ -491,6 +492,97 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     return val;
 }*/
 
+static void tacc_parse_init_stringlit(struct tacc_expr *expr) {
+    expr->extra.string_literal = tacc_dynstring_new();
+}
+
+static void tacc_parse_continue_stringlit(struct pp_tok *tok,
+                                          struct tacc_expr *expr) {
+    char *str_tok;
+    char piece;
+    uint8_t out_ch;
+
+    str_tok = tacc_dynstring_as_str(tok->str);
+    tacc_assert(ASSERT_ICE, (*str_tok) == '"', "invalid string literal");
+    str_tok = str_tok + 1;
+
+    while ((*str_tok) != '"') {
+        piece = *str_tok;
+        str_tok = str_tok + 1;
+        if (piece != '\\') {
+            tacc_dynstring_push(expr->extra.string_literal, piece);
+            continue;
+        }
+        piece = *str_tok;
+        str_tok = str_tok + 1;
+        if (piece == '\\' || piece == '"' || piece == '\'' || piece == '?') {
+            tacc_dynstring_push(expr->extra.string_literal, piece);
+            continue;
+        }
+        if (piece == 'a') {
+            tacc_dynstring_push(expr->extra.string_literal, 7);
+            continue;
+        }
+        if (piece == 'b') {
+            tacc_dynstring_push(expr->extra.string_literal, 8);
+            continue;
+        }
+        if (piece == 'e') {
+            tacc_dynstring_push(expr->extra.string_literal, 27);
+            continue;
+        }
+        if (piece == 'f') {
+            tacc_dynstring_push(expr->extra.string_literal, 12);
+            continue;
+        }
+        if (piece == 'n') {
+            tacc_dynstring_push(expr->extra.string_literal, 10);
+            continue;
+        }
+        if (piece == 'r') {
+            tacc_dynstring_push(expr->extra.string_literal, 13);
+            continue;
+        }
+        if (piece == 't') {
+            tacc_dynstring_push(expr->extra.string_literal, 9);
+            continue;
+        }
+        if (piece == 'v') {
+            tacc_dynstring_push(expr->extra.string_literal, 11);
+            continue;
+        }
+        if (piece == 'x') {
+            piece = *str_tok;
+            str_tok = str_tok + 1;
+            out_ch = (uint8_t) (tacc_hex_to_dec(piece) * 16);
+            piece = *str_tok;
+            str_tok = str_tok + 1;
+            out_ch = (uint8_t) (tacc_hex_to_dec(piece) + out_ch);
+
+            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
+            continue;
+        }
+        tacc_assert(ASSERT_ICE, piece >= '0' && piece <= '7', "invalid escape");
+        out_ch = (uint8_t) (piece - '0');
+        piece = *str_tok;
+        if (piece < '0' || piece > '7') {
+            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
+            continue;
+        }
+        str_tok = str_tok + 1;
+        out_ch = (uint8_t) (8 * out_ch + (uint8_t) (piece - '0'));
+        piece = *str_tok;
+        if (piece < '0' || piece > '7') {
+            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
+            continue;
+        }
+        str_tok = str_tok + 1;
+        out_ch = (uint8_t) (8 * out_ch + (uint8_t) (piece - '0'));
+        piece = *str_tok;
+        tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
+    }
+}
+
 static void tacc_parse_expr(struct tacc_parse_registry *registry,
                             struct tacc_tok_iter *iter,
                             struct tacc_expr *in_expr);
@@ -563,11 +655,16 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
-            /* tacc_parse_error(iter, "todo: string literals"); */
-            /* TODO: string literals */
+            tacc_parse_init_stringlit(expr);
+            tacc_parse_continue_stringlit(tok, expr);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
-            while (tacc_tok_iter_accept_tok(iter, TOK_STRING)) {
-                /* concatting: also TODO */
+            while (1) {
+                tok = tacc_tok_iter_peek(iter);
+                if (tok->kind != TOK_STRING) {
+                    break;
+                }
+                tacc_parse_continue_stringlit(tok, expr);
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
             }
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_CHAR_LIT;

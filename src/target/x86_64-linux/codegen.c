@@ -824,6 +824,20 @@ void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
         tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
 }
 
+void tacc_target_cg_string(struct tacc_cg_state *state,
+                           int index,
+                           struct tacc_type *ty) {
+    uint32_t reg;
+
+    reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    tacc_cg_output(state,
+                   "\n\t leaq .Lstring_%d, %s",
+                   index,
+                   tacc_target_register_as_64(reg));
+
+    tacc_cg_push_reg(state, reg, ty);
+}
+
 void tacc_target_cg_prepare_arg(struct tacc_cg_state *state,
                                 struct tacc_slot *slot,
                                 struct tacc_callitf_part *itf_part) {

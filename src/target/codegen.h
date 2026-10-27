@@ -12,6 +12,9 @@ struct tacc_target_cg_state;
 struct tacc_target_cg_state *tacc_target_cg_state_new(void);
 void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val);
 void tacc_target_cg_float(struct tacc_cg_state *state, int index);
+void tacc_target_cg_string(struct tacc_cg_state *state,
+                           int index,
+                           struct tacc_type *ty);
 void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
                                           struct tacc_callitf *itf);
 void tacc_target_cg_jump_to_return(struct tacc_cg_state *state);

@@ -368,6 +368,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     struct tacc_global_object *object;
     struct tacc_type *ty;
     struct tacc_field *field;
+    int index;
 
     switch (expr->kind) {
     case EX_UNINIT:
@@ -489,6 +490,23 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
         break;
 
     case EX_STRING_LIT:
+        index = tacc_compile_emit_string_lit(state->compiler,
+                                             expr->extra.string_literal);
+        ty = tacc_type_new();
+        ty->kind = TYK_ARRAY;
+        ty->extra.array = tacc_array_type_new();
+
+        /* TODO: add real char type */
+        ty->extra.array->element_type =
+            tacc_get_basic_type(state->compiler->basic_types, TYK_SCHAR);
+        ty->extra.array->dimension = tacc_u64_new();
+        tacc_u64_from_u32(
+            ty->extra.array->dimension,
+            ((uint32_t) tacc_dynstring_len(expr->extra.string_literal)) + 1);
+        ty = tacc_type_to_pointer(state->compiler->target->pointer_ty, ty, 1);
+        tacc_target_cg_string(state, index, ty);
+        break;
+
     case EX_COMPOUND_LIT:
     case EX_NAME_OF_FUNC:
         tacc_assert(ASSERT_TODO, 0, "lvalue");

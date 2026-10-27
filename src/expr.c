@@ -61,7 +61,9 @@ void tacc_expr_free(struct tacc_expr *expr) {
     if (expr->op3) {
         tacc_expr_free(expr->op3);
     }
-    if (expr->kind == EX_INT_LIT) {
+    if (expr->kind == EX_STRING_LIT) {
+        tacc_dynstring_free(expr->extra.string_literal);
+    } else if (expr->kind == EX_INT_LIT) {
         tacc_int_literal_free(expr->extra.int_literal);
     } else if (expr->kind == EX_MEMBER || expr->kind == EX_PTR_MEMBER) {
         tacc_dynstring_free(expr->extra.field_name);
