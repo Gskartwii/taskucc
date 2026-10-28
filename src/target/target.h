@@ -8,6 +8,7 @@ struct tacc_int_type {
     size_t alignment_p2;
     struct tacc_u64 *min;
     struct tacc_u64 *max;
+    tacc_bool is_signed;
 };
 
 struct tacc_float_type {
@@ -21,7 +22,7 @@ struct tacc_ptr_type {
 };
 
 struct tacc_target {
-    tacc_bool signed_char;
+    struct tacc_int_type *cchar;
     struct tacc_int_type *schar;
     struct tacc_int_type *uchar;
     struct tacc_int_type *sshort;

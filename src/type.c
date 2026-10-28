@@ -25,21 +25,11 @@ MK_DYNARRAY_OVER(tacc_field_list,
                  tacc_field_free,
                  tacc_field_list_free)
 
-tacc_bool tacc_type_kind_is_signed(enum tacc_type_kind kind) {
-    switch (kind) {
-    case TYK_SCHAR:
-    case TYK_SSHORT:
-    case TYK_SINT:
-    case TYK_SLONG:
-    case TYK_SLONGLONG:
-        return 1;
-    default:
+tacc_bool tacc_type_is_signed(struct tacc_type *type) {
+    if (!tacc_type_is_integral(type)) {
         return 0;
     }
-}
-
-tacc_bool tacc_type_is_signed(struct tacc_type *type) {
-    return tacc_type_kind_is_signed(type->kind);
+    return type->extra.int_repr->is_signed;
 }
 
 struct tacc_u64 *tacc_type_max_val(struct tacc_type *type) {
@@ -160,8 +150,8 @@ tacc_bool tacc_type_is_subset(struct tacc_type *subset,
     struct tacc_u64 *max_val_subset;
     struct tacc_u64 *min_val_subset;
 
-    if (tacc_type_kind_is_signed(subset->kind)) {
-        if (!tacc_type_kind_is_signed(superset->kind)) {
+    if (tacc_type_is_signed(subset)) {
+        if (!tacc_type_is_signed(superset)) {
             return 0;
         }
         min_val_subset = subset->extra.int_repr->min;
@@ -186,8 +176,8 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
     struct tacc_u64 *max_val_a;
     struct tacc_u64 *min_val_a;
 
-    if (tacc_type_kind_is_signed(a->kind)) {
-        if (!tacc_type_kind_is_signed(b->kind)) {
+    if (tacc_type_is_signed(a)) {
+        if (!tacc_type_is_signed(b)) {
             return 0;
         }
         min_val_a = a->extra.int_repr->min;
@@ -195,7 +185,7 @@ tacc_bool tacc_int_type_has_compatible_repr(struct tacc_type *a,
         if (!tacc_u64_eq(min_val_b, min_val_a)) {
             return 0;
         }
-    } else if (tacc_type_kind_is_signed(b->kind)) {
+    } else if (tacc_type_is_signed(b)) {
         return 0;
     }
 
@@ -228,6 +218,7 @@ enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
     switch (kind) {
     case TYK_BOOL:
         return IRANK_BOOL;
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
         return IRANK_CHAR;
@@ -251,6 +242,7 @@ enum tacc_int_rank tacc_type_rank(enum tacc_type_kind kind) {
 
 enum tacc_type_kind tacc_type_to_unsigned(enum tacc_type_kind kind) {
     switch (kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
         return TYK_UCHAR;
@@ -381,6 +373,7 @@ struct tacc_type *tacc_get_basic_type(struct tacc_type_list *basic_types,
 
 tacc_bool tacc_type_kind_is_integral(enum tacc_type_kind type_kind) {
     switch (type_kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:
@@ -528,6 +521,7 @@ struct tacc_type *tacc_type_to_pointer(struct tacc_ptr_type *repr,
 
 void tacc_gen_basic_types(struct tacc_target *target,
                           struct tacc_type_list *into) {
+    tacc_type_list_push(into, tacc_mk_basic_type(target->cchar, TYK_CHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(target->uchar, TYK_UCHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(target->schar, TYK_SCHAR));
     tacc_type_list_push(into, tacc_mk_basic_type(target->ushort, TYK_USHORT));
@@ -617,14 +611,15 @@ struct tacc_field *tacc_field_list_find(struct tacc_field_list *list,
 }
 
 tacc_bool tacc_type_kind_needs_promotions(enum tacc_type_kind kind) {
-    return kind == TYK_SCHAR || kind == TYK_UCHAR || kind == TYK_BOOL ||
-           kind == TYK_USHORT || kind == TYK_SSHORT;
+    return kind == TYK_CHAR || kind == TYK_SCHAR || kind == TYK_UCHAR ||
+           kind == TYK_BOOL || kind == TYK_USHORT || kind == TYK_SSHORT;
 }
 
 enum tacc_type_kind
 tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
                                        struct tacc_type *left,
-                                       struct tacc_type *right) {
+                                       struct tacc_type *right,
+                                       struct tacc_type_list *basic_types) {
     enum tacc_type_kind a_type;
     enum tacc_type_kind b_type;
     enum tacc_int_rank a_rank;
@@ -673,12 +668,14 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
             return TYK_SINT;
         }
         a_type = TYK_SINT;
+        left = tacc_get_basic_type(basic_types, TYK_SINT);
     } else if (tacc_type_kind_needs_promotions(b_type)) {
         if (a_type == TYK_SINT) {
             *kind_out = CONV_RIGHT;
             return TYK_SINT;
         }
         b_type = TYK_SINT;
+        right = tacc_get_basic_type(basic_types, TYK_SINT);
     }
 
     if (a_type == b_type) {
@@ -689,7 +686,7 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
     a_rank = tacc_type_rank(a_type);
     b_rank = tacc_type_rank(b_type);
 
-    if (tacc_type_kind_is_signed(a_type) == tacc_type_kind_is_signed(b_type)) {
+    if (tacc_type_is_signed(left) == tacc_type_is_signed(right)) {
         /* same signedness => convert to the higher-ranked of the types */
         if (a_rank <= b_rank) {
             *kind_out = CONV_LEFT;
@@ -698,23 +695,23 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
         *kind_out = CONV_RIGHT;
         return a_type;
     }
-    if (!tacc_type_kind_is_signed(a_type) && (b_rank <= a_rank)) {
+    if (!tacc_type_is_signed(left) && (b_rank <= a_rank)) {
         *kind_out = CONV_RIGHT;
         return a_type;
     }
-    if (!tacc_type_kind_is_signed(b_type) && (a_rank <= b_rank)) {
+    if (!tacc_type_is_signed(right) && (a_rank <= b_rank)) {
         *kind_out = CONV_LEFT;
         return b_type;
     }
-    if (tacc_type_kind_is_signed(a_type) && tacc_type_is_subset(right, left)) {
+    if (tacc_type_is_signed(left) && tacc_type_is_subset(right, left)) {
         *kind_out = CONV_RIGHT;
         return a_type;
     }
-    if (tacc_type_kind_is_signed(b_type) && tacc_type_is_subset(right, left)) {
+    if (tacc_type_is_signed(right) && tacc_type_is_subset(right, left)) {
         *kind_out = CONV_LEFT;
         return b_type;
     }
-    if (tacc_type_kind_is_signed(b_type)) {
+    if (tacc_type_is_signed(right)) {
         common_type = b_type;
     } else {
         common_type = a_type;
@@ -727,6 +724,7 @@ tacc_type_usual_arithmetic_conversions(enum tacc_conversion_kind *kind_out,
 struct tacc_type *tacc_type_normalize_function_param(struct tacc_ptr_type *repr,
                                                      struct tacc_type *ty) {
     switch (ty->kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:

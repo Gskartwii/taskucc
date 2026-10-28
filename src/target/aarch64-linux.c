@@ -7,6 +7,7 @@ static struct tacc_int_type *tacc_mk_twos_complement(size_t bit_size,
     struct tacc_int_type *ret;
 
     ret = tacc_malloc(sizeof(struct tacc_int_type));
+    ret->is_signed = is_signed;
     ret->bit_width = bit_size;
     ret->alignment_p2 = alignment_p2;
     ret->min = tacc_u64_new();
@@ -40,7 +41,7 @@ struct tacc_target *tacc_target_new(void) {
 
     target = tacc_malloc(sizeof(struct tacc_target));
 
-    target->signed_char = 0;
+    target->cchar = tacc_mk_twos_complement(8, 0, 0);
     target->schar = tacc_mk_twos_complement(8, 0, 1);
     target->uchar = tacc_mk_twos_complement(8, 0, 0);
     target->sshort = tacc_mk_twos_complement(16, 1, 1);
@@ -69,6 +70,7 @@ static void tacc_free_int_type(struct tacc_int_type *ty) {
 }
 
 void tacc_target_free(struct tacc_target *target) {
+    tacc_free_int_type(target->cchar);
     tacc_free_int_type(target->schar);
     tacc_free_int_type(target->uchar);
     tacc_free_int_type(target->sshort);

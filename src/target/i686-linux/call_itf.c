@@ -44,6 +44,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     ret->implicit_stack_use = 8;
 
     switch (ty->return_type->kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:

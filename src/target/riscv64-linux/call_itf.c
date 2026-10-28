@@ -70,6 +70,7 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
     part->param_idx = param_idx;
 
     switch (arg_type->kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:
@@ -179,6 +180,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     ret->frame_grows_upward = 0;
 
     switch (ty->return_type->kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:

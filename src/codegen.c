@@ -164,7 +164,7 @@ tacc_cg_usual_arithmetic_conversions(struct tacc_cg_state *state) {
     top_type = tacc_cg_top_type(state);
     over_type = tacc_cg_over_type(state);
     output_type_kind = tacc_type_usual_arithmetic_conversions(
-        &conversion_kind, over_type, top_type);
+        &conversion_kind, over_type, top_type, state->compiler->basic_types);
     output_type =
         tacc_get_basic_type(state->compiler->basic_types, output_type_kind);
     if (conversion_kind == CONV_BOTH || conversion_kind == CONV_LEFT) {
@@ -560,6 +560,17 @@ static void tacc_cg_arg_promote_top(struct tacc_cg_state *state) {
     case TYK_USHORT:
         tacc_cg_convert_top(
             state, tacc_get_basic_type(state->compiler->basic_types, TYK_UINT));
+        break;
+    case TYK_CHAR:
+        if (ty->extra.int_repr->is_signed) {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_SINT));
+        } else {
+            tacc_cg_convert_top(
+                state,
+                tacc_get_basic_type(state->compiler->basic_types, TYK_UINT));
+        }
         break;
     default:
         break;
@@ -1111,14 +1122,14 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
         }
         if (tacc_type_bit_width(from_type) > tacc_type_bit_width(to_type)) {
             tacc_target_cg_narrow_top(
-                state, to_type, tacc_type_kind_is_signed(to_type->kind));
+                state, to_type, tacc_type_is_signed(to_type));
             slot->ty = to_type;
             return;
         }
         tacc_target_cg_ext_top(state,
                                to_type,
-                               tacc_type_kind_is_signed(to_type->kind) &&
-                                   tacc_type_kind_is_signed(from_type->kind));
+                               tacc_type_is_signed(to_type) &&
+                                   tacc_type_is_signed(from_type));
     } else if (tacc_type_is_floating(from_type) &&
                tacc_type_is_floating(to_type)) {
         if (tacc_type_is_compatible(to_type, from_type)) {
@@ -1131,7 +1142,7 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
             state,
             tacc_get_basic_type(state->compiler->basic_types, TYK_LONGDOUBLE));
         /* TODO: maybe xfdi would be more accurate for x86 */
-        if (tacc_type_kind_is_signed(to_type->kind)) {
+        if (tacc_type_is_signed(to_type)) {
             func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FIXTFDI);
         } else {
             func_ty = tacc_cg_push_func(state, PREDEF__TACCRT_FIXUNSTFDI);
@@ -1141,7 +1152,7 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
         tacc_cg_convert_top(state, to_type);
     } else if (tacc_type_is_integral(from_type) &&
                tacc_type_is_floating(to_type)) {
-        if (tacc_type_kind_is_signed(from_type->kind)) {
+        if (tacc_type_is_signed(from_type)) {
             tacc_cg_convert_top(
                 state,
                 tacc_get_basic_type(state->compiler->basic_types,

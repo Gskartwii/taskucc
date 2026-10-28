@@ -388,7 +388,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
     reg_name = tacc_target_register_as_64(reg);
     addr_name = tacc_target_register_as_64(reg);
     zext = "";
-    if (!tacc_type_kind_is_signed(int_type->kind)) {
+    if (!tacc_type_is_signed(int_type)) {
         zext = "u";
     }
 
@@ -518,7 +518,7 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
     char *signedness;
 
     signedness = "u";
-    if (tacc_type_kind_is_signed(ty->kind)) {
+    if (tacc_type_is_signed(ty)) {
         signedness = "";
     }
     reg_name = tacc_target_register_as_64(to_reg);

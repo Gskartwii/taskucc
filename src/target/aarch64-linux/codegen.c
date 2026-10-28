@@ -600,7 +600,7 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
         reg_name = tacc_target_register_as_32(reg);
     }
     sext = "";
-    if (tacc_type_kind_is_signed(int_type->kind)) {
+    if (tacc_type_is_signed(int_type)) {
         sext = "s";
     }
 

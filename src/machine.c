@@ -27,25 +27,11 @@ struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
 }
 
 tacc_bool tacc_val_is_integral(struct tacc_val *val) {
-    switch (val->type->kind) {
-    case TYK_UCHAR:
-    case TYK_SCHAR:
-    case TYK_USHORT:
-    case TYK_SSHORT:
-    case TYK_UINT:
-    case TYK_SINT:
-    case TYK_ULONG:
-    case TYK_SLONG:
-    case TYK_ULONGLONG:
-    case TYK_SLONGLONG:
-        return 1;
-    default:
-        return 0;
-    }
+    return tacc_type_is_integral(val->type);
 }
 
 tacc_bool tacc_val_is_signed(struct tacc_val *val) {
-    return tacc_type_kind_is_signed(val->type->kind);
+    return tacc_type_is_signed(val->type);
 }
 
 tacc_bool tacc_val_is_scalar(struct tacc_val *val) {
@@ -53,27 +39,7 @@ tacc_bool tacc_val_is_scalar(struct tacc_val *val) {
 }
 
 tacc_bool tacc_val_is_arithmetic(struct tacc_val *val) {
-    switch (val->type->kind) {
-    case TYK_UCHAR:
-    case TYK_SCHAR:
-    case TYK_USHORT:
-    case TYK_SSHORT:
-    case TYK_UINT:
-    case TYK_SINT:
-    case TYK_ULONG:
-    case TYK_SLONG:
-    case TYK_ULONGLONG:
-    case TYK_SLONGLONG:
-    case TYK_FLOAT:
-    case TYK_DOUBLE:
-    case TYK_LONGDOUBLE:
-    case TYK_BOOL:
-    case TYK_ENUM:
-        return 1;
-    default:
-        return 0;
-    }
-    return 0;
+    return tacc_type_is_arithmetic(val->type);
 }
 
 tacc_bool tacc_val_is_truthy(struct tacc_val *val) {
@@ -89,7 +55,7 @@ void tacc_val_convert(struct tacc_val *val, struct tacc_type *into) {
         /* already fits into destination type */
         return;
     }
-    if (tacc_type_kind_is_signed(into->kind)) {
+    if (tacc_type_is_signed(into)) {
         tacc_u64_sext(val->value.int_value,
                       val->value.int_value,
                       (int) tacc_type_bit_width(into));
@@ -106,9 +72,10 @@ void tacc_val_usual_arithmetic_conversions(struct tacc_val *a,
     enum tacc_conversion_kind conv_kind;
     struct tacc_type *to_type;
 
-    to_type = tacc_get_basic_type(
-        basic_types,
-        tacc_type_usual_arithmetic_conversions(&conv_kind, a->type, b->type));
+    to_type =
+        tacc_get_basic_type(basic_types,
+                            tacc_type_usual_arithmetic_conversions(
+                                &conv_kind, a->type, b->type, basic_types));
     if (conv_kind == CONV_LEFT) {
         tacc_val_convert(a, to_type);
     } else if (conv_kind == CONV_RIGHT) {

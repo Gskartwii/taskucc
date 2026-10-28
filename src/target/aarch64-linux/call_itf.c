@@ -65,6 +65,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     part = tacc_callitf_part_new();
     switch (arg_type->kind) {
     case TYK_BOOL:
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_USHORT:
@@ -157,6 +158,7 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
     state.float_regs_used = 0;
 
     switch (ty->return_type->kind) {
+    case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
     case TYK_BOOL:

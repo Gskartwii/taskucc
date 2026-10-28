@@ -598,11 +598,7 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
         base_type = TYK_BOOL;
         break;
     case TYPESPEC_CHAR:
-        if (compiler->target->signed_char) {
-            base_type = TYK_SCHAR;
-        } else {
-            base_type = TYK_UCHAR;
-        }
+        base_type = TYK_CHAR;
         break;
     case /* TYPESPEC_UNSIGNED | TYPESPEC_CHAR */ 0x9:
         base_type = TYK_UCHAR;

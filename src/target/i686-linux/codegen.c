@@ -219,7 +219,7 @@ void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
     if (from_width > 32 && to_width <= 32) {
         /* first cast to int and forget reg_2 */
         top_place = slot->place.pair.reg;
-        if (tacc_type_kind_is_signed(slot->ty->kind)) {
+        if (tacc_type_is_signed(slot->ty)) {
             tacc_cg_pop(state);
             tacc_cg_push_reg(
                 state,
