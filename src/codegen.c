@@ -451,6 +451,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
         ty = tacc_cg_top_type(state);
         tacc_assert(
             ASSERT_DIAG, ty->kind == TYK_PTR, "subscript of non-pointer");
+        tacc_cg_compile_expr(state, expr->op2);
         tacc_cg_binop(state, EX_ADD);
         break;
 
@@ -954,7 +955,6 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         tacc_cg_compile_expr(state, expr->op2);
         tacc_cg_binop(state, expr->kind);
         break;
-
     case EX_ADDROF:
         tacc_cg_compile_lval(state, expr->op1);
         break;
