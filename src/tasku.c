@@ -253,7 +253,10 @@ static void tacc_compile_ast(struct tacc_string_list *names,
     tacc_compile_coda(&compiler);
 
     tacc_global_object_map_free(compiler.global_objects);
-    tacc_global_object_list_free(compiler.maybe_tentative_globals);
+
+    /* do not use tacc_global_object_list_free here */
+    tacc_dynarray_free(compiler.maybe_tentative_globals->list);
+
     tacc_type_list_free(compiler.basic_types);
     tacc_type_list_free(compiler.named_types);
     tacc_type_list_free(compiler.anonymous_types);
