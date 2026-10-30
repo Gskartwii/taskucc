@@ -222,8 +222,9 @@ static void scanexp(struct tacc_file_iter *f, struct tacc_u64 *out) {
     int x;
     struct tacc_u64 y;
     struct tacc_u64 llong_max_div100;
-    int neg = 0;
+    int neg;
 
+    neg = 0;
     tacc_u64_zero(&y);
 
     llong_max_div100.low = 0x7ae147ae;
@@ -506,7 +507,8 @@ static void decfloat(struct tacc_file_iter *f,
             carry = (uint32_t) (1000000000 / power_of_10) * tmp;
             if (decbuf_i == a && !decbuf_val(decbuf_i)) {
                 a = (a + 1) & DECBUF_LIMIT;
-                offset_first_sd_from_decpoint -= 9;
+                offset_first_sd_from_decpoint =
+                    offset_first_sd_from_decpoint - 9;
             }
         }
         if (carry) {
@@ -526,7 +528,7 @@ static void decfloat(struct tacc_file_iter *f,
            (offset_first_sd_from_decpoint == 9 * ld_b1b_dig &&
             decbuf_val(a) < th_val(0))) {
         carry = 0;
-        exp_adjustment -= 29;
+        exp_adjustment = exp_adjustment - 29;
         for (decbuf_i = (decbuf_end - 1) & DECBUF_LIMIT; 1;
              decbuf_i = (decbuf_i - 1) & DECBUF_LIMIT) {
             tacc_u64_from_u32(&aux, decbuf_val(decbuf_i));
@@ -551,7 +553,7 @@ static void decfloat(struct tacc_file_iter *f,
             }
         }
         if (carry != 0) {
-            offset_first_sd_from_decpoint += 9;
+            offset_first_sd_from_decpoint = offset_first_sd_from_decpoint + 9;
             a = (a - 1) & DECBUF_LIMIT;
             if (a == decbuf_end) {
                 decbuf_end = (decbuf_end - 1) & DECBUF_LIMIT;
@@ -567,7 +569,7 @@ static void decfloat(struct tacc_file_iter *f,
     while (1) {
         carry = 0;
         shift = 1;
-        for (i = 0; i < ld_b1b_dig; i++) {
+        for (i = 0; i < ld_b1b_dig; i = i + 1) {
             decbuf_i = (a + i) & DECBUF_LIMIT;
             if (decbuf_i == decbuf_end || decbuf_val(decbuf_i) < th_val(i)) {
                 i = ld_b1b_dig;
@@ -586,7 +588,7 @@ static void decfloat(struct tacc_file_iter *f,
             (offset_first_sd_from_decpoint >> 31 == 0)) {
             shift = 9;
         }
-        exp_adjustment += shift;
+        exp_adjustment = exp_adjustment + shift;
         for (decbuf_i = a; decbuf_i != decbuf_end;
              decbuf_i = (decbuf_i + 1) & DECBUF_LIMIT) {
             tmp = decbuf_val(decbuf_i) & ((uint32_t) ((1 << shift) - 1));
@@ -612,7 +614,7 @@ static void decfloat(struct tacc_file_iter *f,
 
     /* Assemble desired bits into floating point variable */
     tacc_f128_zero(&y);
-    for (i = 0; i < ld_b1b_dig; i++) {
+    for (i = 0; i < ld_b1b_dig; i = i + 1) {
         if (((a + i) & DECBUF_LIMIT) == decbuf_end) {
             decbuf_end = (decbuf_end + 1) & DECBUF_LIMIT;
             decbuf_set(decbuf_end - 1, 0);
@@ -692,7 +694,7 @@ static void decfloat(struct tacc_file_iter *f,
             }
             tacc_f128_from_frac(&aux_f, 1, 2);
             tacc_f128_mull(&y, &y, &aux_f);
-            exp_adjustment++;
+            exp_adjustment = exp_adjustment + 1;
         }
     }
 
@@ -704,7 +706,7 @@ static void hexfloat(struct tacc_file_iter *f,
                      int emin,
                      int sign,
                      struct tacc_f128 *out) {
-    uint32_t x = 0;
+    uint32_t x;
     struct tacc_f128 y;
     struct tacc_f128 scale;
     struct tacc_f128 bias;
@@ -722,6 +724,7 @@ static void hexfloat(struct tacc_file_iter *f,
     tacc_f128_zero(&y);
     tacc_f128_from_u32(&scale, 1);
     tacc_f128_zero(&bias);
+    x = 0;
     rp = 0;
     dc = 0;
     gottail = 0;
