@@ -857,6 +857,11 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         tacc_val_free(val);
         break;
 
+    case EX_CHAR_LIT:
+        tacc_cg_const_sint(state,
+                           (int32_t) (expr->extra.char_literal->number->low));
+        break;
+
     case EX_FLOAT_LIT:
         float_val = expr->extra.float_literal->number;
         index = tacc_compile_emit_local_float(state->compiler, float_val);
@@ -1064,7 +1069,6 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         break;
 
     case EX_UNINIT:
-    case EX_CHAR_LIT:
     case EX_ADD_ASSI:
     case EX_SUB_ASSI:
     case EX_MUL_ASSI:

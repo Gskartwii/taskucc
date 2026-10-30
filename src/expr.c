@@ -4,7 +4,6 @@
 #include "soft_float.h"
 #include "soft_u64.h"
 #include "util.h"
-#include <stdarg.h>
 #include <string.h>
 
 void tacc_expr_init(struct tacc_expr *expr) {
@@ -31,6 +30,15 @@ struct tacc_int_literal *tacc_int_literal_new(void) {
     int_literal->suffix_u = 0;
 
     return int_literal;
+}
+
+struct tacc_char_literal *tacc_char_literal_new(void) {
+    struct tacc_char_literal *char_literal;
+
+    char_literal = tacc_malloc(sizeof(struct tacc_char_literal));
+    char_literal->number = NULL;
+
+    return char_literal;
 }
 struct tacc_float_literal *tacc_float_literal_new(void) {
     struct tacc_float_literal *float_literal;
@@ -63,6 +71,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
     }
     if (expr->kind == EX_STRING_LIT) {
         tacc_dynstring_free(expr->extra.string_literal);
+    } else if (expr->kind == EX_CHAR_LIT) {
+        tacc_char_literal_free(expr->extra.char_literal);
     } else if (expr->kind == EX_INT_LIT) {
         tacc_int_literal_free(expr->extra.int_literal);
     } else if (expr->kind == EX_MEMBER || expr->kind == EX_PTR_MEMBER) {
@@ -85,6 +95,11 @@ void tacc_type_name_free(struct tacc_type_name *ty) {
 }
 
 void tacc_int_literal_free(struct tacc_int_literal *literal) {
+    tacc_free(literal->number);
+    tacc_free(literal);
+}
+
+void tacc_char_literal_free(struct tacc_char_literal *literal) {
     tacc_free(literal->number);
     tacc_free(literal);
 }

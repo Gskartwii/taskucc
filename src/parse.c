@@ -415,82 +415,103 @@ static void tacc_parse_numlit(struct pp_tok *tok, struct tacc_expr *out_expr) {
     out_expr->extra.int_literal = literal;
 }
 
-/*static struct tacc_val *tacc_parse_charlit(struct tacc_target *target,
-                                           struct tacc_type_list *basic_types,
-                                           struct pp_tok *tok) {
+static char *tacc_parse_one_char(char *str, int *char_out) {
+    char *str_tok;
+    char piece;
+
+    str_tok = str;
+    piece = *str_tok;
+    str_tok = str_tok + 1;
+    if (piece != '\\') {
+        *char_out = piece;
+        return str_tok;
+    }
+    piece = *str_tok;
+    str_tok = str_tok + 1;
+    if (piece == '\\' || piece == '"' || piece == '\'' || piece == '?') {
+        *char_out = piece;
+        return str_tok;
+    }
+    if (piece == 'a') {
+        *char_out = 7;
+        return str_tok;
+    }
+    if (piece == 'b') {
+        *char_out = 8;
+        return str_tok;
+    }
+    if (piece == 'e') {
+        *char_out = 27;
+        return str_tok;
+    }
+    if (piece == 'f') {
+        *char_out = 12;
+        return str_tok;
+    }
+    if (piece == 'n') {
+        *char_out = 10;
+        return str_tok;
+    }
+    if (piece == 'r') {
+        *char_out = 13;
+        return str_tok;
+    }
+    if (piece == 't') {
+        *char_out = 9;
+        return str_tok;
+    }
+    if (piece == 'v') {
+        *char_out = 11;
+        return str_tok;
+    }
+    if (piece == 'x') {
+        piece = *str_tok;
+        str_tok = str_tok + 1;
+        *char_out = (uint8_t) (tacc_hex_to_dec(piece) * 16);
+        piece = *str_tok;
+        str_tok = str_tok + 1;
+        *char_out = (uint8_t) (tacc_hex_to_dec(piece) + *char_out);
+
+        return str_tok;
+    }
+    tacc_assert(ASSERT_ICE, piece >= '0' && piece <= '7', "invalid escape");
+    *char_out = (uint8_t) (piece - '0');
+    piece = *str_tok;
+    if (piece < '0' || piece > '7') {
+        return str_tok;
+    }
+    str_tok = str_tok + 1;
+    *char_out = (uint8_t) (8 * *char_out + (uint8_t) (piece - '0'));
+    piece = *str_tok;
+    if (piece < '0' || piece > '7') {
+        return str_tok;
+    }
+    str_tok = str_tok + 1;
+    *char_out = (uint8_t) (8 * *char_out + (uint8_t) (piece - '0'));
+    piece = *str_tok;
+    return str_tok;
+}
+
+static struct tacc_u64 *tacc_parse_charlit(struct pp_tok *tok) {
     struct tacc_u64 *u64;
-    struct tacc_val *val;
     char *str;
     char *base_str;
-    int input;
+    int one_char;
 
-    tacc_assert(tok->str != NULL, "need str to parse charlit");
+    tacc_assert(ASSERT_ICE, tok->str != NULL, "need str to parse charlit");
     str = tacc_dynstring_take_str(tok->str);
     base_str = str;
     u64 = tacc_u64_new();
     str = str + 1;
     while (*str != '\'') {
-        tacc_u64_lsh_n(u64, u64, (int) (target->schar->bit_width));
-        input = *str;
-        if (*str == '\\') {
-            str = str + 1;
-            switch (*str) {
-            case 'a':
-                input = 7;
-                break;
-            case 'b':
-                input = 8;
-                break;
-            case 'f':
-                input = 12;
-                break;
-            case 'n':
-                input = 10;
-                break;
-            case 'r':
-                input = 13;
-                break;
-            case 't':
-                input = 9;
-                break;
-            case '\'':
-            case '"':
-            case '\\':
-                input = *str;
-                break;
-            case 'x':
-                input = (tacc_hex_to_dec(*str)) << 4;
-                str = str + 1;
-                input = input | tacc_hex_to_dec(*str);
-                break;
-            default:
-                input = *str - '0';
-                str = str + 1;
-                if ((*str >= '0') && (*str <= '7')) {
-                    input = (input << 3) | (*str - '0');
-                    str = str + 1;
-                    if ((*str >= '0') && (*str <= '7')) {
-                        input = (input << 3) | (*str - '0');
-                    } else {
-                        str = str - 1;
-                    }
-                } else {
-                    str = str - 1;
-                }
-                break;
-            }
-        }
-        str = str + 1;
-        u64->low = u64->low | ((uint32_t) input);
+        tacc_u64_lsh_n(u64, u64, 8);
+        str = tacc_parse_one_char(str, &one_char);
+        u64->low = u64->low | ((uint32_t) one_char);
     }
     tacc_free(base_str);
 
-    val = tacc_val_new();
-    val->value.int_value = u64;
-    val->type = tacc_get_basic_type(basic_types, TYK_SINT);
-
-    return val;
-}*/
+    return u64;
+}
 
 static void tacc_parse_init_stringlit(struct tacc_expr *expr) {
     expr->extra.string_literal = tacc_dynstring_new();
@@ -499,87 +520,15 @@ static void tacc_parse_init_stringlit(struct tacc_expr *expr) {
 static void tacc_parse_continue_stringlit(struct pp_tok *tok,
                                           struct tacc_expr *expr) {
     char *str_tok;
-    char piece;
-    uint8_t out_ch;
+    int piece;
 
     str_tok = tacc_dynstring_as_str(tok->str);
     tacc_assert(ASSERT_ICE, (*str_tok) == '"', "invalid string literal");
     str_tok = str_tok + 1;
 
     while ((*str_tok) != '"') {
-        piece = *str_tok;
-        str_tok = str_tok + 1;
-        if (piece != '\\') {
-            tacc_dynstring_push(expr->extra.string_literal, piece);
-            continue;
-        }
-        piece = *str_tok;
-        str_tok = str_tok + 1;
-        if (piece == '\\' || piece == '"' || piece == '\'' || piece == '?') {
-            tacc_dynstring_push(expr->extra.string_literal, piece);
-            continue;
-        }
-        if (piece == 'a') {
-            tacc_dynstring_push(expr->extra.string_literal, 7);
-            continue;
-        }
-        if (piece == 'b') {
-            tacc_dynstring_push(expr->extra.string_literal, 8);
-            continue;
-        }
-        if (piece == 'e') {
-            tacc_dynstring_push(expr->extra.string_literal, 27);
-            continue;
-        }
-        if (piece == 'f') {
-            tacc_dynstring_push(expr->extra.string_literal, 12);
-            continue;
-        }
-        if (piece == 'n') {
-            tacc_dynstring_push(expr->extra.string_literal, 10);
-            continue;
-        }
-        if (piece == 'r') {
-            tacc_dynstring_push(expr->extra.string_literal, 13);
-            continue;
-        }
-        if (piece == 't') {
-            tacc_dynstring_push(expr->extra.string_literal, 9);
-            continue;
-        }
-        if (piece == 'v') {
-            tacc_dynstring_push(expr->extra.string_literal, 11);
-            continue;
-        }
-        if (piece == 'x') {
-            piece = *str_tok;
-            str_tok = str_tok + 1;
-            out_ch = (uint8_t) (tacc_hex_to_dec(piece) * 16);
-            piece = *str_tok;
-            str_tok = str_tok + 1;
-            out_ch = (uint8_t) (tacc_hex_to_dec(piece) + out_ch);
-
-            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
-            continue;
-        }
-        tacc_assert(ASSERT_ICE, piece >= '0' && piece <= '7', "invalid escape");
-        out_ch = (uint8_t) (piece - '0');
-        piece = *str_tok;
-        if (piece < '0' || piece > '7') {
-            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
-            continue;
-        }
-        str_tok = str_tok + 1;
-        out_ch = (uint8_t) (8 * out_ch + (uint8_t) (piece - '0'));
-        piece = *str_tok;
-        if (piece < '0' || piece > '7') {
-            tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
-            continue;
-        }
-        str_tok = str_tok + 1;
-        out_ch = (uint8_t) (8 * out_ch + (uint8_t) (piece - '0'));
-        piece = *str_tok;
-        tacc_dynstring_push(expr->extra.string_literal, (char) out_ch);
+        str_tok = tacc_parse_one_char(str_tok, &piece);
+        tacc_dynstring_push(expr->extra.string_literal, (char) piece);
     }
 }
 
@@ -668,10 +617,8 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
             }
         } else if (tok->kind == TOK_CHAR) {
             expr->kind = EX_CHAR_LIT;
-            /* expr->extra.const_val =
-                tacc_parse_charlit(iter->state->registry->target,
-                                   iter->state->registry->basic_types,
-                                   tok);  TODO*/
+            expr->extra.char_literal = tacc_char_literal_new();
+            expr->extra.char_literal->number = tacc_parse_charlit(tok);
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(

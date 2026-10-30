@@ -138,10 +138,12 @@ struct tacc_expr {
 
 struct tacc_expr *tacc_expr_new(void);
 struct tacc_int_literal *tacc_int_literal_new(void);
+struct tacc_char_literal *tacc_char_literal_new(void);
 struct tacc_float_literal *tacc_float_literal_new(void);
 struct tacc_type_name *tacc_type_name_new(void);
 void tacc_expr_init(struct tacc_expr *expr);
 void tacc_int_literal_free(struct tacc_int_literal *int_literal);
+void tacc_char_literal_free(struct tacc_char_literal *literal);
 void tacc_float_literal_free(struct tacc_float_literal *float_literal);
 void tacc_expr_free(struct tacc_expr *expr);
 void tacc_type_name_free(struct tacc_type_name *type_name);

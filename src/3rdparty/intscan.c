@@ -332,7 +332,7 @@ void intscan(struct tacc_file_iter *f,
              intscan_val(c) < base && tacc_u64_ule(&y, &ullong_max_div_base);
              c = shgetc(f)) {
             tacc_u64_lsh_n(&y, &y, bs);
-            y.low |= intscan_val(c);
+            y.low = y.low | intscan_val(c);
         }
     } else {
         ullong_max_div_base.low = 0xFFFFFFFF;
