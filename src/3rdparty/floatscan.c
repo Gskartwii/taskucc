@@ -460,7 +460,9 @@ static void decfloat(struct tacc_file_iter *f,
         (num_significant_digits < 10 || (num_significant_digits >> 31 != 0)) &&
         (bits > 30 || decbuf_val(0) >> ((unsigned) bits) == 0)) {
         tacc_f128_from_u32(out, decbuf_val(0));
-        out->sign = 1;
+        if (sign < 0) {
+            out->sign = 1;
+        }
         return;
     }
 
