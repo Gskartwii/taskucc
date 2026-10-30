@@ -1,7 +1,6 @@
 #include "dynhash.h"
 #include "gcc_compat.h"
 #include "util.h"
-#include <memory.h>
 
 struct tacc_dynhash *tacc_dynhash_new(size_t cap, size_t element_size) {
     struct tacc_dynhash *hash;

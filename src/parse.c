@@ -9,7 +9,6 @@
 #include "statement.h"
 #include "tasku_pp.h"
 #include "util.h"
-#include <memory.h>
 #include <stdarg.h>
 #include <string.h>
 

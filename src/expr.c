@@ -14,8 +14,11 @@ void tacc_expr_init(struct tacc_expr *expr) {
 }
 
 struct tacc_expr *tacc_expr_new(void) {
-    struct tacc_expr *expr = tacc_malloc(sizeof(struct tacc_expr));
+    struct tacc_expr *expr;
+
+    expr = tacc_malloc(sizeof(struct tacc_expr));
     tacc_expr_init(expr);
+
     return expr;
 }
 
@@ -52,10 +55,12 @@ struct tacc_float_literal *tacc_float_literal_new(void) {
 }
 
 struct tacc_type_name *tacc_type_name_new(void) {
-    struct tacc_type_name *type_name =
-        tacc_malloc(sizeof(struct tacc_type_name));
+    struct tacc_type_name *type_name;
+
+    type_name = tacc_malloc(sizeof(struct tacc_type_name));
     type_name->base_type = NULL;
     type_name->type_extension = NULL;
+
     return type_name;
 }
 

@@ -5,16 +5,18 @@
 #include <string.h>
 
 struct tacc_val *tacc_val_new(void) {
-    struct tacc_val *val = tacc_malloc(sizeof(struct tacc_val));
+    struct tacc_val *val;
 
+    val = tacc_malloc(sizeof(struct tacc_val));
     val->type = NULL;
 
     return val;
 }
 
 struct tacc_val *tacc_val_clone(struct tacc_val *orig_val) {
-    struct tacc_val *val = tacc_malloc(sizeof(struct tacc_val));
+    struct tacc_val *val;
 
+    val = tacc_malloc(sizeof(struct tacc_val));
     val->type = orig_val->type;
 
     if (tacc_val_is_integral(orig_val)) {
@@ -163,7 +165,9 @@ tacc_int_literal_eval(struct tacc_int_literal *literal,
                       struct tacc_target *target,
                       struct tacc_type_list *basic_types) {
     struct tacc_val *val;
-    tacc_bool can_be_unsigned = literal->suffix_u || (literal->base != 10);
+    tacc_bool can_be_unsigned;
+
+    can_be_unsigned = literal->suffix_u || (literal->base != 10);
 
     if (tacc_u64_ugt(literal->number, target->sllong->max)) {
         tacc_assert(ASSERT_DIAG, can_be_unsigned, "integer literal overflow");
@@ -238,7 +242,9 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
     struct tacc_val *l_result;
     struct tacc_val *r_result;
     struct tacc_global_object_map_entry *obj_entry;
-    struct tacc_type *sint_ty = tacc_get_basic_type(ctx->basic_types, TYK_SINT);
+    struct tacc_type *sint_ty;
+
+    sint_ty = tacc_get_basic_type(ctx->basic_types, TYK_SINT);
 
     switch (expr->kind) {
     case EX_UNINIT:

@@ -1199,7 +1199,9 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
         tacc_cg_call(state, func_ty, 1);
         tacc_target_cg_convert_float(state, to_type);
     } else {
-        tacc_assert(ASSERT_DIAG, 0, "invalid conversion");
+        tacc_assert(
+            ASSERT_DIAG, to_type->kind == TYK_VOID, "invalid conversion");
+        /* conversion to void is no-op, other than changing the slot type */
     }
     slot = tacc_cg_get_top(state);
     slot->ty = to_type;
