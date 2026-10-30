@@ -63,7 +63,8 @@ static void
 tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
                                    struct tacc_callitf_state *state,
                                    struct tacc_callitf_part_list *parts,
-                                   size_t param_idx) {
+                                   size_t param_idx,
+                                   tacc_bool force_integer) {
     struct tacc_callitf_part *part;
 
     part = tacc_callitf_part_new();
@@ -101,7 +102,18 @@ tacc_target_callitf_parts_from_arg(struct tacc_type *arg_type,
     case TYK_FLOAT:
     case TYK_DOUBLE:
         part->access_as_type = arg_type;
-        if (state->float_regs_used < 8) {
+        if (force_integer && state->int_regs_used < 8) {
+            if (arg_type->kind == TYK_FLOAT) {
+                part->access_as_type =
+                    tacc_get_basic_type(state->basic_types, TYK_UINT);
+            } else {
+                part->access_as_type =
+                    tacc_get_basic_type(state->basic_types, TYK_ULONGLONG);
+            }
+            part->place.kind = CALLITF_PLACE_REGISTER;
+            part->place.extra.reg.reg = tacc_callitf_areg(state->int_regs_used);
+            state->int_regs_used = state->int_regs_used + 1;
+        } else if (!force_integer && state->float_regs_used < 8) {
             part->place.kind = CALLITF_PLACE_FLOAT_REGISTER;
             part->place.extra.reg.reg =
                 tacc_callitf_float_areg(state->float_regs_used);
@@ -237,7 +249,7 @@ struct tacc_callitf *tacc_target_callitf_from_params(
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
         tacc_target_callitf_parts_from_arg(
-            ty_entry->content, &state, ret->param_parts, i);
+            ty_entry->content, &state, ret->param_parts, i, 0);
     }
 
     return ret;
@@ -261,7 +273,7 @@ tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
         for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
             ty_entry = tacc_type_list_get(ty->param_types, i);
             tacc_target_callitf_parts_from_arg(
-                ty_entry->content, &state, ret->param_parts, i);
+                ty_entry->content, &state, ret->param_parts, i, 0);
         }
     } else {
         num_named_params = 0;
@@ -269,10 +281,13 @@ tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
     if (vararg_types != NULL) {
         for (i = 0; i < num_named_params; i = i + 1) {
             ty_entry = tacc_type_list_get(vararg_types, i);
-            tacc_target_callitf_parts_from_arg(ty_entry->content,
-                                               &state,
-                                               ret->param_parts,
-                                               num_named_params + i);
+            tacc_target_callitf_parts_from_arg(
+                ty_entry->content,
+                &state,
+                ret->param_parts,
+                num_named_params + i,
+                /* if true varargs, force integer registers only */
+                ty->param_types != NULL);
         }
     }
 

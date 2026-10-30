@@ -1130,7 +1130,9 @@ int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
         tacc_compile_output_directive(
             compiler, "byte %u", (unsigned) (f80_high16 & 0xFF));
         tacc_compile_output_directive(
-            compiler, "byte %u", (unsigned) ((f80_high16 >> 8) & 0xFF));
+            compiler,
+            "byte %u",
+            (unsigned) ((f80_high16 >> ((unsigned) 8)) & 0xFF));
     } else {
         tacc_f128_serialize_f128(&u64_part, &u64_part_2, float_value);
         tacc_compile_output_int(compiler, &u64_part, 64);

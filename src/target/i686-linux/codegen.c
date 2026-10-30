@@ -526,6 +526,10 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
                                       struct tacc_type *ty) {
     size_t width;
 
+    tacc_assert(ASSERT_ICE,
+                !tacc_type_is_floating(ty),
+                "no float register to load from scratch");
+
     width = tacc_type_bit_width(ty);
     tacc_cg_output(state,
                    "\n\t mov%s %d(%%ebp), %s",

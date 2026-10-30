@@ -567,6 +567,22 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
     size_t width;
 
     width = tacc_type_bit_width(ty);
+
+    if (tacc_type_is_floating(ty)) {
+        if (ty->kind == TYK_FLOAT) {
+            tacc_cg_output(state,
+                           "\n\t movss %d(%%rbp), %s",
+                           offset,
+                           tacc_target_register_as_xmm(to_reg));
+        } else {
+            tacc_cg_output(state,
+                           "\n\t movsd %d(%%rbp), %s",
+                           offset,
+                           tacc_target_register_as_xmm(to_reg));
+        }
+        return;
+    }
+
     tacc_cg_output(state,
                    "\n\t mov%s %d(%%rbp), %s",
                    tacc_target_op_suffix(width),

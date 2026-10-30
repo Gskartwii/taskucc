@@ -517,6 +517,21 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
     char *reg_name;
     char *signedness;
 
+    if (tacc_type_is_floating(ty)) {
+        if (ty->kind == TYK_FLOAT) {
+            tacc_cg_output(state,
+                           "\n\t flw %s, %d(s0)",
+                           tacc_target_f_register_name(to_reg),
+                           offset);
+        } else {
+            tacc_cg_output(state,
+                           "\n\t fld %s, %d(s0)",
+                           tacc_target_f_register_name(to_reg),
+                           offset);
+        }
+        return;
+    }
+
     signedness = "u";
     if (tacc_type_is_signed(ty)) {
         signedness = "";
