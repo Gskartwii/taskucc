@@ -22,6 +22,9 @@ for case_dir in cases/*; do
         ok=false
         continue
     fi
+    if [ -f "$case_dir/golden.log" ]; then
+        cp "$case_dir/golden.log" "$out/bin/compile-test/$(basename $case_dir)-$RUNNER-golden.log"
+    fi
     if ! $CC -ffloat-store "$RUN_TMP/test.S" "$SCRIPT_DIR/taccrt.c" "$case_dir/driver.c" -o "$RUN_TMP/driver"; then
         echo "LINK $case_dir/test.c: fail"
         ok=false
