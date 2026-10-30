@@ -1,4 +1,5 @@
 #include "call_itf.h"
+#include "target/call_itf.h"
 #include "util.h"
 
 struct tacc_callitf *tacc_callitf_new(void) {
@@ -10,6 +11,7 @@ struct tacc_callitf *tacc_callitf_new(void) {
     itf->retval_reg = 0;
     itf->retval_reg_2 = 0;
     itf->implicit_stack_use = 0;
+    itf->target_extra = NULL;
 
     return itf;
 }
@@ -41,6 +43,10 @@ MK_DYNARRAY_OVER(tacc_callitf_part_list,
                  tacc_callitf_part_list_free)
 
 void tacc_callitf_free(struct tacc_callitf *itf) {
+    if (itf->target_extra != NULL) {
+        tacc_target_callitf_free(itf->target_extra);
+    }
+
     tacc_callitf_part_list_free(itf->param_parts);
     tacc_free(itf->param_parts);
     tacc_free(itf);

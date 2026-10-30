@@ -27,23 +27,18 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
     return part;
 }
 
-struct tacc_callitf *tacc_target_callitf_from_func_type(
-    struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
+static struct tacc_callitf *tacc_target_callitf_begin(
+    struct tacc_callitf_state *state, struct tacc_type *return_type) {
     struct tacc_callitf *ret;
-    struct tacc_callitf_state state;
-    struct tacc_type_list_entry *ty_entry;
-    struct tacc_callitf_part *part;
-    size_t i;
-
-    TACC_UNUSED(basic_types);
 
     ret = tacc_callitf_new();
     ret->frame_grows_upward = 0;
     /* args start at ebp + 8 */
-    state.used_stack = 8;
+    state->used_stack = 8;
     ret->implicit_stack_use = 8;
+    ret->frame_offset = 12;
 
-    switch (ty->return_type->kind) {
+    switch (return_type->kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -88,6 +83,22 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
         break;
     }
 
+    return ret;
+}
+
+struct tacc_callitf *tacc_target_callitf_from_params(
+    struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
+    struct tacc_callitf *ret;
+    struct tacc_callitf_state state;
+    struct tacc_type_list_entry *ty_entry;
+    struct tacc_callitf_part *part;
+    size_t i;
+
+    TACC_UNUSED(basic_types);
+
+    tacc_assert(ASSERT_TODO, !ty->is_vararg, "TODO: vararg in callitf");
+    ret = tacc_target_callitf_begin(&state, ty->return_type);
+
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
         part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
@@ -95,7 +106,48 @@ struct tacc_callitf *tacc_target_callitf_from_func_type(
         tacc_callitf_part_list_push(ret->param_parts, part);
     }
 
-    ret->frame_offset = 12;
+    return ret;
+}
+
+void tacc_target_callitf_free(struct tacc_target_callitf *itf) {
+    TACC_UNUSED(itf);
+
+    tacc_assert(ASSERT_ICE, 0, "no i686 target-specific callitf");
+}
+
+struct tacc_callitf *
+tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
+                                 struct tacc_function_type *ty,
+                                 struct tacc_type_list *vararg_types) {
+    struct tacc_callitf *ret;
+    struct tacc_callitf_state state;
+    struct tacc_type_list_entry *ty_entry;
+    struct tacc_callitf_part *part;
+    size_t i;
+    size_t num_named_params;
+
+    TACC_UNUSED(basic_types);
+    ret = tacc_target_callitf_begin(&state, ty->return_type);
+
+    if (ty->param_types != NULL) {
+        num_named_params = tacc_type_list_len(ty->param_types);
+        for (i = 0; i < num_named_params; i = i + 1) {
+            ty_entry = tacc_type_list_get(ty->param_types, i);
+            part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
+            part->param_idx = i;
+            tacc_callitf_part_list_push(ret->param_parts, part);
+        }
+    } else {
+        num_named_params = 0;
+    }
+    if (vararg_types != NULL) {
+        for (i = 0; i < tacc_type_list_len(vararg_types); i = i + 1) {
+            ty_entry = tacc_type_list_get(vararg_types, i);
+            part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
+            part->param_idx = num_named_params + i;
+            tacc_callitf_part_list_push(ret->param_parts, part);
+        }
+    }
 
     return ret;
 }

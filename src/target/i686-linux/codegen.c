@@ -599,8 +599,11 @@ void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
                    offset + 4);
 }
 
-void tacc_target_cg_call_top(struct tacc_cg_state *state) {
+void tacc_target_cg_call_top(struct tacc_cg_state *state,
+                             struct tacc_callitf *itf) {
     struct tacc_slot *slot;
+
+    TACC_UNUSED(itf);
 
     slot = tacc_cg_get_top(state);
 

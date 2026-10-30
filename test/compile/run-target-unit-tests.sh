@@ -5,6 +5,13 @@ SCRIPT_DIR=$(dirname $(realpath "$0"))
 ok=true
 
 for case_bin in $SCRIPT_DIR/compile-test/*; do
+    case "$case_bin" in
+        *.log)
+            continue
+            ;;
+        *)
+            ;;
+    esac
     if ! timeout 1 "$case_bin"; then
         echo "$case_bin: fail: $?"
         ok=false

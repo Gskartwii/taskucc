@@ -5,6 +5,7 @@
   tasku-m2,
   tasku-gcc,
   binutils,
+  diffutils,
   stdenvNoCC,
   fetchgit,
   lib,
@@ -60,7 +61,13 @@ in
           args = [
             (lib.getExe' unit-test "target-compile-test")
           ];
-          PATH = lib.makeBinPath [coreutils];
+          PATH = lib.makeBinPath [
+            coreutils
+            (diffutils.overrideAttrs {
+              # unfortunately gnulib tests can fail under pkgsStatic
+              doCheck = false;
+            })
+          ];
           outputs = ["out"];
         })
         // {

@@ -38,6 +38,10 @@ enum tacc_target_register_float {
     REGV_SCRATCH = 0x8000,
 };
 
+struct tacc_target_callitf {
+    int num_float_registers;
+};
+
 #define CALLITF_RETVAL_FLOAT_X87 CALLITF_RETVAL_FIRST_TARGET_SPECIAL
 
 #define REG_ANY 0x3FFF

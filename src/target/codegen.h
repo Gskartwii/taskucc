@@ -78,7 +78,8 @@ void tacc_target_cg_store_reg_pair_to_scratch(struct tacc_cg_state *state,
                                               int offset,
                                               uint32_t reg,
                                               uint32_t reg_2);
-void tacc_target_cg_call_top(struct tacc_cg_state *state);
+void tacc_target_cg_call_top(struct tacc_cg_state *state,
+                             struct tacc_callitf *itf);
 void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
                                      struct tacc_callitf *itf,
                                      struct tacc_type *return_ty);

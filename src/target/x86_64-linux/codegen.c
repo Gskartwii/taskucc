@@ -591,17 +591,31 @@ void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
     }
 }
 
-void tacc_target_cg_call_top(struct tacc_cg_state *state) {
+void tacc_target_cg_call_top(struct tacc_cg_state *state,
+                             struct tacc_callitf *itf) {
     struct tacc_slot *slot;
 
     slot = tacc_cg_get_top(state);
 
+    if (itf->target_extra != NULL) {
+        /*
+         * varargs possibly present, need to specify number of float regs used
+         */
+        tacc_cg_output(state,
+                       "\n\t movb $%d, %%al",
+                       itf->target_extra->num_float_registers);
+    }
+
+    /*
+     * use r11; not used for any kind of argument, and also specified to be
+     * volatile
+     */
     tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_SCRATCH,
                 "expected callee pointer to be in scratch");
-    tacc_cg_output(state, "\n\t movq %d(%%rbp), %%rax", slot->place.offset);
+    tacc_cg_output(state, "\n\t movq %d(%%rbp), %%r11", slot->place.offset);
     tacc_cg_pop(state);
-    tacc_cg_output(state, "\n\t call *%%rax");
+    tacc_cg_output(state, "\n\t call *%%r11");
 }
 
 void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,

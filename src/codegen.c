@@ -367,6 +367,7 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     struct tacc_local_var *var;
     struct tacc_global_object *object;
     struct tacc_type *ty;
+    struct tacc_type *base_ty;
     struct tacc_field *field;
     int index;
 
@@ -492,14 +493,15 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     case EX_STRING_LIT:
         index = tacc_compile_emit_string_lit(state->compiler,
                                              expr->extra.string_literal);
+
+        base_ty = tacc_get_basic_type(state->compiler->basic_types, TYK_CHAR);
         ty = tacc_type_new();
         ty->kind = TYK_ARRAY;
+        tacc_type_list_push(base_ty->derived_array_types, ty);
         ty->extra.array = tacc_array_type_new();
-
-        /* TODO: add real char type */
-        ty->extra.array->element_type =
-            tacc_get_basic_type(state->compiler->basic_types, TYK_SCHAR);
+        ty->extra.array->element_type = base_ty;
         ty->extra.array->dimension = tacc_u64_new();
+
         tacc_u64_from_u32(
             ty->extra.array->dimension,
             ((uint32_t) tacc_dynstring_len(expr->extra.string_literal)) + 1);
@@ -642,6 +644,7 @@ void tacc_cg_call(struct tacc_cg_state *state,
                   struct tacc_type *fn_type,
                   size_t num_args) {
     size_t i;
+    size_t vararg_start;
     size_t needed_stack_space;
     size_t needed_stack_alignment;
     size_t part_end;
@@ -650,22 +653,44 @@ void tacc_cg_call(struct tacc_cg_state *state,
     struct tacc_callitf_part_list_entry *itf_part_entry;
     struct tacc_callitf_part *itf_part;
     struct tacc_slot *current_param;
+    struct tacc_slot_list_entry *arg_entry;
+    struct tacc_type_list *vararg_types;
 
-    itf = tacc_target_callitf_from_func_type(state->compiler->basic_types,
-                                             fn_type->extra.function);
+    vararg_types = NULL;
+
+    if (fn_type->extra.function->is_vararg ||
+        (fn_type->extra.function->param_types == NULL)) {
+        vararg_types = tacc_type_list_new();
+        if (fn_type->extra.function->param_types == NULL) {
+            /* no prototype; all parameters are passed analogously to vararg */
+            vararg_start = 0;
+        } else {
+            /* prototype with ellipsis */
+            vararg_start =
+                tacc_type_list_len(fn_type->extra.function->param_types);
+        }
+        for (i = vararg_start; i < num_args; i = i + 1) {
+            arg_entry = tacc_slot_list_get(
+                state->stack, tacc_slot_list_len(state->stack) - num_args + i);
+            tacc_type_list_push(vararg_types, arg_entry->content->ty);
+        }
+    }
+
+    itf = tacc_target_callitf_at_call_site(
+        state->compiler->basic_types, fn_type->extra.function, vararg_types);
+
+    if (vararg_types != NULL) {
+        /* do not type_list_free; the list does not own the types */
+        tacc_dynarray_free(vararg_types->list);
+        tacc_free(vararg_types);
+        vararg_types = NULL;
+    }
+
     /*
      * spill everything to stack to make it easier to handle calling convention;
      * not only the current args but everything else as well
      */
     tacc_cg_flush_stack(state);
-
-    /* need better support from callitf for variable-length argument lists... */
-    tacc_assert(ASSERT_TODO,
-                !fn_type->extra.function->is_vararg,
-                "varargs in call interface");
-    tacc_assert(ASSERT_TODO,
-                fn_type->extra.function->param_types != NULL,
-                "missing prototype in call interface");
 
     needed_stack_space = 0;
     needed_stack_alignment = 0;
@@ -739,7 +764,7 @@ void tacc_cg_call(struct tacc_cg_state *state,
         tacc_slot_free(current_param);
     }
 
-    tacc_target_cg_call_top(state);
+    tacc_target_cg_call_top(state, itf);
     switch (itf->retval_kind) {
     case CALLITF_RETVAL_NONE:
         tacc_cg_push_void(state);
@@ -1564,7 +1589,7 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     struct tacc_callitf_part_list_entry *itf_part_entry;
 
     state->func_type = func_type;
-    state->interface = tacc_target_callitf_from_func_type(
+    state->interface = tacc_target_callitf_from_params(
         state->compiler->basic_types, func_type);
     state->func_name = tacc_declarator_name(func_def->func_declaration);
     state->num_local_bytes = (size_t) (state->interface->frame_offset);

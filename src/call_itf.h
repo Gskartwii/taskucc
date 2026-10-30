@@ -68,6 +68,8 @@ struct tacc_callitf {
     tacc_bool frame_grows_upward;
 
     int frame_offset;
+
+    struct tacc_target_callitf *target_extra;
 };
 
 struct tacc_callitf *tacc_callitf_new(void);
