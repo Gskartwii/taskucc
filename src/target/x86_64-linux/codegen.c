@@ -239,6 +239,7 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     size_t width;
     char *reg;
     char *op_suff;
+    uint32_t tmp;
 
     width = tacc_type_bit_width(val->type);
 
@@ -252,11 +253,20 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
                        val->value.int_value->low,
                        reg);
     } else {
-        tacc_cg_output(
-            state, "\n\t movq $0x%x, %s", val->value.int_value->high, reg);
-        tacc_cg_output(state, "\n\t shlq $32, %s", reg);
-        tacc_cg_output(
-            state, "\n\t addq $0x%x, %s", val->value.int_value->low, reg);
+        if ((val->value.int_value->low >> 31) != 0) {
+            tmp = ~(val->value.int_value->high);
+            tacc_cg_output(state, "\n\t movq $0x%x, %s", tmp, reg);
+            tacc_cg_output(state, "\n\t shlq $32, %s", reg);
+            tmp = ~(val->value.int_value->low);
+            tacc_cg_output(state, "\n\t xorq $0x%x, %s", tmp, reg);
+            tacc_cg_output(state, "\n\t notq %s", reg);
+        } else {
+            tacc_cg_output(
+                state, "\n\t movq $0x%x, %s", val->value.int_value->high, reg);
+            tacc_cg_output(state, "\n\t shlq $32, %s", reg);
+            tacc_cg_output(
+                state, "\n\t addq $0x%x, %s", val->value.int_value->low, reg);
+        }
     }
 
     tacc_cg_push_reg(state, register_place, val->type);
