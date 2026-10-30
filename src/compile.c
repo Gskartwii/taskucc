@@ -1022,6 +1022,7 @@ void tacc_compile_top_decl(struct tacc_compiler *compiler,
 
     if (decl->kind == DECL_FUNCTION_DEF) {
         tacc_compile_function_def(compiler, decl);
+        tacc_compile_output(compiler, "\n");
         return;
     }
     if (decl->storage_class == STORAGE_TYPEDEF) {
@@ -1138,6 +1139,7 @@ int tacc_compile_emit_local_float(struct tacc_compiler *compiler,
         tacc_compile_output_int(compiler, &u64_part, 64);
         tacc_compile_output_int(compiler, &u64_part_2, 64);
     }
+    tacc_compile_output(compiler, "\n");
 
     return index;
 }
@@ -1158,6 +1160,7 @@ int tacc_compile_emit_string_lit(struct tacc_compiler *compiler,
             compiler, "byte 0x%x", (unsigned) tacc_dynstring_at(string, i));
     }
     tacc_compile_output_directive(compiler, "byte 0");
+    tacc_compile_output(compiler, "\n");
 
     return index;
 }
@@ -1210,4 +1213,5 @@ void tacc_compile_coda(struct tacc_compiler *compiler) {
                                 compiler, entry->content->name_ref)));
         tacc_compile_output_directive(compiler, "zero %d", tacc_type_size(ty));
     }
+    tacc_compile_output(compiler, "\n");
 }
