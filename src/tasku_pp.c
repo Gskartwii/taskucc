@@ -755,10 +755,11 @@ static tacc_bool tacc_file_iter_lex_directive(struct tacc_file_iter *iter,
 static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
                                               struct pp_tok *tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
-    struct pp_tok *ret = tok_out;
+    struct pp_tok *ret;
     char contained;
     struct tacc_string *out_str;
 
+    ret = tok_out;
     out_str = tacc_dynstring_new();
     ret->kind = TOK_CHAR;
     tacc_dynstring_push(out_str, '\'');
@@ -791,9 +792,10 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
 static struct pp_tok *tacc_file_iter_lex_string(struct tacc_file_iter *iter,
                                                 struct pp_tok *tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
-    struct pp_tok *ret = tok_out;
+    struct pp_tok *ret;
     struct tacc_string *out_str;
 
+    ret = tok_out;
     ret->kind = TOK_STRING;
 
     out_str = tacc_dynstring_new();
@@ -831,10 +833,11 @@ static void tacc_file_iter_eat_literal(struct tacc_file_iter *iter) {
 static struct pp_tok *tacc_file_iter_lex_incfile(struct tacc_file_iter *iter,
                                                  struct pp_tok *tok_out,
                                                  char first) {
-    struct pp_tok *ret = tok_out;
+    struct pp_tok *ret;
     struct tacc_string *out_str;
     char last;
 
+    ret = tok_out;
     if (first == '"') {
         last = '"';
     } else {
@@ -865,10 +868,11 @@ static struct pp_tok *tacc_file_iter_lex_ppnum(struct tacc_file_iter *iter,
                                                struct pp_tok *tok_out,
                                                char first) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
-    struct pp_tok *ret = tok_out;
+    struct pp_tok *ret;
     struct tacc_string *out_str;
     char ch;
 
+    ret = tok_out;
     ret->kind = TOK_PPNUM;
 
     out_str = tacc_dynstring_new();
@@ -1037,10 +1041,11 @@ enum pp_ident_kind tacc_recognize_ident_kind(char *ident) {
 static struct pp_tok *tacc_file_iter_lex_ident(struct tacc_file_iter *iter,
                                                struct pp_tok *tok_out,
                                                char first) {
-    struct pp_tok *ret = tok_out;
+    struct pp_tok *ret;
     struct tacc_string *out_str;
     char ch;
 
+    ret = tok_out;
     ret->kind = TOK_IDENT;
 
     out_str = tacc_dynstring_new();
@@ -1626,7 +1631,7 @@ static struct tacc_file *tacc_pp_search_include_path(
             return try_file;
         }
     }
-    for (i = 0; i < tacc_string_list_len(state->include_path); ++i) {
+    for (i = 0; i < tacc_string_list_len(state->include_path); i = i + 1) {
         entry = tacc_string_list_get(state->include_path, i);
         try_file =
             tacc_pp_try_file(tacc_dynstring_as_str(entry->content), subpath);
@@ -2446,7 +2451,7 @@ static size_t tacc_macro_def_index_of_par(struct tacc_macro_def *macro_def,
     if (macro_def->is_va && (!strcmp(ident, "__VA_ARGS__"))) {
         return tacc_string_list_len(macro_def->params);
     }
-    for (i = 0; i < tacc_string_list_len(macro_def->params); ++i) {
+    for (i = 0; i < tacc_string_list_len(macro_def->params); i = i + 1) {
         par_ident = tacc_string_list_get(macro_def->params, i);
         if (!strcmp(tacc_dynstring_as_str(par_ident->content), ident)) {
             return i;
