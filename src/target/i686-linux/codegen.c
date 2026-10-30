@@ -657,7 +657,7 @@ void tacc_target_cg_convert_float(struct tacc_cg_state *state,
     }
     if (to_type->kind == TYK_LONGDOUBLE) {
         tacc_cg_output(state, "\n\t fstpt %d(%%ebp)", offset);
-    } else if (slot->ty->kind == TYK_DOUBLE) {
+    } else if (to_type->kind == TYK_DOUBLE) {
         tacc_cg_output(state, "\n\t fstpl %d(%%ebp)", offset);
     } else {
         tacc_cg_output(state, "\n\t fstps %d(%%ebp)", offset);
