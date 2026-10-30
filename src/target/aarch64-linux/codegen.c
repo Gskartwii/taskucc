@@ -741,7 +741,7 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
                        offset);
     } else {
         tacc_assert(ASSERT_ICE,
-                    tacc_type_is_integral(ty),
+                    tacc_type_is_integral(ty) || ty->kind == TYK_PTR,
                     "cannot load scratch part of invalid type");
         if (width == 8) {
             width_suffix = "b";
