@@ -11,6 +11,7 @@ char *strcat(char *restrict s1, const char *restrict s2);
 char *strchr(const char *s, int c);
 int strcmp(const char *s1, const char *s2);
 char *strcpy(char *restrict s1, const char *restrict s2);
+char *strncpy(char *restrict s1, const char *restrict s2, size_t n);
 char *strerror(int errnum);
 size_t strlen(const char *s);
 int strncmp(const char *s1, const char *s2, size_t n);

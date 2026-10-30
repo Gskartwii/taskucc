@@ -22,4 +22,6 @@ unsigned long long int strtoull(const char *restrict nptr,
 
 char *realpath(const char *restrict path, char *restrict resolved_path);
 
+void *malloc(size_t size);
+
 #endif
