@@ -2111,6 +2111,8 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
                                                  struct tacc_file_iter *iter) {
     struct tacc_tok_iter *last_iter;
 
+    TACC_UNUSED(first);
+
     last_iter = tacc_tok_iter_cur_iter(first);
 
     if (last_iter->skip_level > 0) {
@@ -2122,16 +2124,14 @@ static void tacc_tok_iter_handle_error_directive(struct tacc_tok_iter *first,
 
     tacc_assert(ASSERT_DIAG, 0, "#error: %s", iter->src);
     tacc_file_iter_free(iter);
-
-#ifdef __STDC__
-    (void) first;
-#endif
 }
 
 /* first: borrow, iter: owning */
 static void tacc_tok_iter_handle_warning_directive(
     struct tacc_tok_iter *first, struct tacc_file_iter *iter) {
     struct tacc_tok_iter *last_iter;
+
+    TACC_UNUSED(first);
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -2144,10 +2144,6 @@ static void tacc_tok_iter_handle_warning_directive(
 
     fprintf(stderr, "#warning: %s\n", iter->src);
     tacc_file_iter_free(iter);
-
-#ifdef __STDC__
-    (void) first;
-#endif
 }
 
 /* first: borrow, directive: owning */
