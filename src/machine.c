@@ -254,8 +254,11 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         return tacc_int_literal_eval(
             expr->extra.int_literal, ctx->target, ctx->basic_types);
     case EX_CHAR_LIT:
-        tacc_assert(ASSERT_TODO, 0, "char-literal consteval");
-        break;
+        l_result = tacc_val_new();
+        l_result->type = sint_ty;
+        l_result->value.int_value =
+            tacc_u64_clone(expr->extra.char_literal->number);
+        return l_result;
     case EX_FLOAT_LIT:
         tacc_assert(ASSERT_TODO, 0, "float-literal consteval");
         break;
