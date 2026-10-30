@@ -936,7 +936,7 @@ void tacc_f128_serialize_round_f80(struct tacc_u64 *low_64,
 
     if (src->exponent != 0) {
         /* set integer bit, except for the subnormals */
-        low_64->low = low_64->low | 0x80000000;
+        low_64->high = low_64->high | 0x80000000;
     }
 
     if ((src->mant_b & 1) == 0) {
