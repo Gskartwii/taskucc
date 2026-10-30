@@ -317,7 +317,7 @@ static void tacc_parse_floatlit(char *cstr,
         literal->suffix_l = 1;
     }
 
-    iter = tacc_file_iter_new_str(cstr, cstr_last);
+    iter = tacc_file_iter_new_str(cstr, cstr_last + 1);
     floatscan(iter, precision, literal->number);
     tacc_file_iter_free(iter);
     out_expr->kind = EX_FLOAT_LIT;
