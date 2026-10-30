@@ -153,24 +153,24 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     register_place = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
     reg = tacc_target_register_as_64(register_place);
     tacc_cg_output(state, "\n\t li %s, 0x%x", reg, val->value.int_value->high);
-    tacc_cg_output(state, "\n\t slli %s, %s, 12", reg, reg);
+    tacc_cg_output(state, "\n\t slli %s, %s, 11", reg, reg);
     tacc_cg_output(state,
                    "\n\t addi %s, %s, 0x%x",
                    reg,
                    reg,
-                   (val->value.int_value->low >> ((unsigned) 20)) & 0xFFF);
-    tacc_cg_output(state, "\n\t slli %s, %s, 12", reg, reg);
+                   (val->value.int_value->low >> ((unsigned) 21)) & 0x7FF);
+    tacc_cg_output(state, "\n\t slli %s, %s, 11", reg, reg);
     tacc_cg_output(state,
                    "\n\t addi %s, %s, 0x%x",
                    reg,
                    reg,
-                   (val->value.int_value->low >> ((unsigned) 8)) & 0xFFF);
-    tacc_cg_output(state, "\n\t slli %s, %s, 8", reg, reg);
+                   (val->value.int_value->low >> ((unsigned) 10)) & 0x7FF);
+    tacc_cg_output(state, "\n\t slli %s, %s, 10", reg, reg);
     tacc_cg_output(state,
                    "\n\t addi %s, %s, 0x%x",
                    reg,
                    reg,
-                   val->value.int_value->low & 0xFF);
+                   val->value.int_value->low & 0x3FF);
 
     tacc_cg_push_reg(state, register_place, val->type);
 }
