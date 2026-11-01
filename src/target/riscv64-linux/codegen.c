@@ -1304,7 +1304,7 @@ void tacc_target_cg_branch_named_label(struct tacc_cg_state *state,
 void tacc_target_cg_emit_named_label(struct tacc_cg_state *state,
                                      struct tacc_string *name) {
     tacc_cg_output(state,
-                   "\n.Ltaccnamed_%s_%s",
+                   "\n.Ltaccnamed_%s_%s:",
                    tacc_cg_func_name_as_str(state),
                    tacc_dynstring_as_str(name));
 }
