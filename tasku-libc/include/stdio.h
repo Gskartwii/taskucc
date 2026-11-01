@@ -11,7 +11,7 @@ typedef struct {
 extern FILE *const stderr;
 extern FILE *const stdout;
 
-typedef char va_list[1];
+typedef __builtin_va_list va_list;
 
 typedef unsigned long int size_t;
 
