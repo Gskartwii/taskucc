@@ -1860,7 +1860,8 @@ uint32_t tacc_target_cg_alloc_reg(struct tacc_cg_state *state,
                                  slot_entry->content->place.pair.reg_2;
         }
     }
-    if (occupied_registers == desired_registers) {
+    if ((occupied_registers & desired_registers) == desired_registers) {
+        /* every desired register is already taken. spill and steal */
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
         reg_chosen = slot_entry->content->place.reg;
         tacc_cg_slot_spill(state, slot_entry->content);
@@ -1899,7 +1900,8 @@ uint32_t tacc_target_cg_alloc_freg(struct tacc_cg_state *state,
             }
         }
     }
-    if (occupied_registers == desired_registers) {
+    if ((occupied_registers & desired_registers) == desired_registers) {
+        /* every desired register is already taken. spill and steal */
         slot_entry = tacc_slot_list_get(state->stack, oldest_matching);
         reg_chosen = slot_entry->content->place.reg;
         tacc_cg_slot_spill(state, slot_entry->content);
