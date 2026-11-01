@@ -585,6 +585,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
         if (tacc_tok_non_kw_ident(tok)) {
             str = tacc_dynstring_as_str(tok->str);
             if (!strcmp("__builtin_va_start", str)) {
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
                 expr->kind = EX_BUILTIN_VA_START;
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
@@ -601,6 +602,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                                   tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                                   "__builtin_va_start unclosed");
             } else if (!strcmp("__builtin_va_arg", str)) {
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
                 expr->kind = EX_BUILTIN_VA_ARG;
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
@@ -615,6 +617,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                                   tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                                   "__builtin_va_arg unclosed");
             } else if (!strcmp("__builtin_va_end", str)) {
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
                 expr->kind = EX_BUILTIN_VA_END;
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
@@ -625,6 +628,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                                   tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                                   "__builtin_va_end unclosed");
             } else if (!strcmp("__builtin_va_copy", str)) {
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
                 expr->kind = EX_BUILTIN_VA_COPY;
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
