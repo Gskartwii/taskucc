@@ -1557,8 +1557,6 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         break;
 
     case STMT_SWITCH:
-        /* label to switch decision */
-        label_continue = tacc_target_cg_branch(state, 0);
         /* label for break; */
         label_end = tacc_cg_new_label(state);
 
@@ -1571,6 +1569,9 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         controlling_expr_scratch_offset = top->place.offset;
         ty = top->ty;
         tacc_cg_pop(state);
+
+        /* label to switch decision */
+        label_continue = tacc_target_cg_branch(state, 0);
 
         tacc_label_list_push(state->break_stack, label_end);
         tacc_cg_switch_list_push(state->switch_stack, tacc_cg_switch_new());
