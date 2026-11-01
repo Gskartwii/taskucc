@@ -37,6 +37,7 @@ struct tacc_compiler {
     struct tacc_type_list *basic_types;
     struct tacc_type_list *anonymous_types;
     struct tacc_type_list *named_types;
+    struct tacc_type_list *builtin_types;
     struct tacc_type_map *typedefs;
     struct tacc_global_object_map *global_objects;
     struct tacc_global_object_list *maybe_tentative_globals;

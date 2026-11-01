@@ -423,6 +423,27 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     /* stack now aligned to 16 bytes */
     tacc_cg_output_prelude(state, "\n\t movq %%rsp, %%rbp");
 
+    if (state->func_type->is_vararg) {
+        /* reg_save_area: rbp - 176 */
+        tacc_cg_output_prelude(state, "\n\t movq %%rdi, -176(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movq %%rsi, -168(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movq %%rdx, -160(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movq %%rcx, -152(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movq %%r8, -144(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movq %%r9, -136(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t testb %%al, %%al");
+        tacc_cg_output_prelude(state, "\n\t je 1f");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm0, -128(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm1, -112(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm2, -96(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm3, -80(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm4, -64(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm5, -48(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm6, -32(%%rbp)");
+        tacc_cg_output_prelude(state, "\n\t movaps %%xmm7, -16(%%rbp)");
+        tacc_cg_output_prelude(state, "\n1:");
+    }
+
     for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
          i = i + 1) {
         param_entry =
@@ -1329,4 +1350,143 @@ uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
                    to_label);
 
     return b_reg;
+}
+
+struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
+    struct tacc_type *type;
+    struct tacc_type *void_ptr;
+    struct tacc_field_list *fields;
+    struct tacc_field *field;
+
+    type = tacc_type_new();
+    tacc_type_list_push(compiler->anonymous_types, type);
+    type->kind = TYK_STRUCT;
+    type->extra.structure = tacc_struct_type_new();
+    type->extra.structure->alignment_p2 = 3;
+    type->extra.structure->size = 24;
+    fields = type->extra.structure->fields;
+
+    void_ptr = tacc_type_to_pointer(
+        compiler->target->pointer_ty,
+        tacc_get_basic_type(compiler->basic_types, TYK_VOID),
+        1);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "gp_offset");
+    field->offset = 0;
+    field->type = tacc_get_basic_type(compiler->basic_types, TYK_UINT);
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "fp_offset");
+    field->offset = 4;
+    field->type = tacc_get_basic_type(compiler->basic_types, TYK_UINT);
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "overflow_arg_area");
+    field->offset = 8;
+    field->type = void_ptr;
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "reg_save_area");
+    field->offset = 16;
+    field->type = void_ptr;
+    tacc_field_list_push(fields, field);
+
+    return type;
+}
+
+void tacc_target_cg_va_start(struct tacc_cg_state *state) {
+    uint32_t va_list_reg;
+    uint32_t tmp_reg;
+
+    va_list_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    tmp_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~va_list_reg);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t leaq -176(%%rbp), %s",
+                   tacc_target_register_as_64(tmp_reg));
+    /* reg_save_area */
+    tacc_cg_output(state,
+                   "\n\t movq %s, 16(%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+    tacc_cg_output(
+        state, "\n\t leaq 16(%%rbp), %s", tacc_target_register_as_64(tmp_reg));
+    /* overflow_arg_area */
+    tacc_cg_output(state,
+                   "\n\t movq %s, 8(%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+
+    /* gp_offset */
+    tacc_cg_output(state,
+                   "\n\t movl $%d, (%s)",
+                   8 * state->interface->target_extra->num_int_registers,
+                   tacc_target_register_as_64(va_list_reg));
+    /* fp_offset */
+    tacc_cg_output(state,
+                   "\n\t movl $%d, 4(%s)",
+                   48 + 8 * state->interface->target_extra->num_float_registers,
+                   tacc_target_register_as_64(va_list_reg));
+}
+
+void tacc_target_cg_va_copy(struct tacc_cg_state *state) {
+    uint32_t va_list_reg_src, va_list_reg_dst;
+    uint32_t tmp_reg;
+
+    va_list_reg_src = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    va_list_reg_dst =
+        tacc_cg_ensure_over_is_single(state, REG_VOLATILE & ~va_list_reg_src);
+    tmp_reg = tacc_target_cg_alloc_reg(
+        state, REG_VOLATILE & ~(va_list_reg_dst | va_list_reg_src));
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    /* gp_offset and fp_offset */
+    tacc_cg_output(state,
+                   "\n\t movq (%s), %s",
+                   tacc_target_register_as_64(va_list_reg_src),
+                   tacc_target_register_as_64(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t movq %s, (%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg_dst));
+    /* overflow_arg_area */
+    tacc_cg_output(state,
+                   "\n\t movq 8(%s), %s",
+                   tacc_target_register_as_64(va_list_reg_src),
+                   tacc_target_register_as_64(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t movq %s, 8(%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg_dst));
+    /* reg_save_area */
+    tacc_cg_output(state,
+                   "\n\t movq 16(%s), %s",
+                   tacc_target_register_as_64(va_list_reg_src),
+                   tacc_target_register_as_64(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t movq %s, 16(%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg_dst));
+}
+
+void tacc_target_cg_va_arg(struct tacc_cg_state *state,
+                           struct tacc_type *arg_type) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(arg_type);
+
+    tacc_assert(ASSERT_TODO, 0, "va_arg");
 }

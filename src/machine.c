@@ -530,7 +530,13 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(ASSERT_TODO, 0, "(_){_} consteval");
         break;
     case EX_NAME_OF_FUNC:
-        tacc_assert(ASSERT_TODO, 0, "__FUCNTION__ consteval");
+        tacc_assert(ASSERT_TODO, 0, "__FUNCTION__ consteval");
+        break;
+    case EX_BUILTIN_VA_START:
+    case EX_BUILTIN_VA_ARG:
+    case EX_BUILTIN_VA_END:
+    case EX_BUILTIN_VA_COPY:
+        tacc_assert(ASSERT_DIAG, 0, "cannot const-eval va_* builtins");
         break;
     }
     return NULL;

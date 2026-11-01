@@ -133,7 +133,7 @@ static struct tacc_callitf_part *tacc_target_callitf_part_from_arg(
 }
 
 static struct tacc_callitf *tacc_target_callitf_begin(
-    struct tacc_callitf_state *state, struct tacc_type *return_type) {
+    struct tacc_callitf_state *state, struct tacc_function_type *type) {
     struct tacc_callitf *ret;
 
     ret = tacc_callitf_new();
@@ -143,9 +143,13 @@ static struct tacc_callitf *tacc_target_callitf_begin(
     state->float_regs_used = 0;
     ret->implicit_stack_use = 16;
     ret->frame_grows_upward = 0;
-    ret->frame_offset = 0;
+    if (type->is_vararg) {
+        ret->frame_offset = 176;
+    } else {
+        ret->frame_offset = 0;
+    }
 
-    switch (return_type->kind) {
+    switch (type->return_type->kind) {
     case TYK_CHAR:
     case TYK_UCHAR:
     case TYK_SCHAR:
@@ -191,6 +195,16 @@ static struct tacc_callitf *tacc_target_callitf_begin(
     return ret;
 }
 
+static struct tacc_target_callitf *tacc_target_callitf_new(void) {
+    struct tacc_target_callitf *itf;
+
+    itf = tacc_malloc(sizeof(struct tacc_target_callitf));
+    itf->num_int_registers = 0;
+    itf->num_float_registers = 0;
+
+    return itf;
+}
+
 struct tacc_callitf *tacc_target_callitf_from_params(
     struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
     struct tacc_callitf *ret;
@@ -200,26 +214,21 @@ struct tacc_callitf *tacc_target_callitf_from_params(
     size_t i;
 
     TACC_UNUSED(basic_types);
-    ret = tacc_target_callitf_begin(&state, ty->return_type);
+    ret = tacc_target_callitf_begin(&state, ty);
 
-    tacc_assert(ASSERT_TODO, !ty->is_vararg, "TODO: vararg in callitf");
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
         ty_entry = tacc_type_list_get(ty->param_types, i);
         part = tacc_target_callitf_part_from_arg(ty_entry->content, &state);
         part->param_idx = i;
         tacc_callitf_part_list_push(ret->param_parts, part);
     }
+    if (ty->is_vararg) {
+        ret->target_extra = tacc_target_callitf_new();
+        ret->target_extra->num_int_registers = (int) state.int_regs_used;
+        ret->target_extra->num_float_registers = (int) state.float_regs_used;
+    }
 
     return ret;
-}
-
-static struct tacc_target_callitf *tacc_target_callitf_new(void) {
-    struct tacc_target_callitf *itf;
-
-    itf = tacc_malloc(sizeof(struct tacc_target_callitf));
-    itf->num_float_registers = 0;
-
-    return itf;
 }
 
 void tacc_target_callitf_free(struct tacc_target_callitf *itf) {
@@ -238,7 +247,7 @@ tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
     size_t num_named_params;
 
     TACC_UNUSED(basic_types);
-    ret = tacc_target_callitf_begin(&state, ty->return_type);
+    ret = tacc_target_callitf_begin(&state, ty);
 
     if (ty->param_types != NULL) {
         num_named_params = tacc_type_list_len(ty->param_types);
@@ -259,6 +268,7 @@ tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
             tacc_callitf_part_list_push(ret->param_parts, part);
         }
         ret->target_extra = tacc_target_callitf_new();
+        ret->target_extra->num_int_registers = (int) state.int_regs_used;
         ret->target_extra->num_float_registers = (int) state.float_regs_used;
     }
 

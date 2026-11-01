@@ -258,6 +258,9 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
                            TYPEQUAL_VOLATILE | TYPESPEC_INLINE))) != 0) {
             return 0;
         }
+        if (!strcmp(tacc_dynstring_as_str(tok->str), "__builtin_va_list")) {
+            return 1;
+        }
         ident_descriptor = tacc_parse_registry_lookup_untagged(
             registry, tacc_dynstring_as_str(tok->str));
         if (ident_descriptor == NULL) {
@@ -552,6 +555,9 @@ static void tacc_parse_expr_list(struct tacc_parse_registry *registry,
     } while (tacc_tok_iter_accept_tok(iter, TOK_COMMA));
 }
 
+struct tacc_expr *tacc_parse_new_assignment_expression(
+    struct tacc_parse_registry *registry, struct tacc_tok_iter *iter);
+
 static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                                     struct tacc_tok_iter *iter,
                                     struct tacc_expr *in_expr) {
@@ -559,6 +565,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
     struct pp_tok *tok;
     struct tacc_expr_list *expr_list;
     struct tacc_untagged_ident *ident_entry;
+    char *str;
 
     expr = in_expr;
 
@@ -576,25 +583,81 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
     } else {
         tok = tacc_tok_iter_peek(iter);
         if (tacc_tok_non_kw_ident(tok)) {
-            if (!strcmp("__FUNCTION__", tacc_dynstring_as_str(tok->str))) {
+            str = tacc_dynstring_as_str(tok->str);
+            if (!strcmp("__builtin_va_start", str)) {
+                expr->kind = EX_BUILTIN_VA_START;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "__builtin_va_start not followed by paren");
+                expr->op1 =
+                    tacc_parse_new_assignment_expression(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "__builtin_va_start takes two parameters");
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_IDENT),
+                                  "__builtin_va_start takes two parameters");
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "__builtin_va_start unclosed");
+            } else if (!strcmp("__builtin_va_arg", str)) {
+                expr->kind = EX_BUILTIN_VA_ARG;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "__builtin_va_arg not followed by paren");
+                expr->op1 =
+                    tacc_parse_new_assignment_expression(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "__builtin_va_arg takes two parameters");
+                expr->extra.type = tacc_parse_type_name(iter, registry);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "__builtin_va_arg unclosed");
+            } else if (!strcmp("__builtin_va_end", str)) {
+                expr->kind = EX_BUILTIN_VA_END;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "__builtin_va_end not followed by paren");
+                expr->op1 =
+                    tacc_parse_new_assignment_expression(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "__builtin_va_end unclosed");
+            } else if (!strcmp("__builtin_va_copy", str)) {
+                expr->kind = EX_BUILTIN_VA_COPY;
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "__builtin_va_copy not followed by paren");
+                expr->op1 =
+                    tacc_parse_new_assignment_expression(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_COMMA),
+                                  "__builtin_va_copy takes two parameters");
+                expr->op2 =
+                    tacc_parse_new_assignment_expression(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "__builtin_va_copy unclosed");
+            } else if (!strcmp("__FUNCTION__", str)) {
                 expr->kind = EX_NAME_OF_FUNC;
                 tacc_pp_tok_free(tacc_tok_iter_next(iter));
             } else {
                 expr->kind = EX_IDENT;
                 tacc_parse_assert(
                     iter, tok->str != NULL, "need str to parse ident");
-                ident_entry = tacc_parse_registry_lookup_untagged(
-                    registry, tacc_dynstring_as_str(tok->str));
+                ident_entry =
+                    tacc_parse_registry_lookup_untagged(registry, str);
                 tacc_assert(ASSERT_DIAG,
                             ident_entry != NULL,
                             "referenced ident not found: %s",
-                            tacc_dynstring_as_str(tok->str));
+                            str);
                 tacc_assert(
                     ASSERT_DIAG,
                     ident_entry->kind == UNTAGGED_IDENT_OBJECT ||
                         ident_entry->kind == UNTAGGED_IDENT_ENUMERATOR,
                     "primary expression doesn't refer to recognized object: %s",
-                    tacc_dynstring_as_str(tok->str));
+                    str);
                 expr->extra.name_ref = ident_entry->name_ref;
                 tacc_pp_tok_free(tacc_tok_iter_next(iter));
             }
@@ -1612,6 +1675,11 @@ static struct tacc_decl_type *tacc_parse_declaration_specifiers(
             ENSURE_ONE(TYPESPEC_BOOL);
             break;
         case ID_OTHER:
+            if (!strcmp("__builtin_va_list", tacc_dynstring_as_str(tok->str))) {
+                ENSURE_ONE(TYPESPEC_BUILTIN);
+                out_type->extra.builtin_type = BUILTINTY_VA_LIST;
+                break;
+            }
             ENSURE_ONE(TYPESPEC_TYPEDEF);
             ident_descriptor = tacc_parse_registry_lookup_untagged(
                 registry, tacc_dynstring_as_str(tok->str));

@@ -71,7 +71,11 @@ enum tacc_expr_kind {
     EX_SELECT,
     EX_COMPOUND_LIT,
 
-    EX_NAME_OF_FUNC
+    EX_NAME_OF_FUNC,
+    EX_BUILTIN_VA_START,
+    EX_BUILTIN_VA_ARG,
+    EX_BUILTIN_VA_END,
+    EX_BUILTIN_VA_COPY
 };
 
 struct tacc_expr;

@@ -39,6 +39,7 @@ enum tacc_target_register_float {
 };
 
 struct tacc_target_callitf {
+    int num_int_registers;
     int num_float_registers;
 };
 

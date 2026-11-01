@@ -109,4 +109,10 @@ void tacc_target_cg_branch_named_label(struct tacc_cg_state *state,
 void tacc_target_cg_emit_named_label(struct tacc_cg_state *state,
                                      struct tacc_string *name);
 
+struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler);
+void tacc_target_cg_va_start(struct tacc_cg_state *state);
+void tacc_target_cg_va_copy(struct tacc_cg_state *state);
+void tacc_target_cg_va_arg(struct tacc_cg_state *state,
+                           struct tacc_type *arg_type);
+
 #endif

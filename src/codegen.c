@@ -420,6 +420,10 @@ static void tacc_cg_compile_lval(struct tacc_cg_state *state,
     case EX_INCR_POST:
     case EX_DECR_POST:
     case EX_SELECT:
+    case EX_BUILTIN_VA_START:
+    case EX_BUILTIN_VA_ARG:
+    case EX_BUILTIN_VA_END:
+    case EX_BUILTIN_VA_COPY:
         tacc_assert(ASSERT_DIAG, 0, "invalid lvalue");
         break;
 
@@ -1066,6 +1070,32 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         tacc_cg_binop(state, EX_NE);
         tacc_cg_ensure_top_is_single(state, saved_reg);
         tacc_target_cg_emit_label(state, label_end);
+        break;
+
+    case EX_BUILTIN_VA_START:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_target_cg_va_start(state);
+        tacc_cg_push_void(state);
+        break;
+    case EX_BUILTIN_VA_END:
+        /* nothing to do */
+        tacc_cg_push_void(state);
+        break;
+    case EX_BUILTIN_VA_COPY:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_compile_expr(state, expr->op2);
+        tacc_target_cg_va_copy(state);
+        tacc_cg_push_void(state);
+        break;
+    case EX_BUILTIN_VA_ARG:
+        tacc_cg_compile_expr(state, expr->op1);
+        tacc_target_cg_va_arg(
+            state,
+            tacc_type_adjust_from_declarator(
+                state->compiler,
+                tacc_type_from_decl_type(state->compiler,
+                                         expr->extra.type->base_type),
+                expr->extra.type->type_extension));
         break;
 
     case EX_UNINIT:

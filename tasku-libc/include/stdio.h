@@ -22,6 +22,7 @@ FILE *fopen(const char *restrict filename, const char *restrict mode);
 int fprintf(FILE *restrict stream, const char *restrict format, ...);
 int fputc(int c, FILE *stream);
 int fputs(const char *restrict s, FILE *restrict stream);
+int puts(const char *s);
 size_t
 fread(void *restrict ptr, size_t size, size_t nmemb, FILE *restrict stream);
 int fseek(FILE *stream, long int offset, int whence);
@@ -33,6 +34,7 @@ size_t fwrite(const void *restrict ptr,
 int printf(const char *restrict format, ...);
 int sprintf(char *restrict s, const char *restrict format, ...);
 int snprintf(char *restrict s, size_t n, const char *restrict format, ...);
+int vprintf(const char *restrict format, va_list arg);
 int vfprintf(FILE *restrict stream, const char *restrict format, va_list arg);
 int vsnprintf(char *restrict s,
               size_t n,

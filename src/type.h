@@ -85,6 +85,9 @@ struct tacc_field {
     size_t offset;
     tacc_bool is_bitfield;
 
+    /* annoying hack, for non-interned field names */
+    tacc_bool owned_name;
+
     size_t bit_offset;
     size_t bit_width;
 

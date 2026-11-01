@@ -8,6 +8,7 @@
 #include "machine.h"
 #include "predef_func.h"
 #include "soft_float.h"
+#include "soft_u64.h"
 #include "string_list.h"
 #include "target/codegen.h"
 #include "type.h"
@@ -582,6 +583,13 @@ static struct tacc_type *tacc_compiler_add_new_named_type_or_bind(
     return existing;
 }
 
+static struct tacc_type *tacc_compiler_get_builtin_type(
+    struct tacc_compiler *compiler, enum tacc_builtin_type_name ty_name) {
+    struct tacc_type_list_entry *entry;
+    entry = tacc_type_list_get(compiler->builtin_types, ty_name);
+    return entry->content;
+}
+
 struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                                            struct tacc_decl_type *type) {
     enum tacc_type_kind base_type;
@@ -733,6 +741,9 @@ struct tacc_type *tacc_type_from_decl_type(struct tacc_compiler *compiler,
                     "non-existent typedef: %s",
                     tacc_dynstring_as_str(
                         tacc_compile_get_name(compiler, type->name_ref)));
+        return ty;
+    case TYPESPEC_BUILTIN:
+        ty = tacc_compiler_get_builtin_type(compiler, type->extra.builtin_type);
         return ty;
     default:
         tacc_assert(ASSERT_ICE, 0, "type unsupported as of now");
@@ -942,8 +953,23 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
         compiler, PREDEF__TACCRT_LTTF2, longdouble, longdouble, sint);
 }
 
+static void tacc_compile_init_builtin_types(struct tacc_compiler *compiler) {
+    struct tacc_type *base_type;
+    struct tacc_type *ty;
+
+    base_type = tacc_target_new_va_list_type(compiler);
+    ty = tacc_type_new();
+    tacc_type_list_push(base_type->derived_array_types, ty);
+    ty->kind = TYK_ARRAY;
+    ty->extra.array = tacc_array_type_new();
+    ty->extra.array->element_type = base_type;
+    ty->extra.array->dimension = tacc_u64_new_from_u32(1);
+    tacc_type_list_push(compiler->builtin_types, ty);
+}
+
 void tacc_compile_prelude(struct tacc_compiler *compiler) {
     tacc_compile_init_predef(compiler);
+    tacc_compile_init_builtin_types(compiler);
     tacc_target_cg_prelude(compiler);
 }
 

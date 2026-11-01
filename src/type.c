@@ -585,11 +585,16 @@ struct tacc_field *tacc_field_new(void) {
     type->bit_offset = 0;
     type->bit_width = 0;
     type->offset = 0;
+    type->owned_name = 0;
 
     return type;
 }
 
 void tacc_field_free(struct tacc_field *field) {
+    if (field->owned_name) {
+        tacc_dynstring_free(field->name);
+    }
+
     /* field names are interned and should not be freed here */
     tacc_free(field);
 }

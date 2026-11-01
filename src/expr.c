@@ -89,6 +89,8 @@ void tacc_expr_free(struct tacc_expr *expr) {
         tacc_free(expr->extra.op_list);
     } else if (expr->kind == EX_FLOAT_LIT) {
         tacc_float_literal_free(expr->extra.float_literal);
+    } else if (expr->kind == EX_BUILTIN_VA_ARG) {
+        tacc_type_name_free(expr->extra.type);
     }
     tacc_free(expr);
 }
