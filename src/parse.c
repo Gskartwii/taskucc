@@ -1054,7 +1054,7 @@ static void tacc_parse_expr_binary(struct tacc_parse_registry *registry,
          * after lower tacc_parse_expr_binary.
          */
         tacc_parse_expr_cast(registry, iter, expr->op2);
-        tacc_parse_expr_binary(registry, iter, expr->op2, next_op_prio);
+        tacc_parse_expr_binary(registry, iter, expr->op2, next_op_prio + 1);
 
         /*
          * Keep outer expression in expr; it might be the op1
