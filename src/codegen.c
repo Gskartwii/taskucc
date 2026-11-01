@@ -1185,10 +1185,7 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
             slot->ty = to_type;
             return;
         }
-        tacc_target_cg_ext_top(state,
-                               to_type,
-                               tacc_type_is_signed(to_type) &&
-                                   tacc_type_is_signed(from_type));
+        tacc_target_cg_ext_top(state, to_type, tacc_type_is_signed(from_type));
     } else if (tacc_type_is_floating(from_type) &&
                tacc_type_is_floating(to_type)) {
         if (tacc_type_is_compatible(to_type, from_type)) {
