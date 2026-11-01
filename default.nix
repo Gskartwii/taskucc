@@ -20,7 +20,7 @@ in
       tasku-gcc = callPackage ./nix/tasku-gcc.nix {
         srcFiles = common.src;
       };
-      tasku-tasku = targetPackages.callPackage ./nix/tasku-tasku.nix {
+      tasku-tasku = callPackage ./nix/tasku-tasku.nix {
         srcFiles = common.src;
       };
       common = callPackage ./nix/common.nix {};

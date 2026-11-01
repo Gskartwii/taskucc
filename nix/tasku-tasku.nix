@@ -4,6 +4,7 @@
   srcFiles,
   buildPackages,
 }: let
+  toXFile = toExt: path: builtins.replaceStrings ["/" ".c"] ["_" toExt] path;
   mk-tasku-tasku = compiler:
     stdenv.mkDerivation {
       pname = "tasku-cc-tasku";
@@ -12,10 +13,12 @@
       buildPhase = ''
         ${lib.strings.concatMapStringsSep "\n" (file: ''
             $TASKU ${file} -I${../tasku-libc/include} > \
-              ${builtins.replaceStrings ["/" ".c"] ["_" ".s"] file} || (echo failed to produce: ${file}; exit 1)
+              ${toXFile ".s" file} || (echo failed to produce: ${file}; exit 1)
+            $CC -o ${toXFile ".o" file} -c ${toXFile ".s" file} \
+               || (echo failed to produce .o: ${file}; exit 1)
           '')
           srcFiles}
-        $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".c"] ["_" ".s"]) srcFiles}
+        $CC -o tasku ${lib.strings.concatMapStringsSep " " (toXFile ".o") srcFiles}
       '';
       installPhase = ''
         mkdir -p $out/bin
@@ -25,6 +28,8 @@
       dontStrip = true;
       meta.mainProgram = "tasku-tasku";
     };
-in {
+in rec {
   tasku-tasku-gcc = mk-tasku-tasku buildPackages.tasku-gcc.debug;
+  tasku-tasku-m2 = mk-tasku-tasku buildPackages.tasku-m2;
+  tasku-tasku-tasku = mk-tasku-tasku tasku-tasku-gcc;
 }

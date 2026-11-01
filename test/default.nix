@@ -1,9 +1,11 @@
 {
+  buildPackages,
   stdenv,
   bashNonInteractive,
   which,
   tasku-m2,
   tasku-gcc,
+  tasku-tasku,
   binutils,
   diffutils,
   stdenvNoCC,
@@ -134,6 +136,23 @@ in
           else
             exit 1
           fi
+        '';
+      };
+
+      stage-compare = stdenvNoCC.mkDerivation {
+        pname = "taskucc-stage-compare";
+        version = "0.1.0";
+        dontUnpack = true;
+        nativeBuildInputs = [coreutils];
+
+        buildPhase = ''
+          STAGE2=${lib.getExe tasku-tasku.tasku-tasku-gcc}
+          STAGE2A=${lib.getExe tasku-tasku.tasku-tasku-m2}
+          STAGE3=${lib.getExe tasku-tasku.tasku-tasku-tasku}
+
+          sha256sum "$STAGE2" "$STAGE3"
+
+          echo "$out"
         '';
       };
     })
