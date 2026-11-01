@@ -1464,7 +1464,7 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
         lbl_entry =
             tacc_label_list_get(state->continue_stack,
                                 tacc_label_list_len(state->continue_stack) - 1);
-        tacc_target_cg_emit_label(state, lbl_entry->content);
+        tacc_target_cg_branch(state, lbl_entry->content);
         break;
 
     case STMT_BREAK:
@@ -1473,7 +1473,7 @@ void tacc_cg_compile_stmt(struct tacc_cg_state *state,
                     "break used outside loop / switch");
         lbl_entry = tacc_label_list_get(
             state->break_stack, tacc_label_list_len(state->break_stack) - 1);
-        tacc_target_cg_emit_label(state, lbl_entry->content);
+        tacc_target_cg_branch(state, lbl_entry->content);
         break;
 
     case STMT_FOR:
