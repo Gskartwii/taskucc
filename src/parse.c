@@ -1169,8 +1169,9 @@ struct tacc_expr *tacc_parse_new_constant_expression(
 }
 
 struct tacc_ast *tacc_ast_new(void) {
-    struct tacc_ast *ast = tacc_malloc(sizeof(struct tacc_ast));
+    struct tacc_ast *ast;
 
+    ast = tacc_malloc(sizeof(struct tacc_ast));
     ast->declarations = tacc_decl_list_new();
 
     return ast;
@@ -2178,7 +2179,9 @@ tacc_parse_func_def(struct tacc_declarator *declarator,
                     struct tacc_parse_registry *registry,
                     struct tacc_tok_iter *iter,
                     struct tacc_decl_list *old_style_param_list) {
-    struct tacc_funcdef *def = tacc_funcdef_new();
+    struct tacc_funcdef *def;
+
+    def = tacc_funcdef_new();
 
     tacc_assert(ASSERT_DIAG,
                 declarator->kind == DECLARATOR_FUNC,
@@ -2417,8 +2420,10 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
 
 struct tacc_ast *tacc_parse_file(struct tacc_parse_registry *registry,
                                  struct tacc_tok_iter *iter) {
-    struct tacc_ast *ast = tacc_ast_new();
+    struct tacc_ast *ast;
     struct pp_tok *tok;
+
+    ast = tacc_ast_new();
 
     while (1) {
         tok = tacc_tok_iter_peek(iter);
