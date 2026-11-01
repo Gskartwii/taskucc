@@ -387,7 +387,7 @@ static void tacc_struct_push_field(struct tacc_compiler *compiler,
     TACC_UNUSED(compiler);
 
     alignment = tacc_type_alignment_p2(field->type);
-    if (alignment < ty->alignment_p2) {
+    if (alignment > ty->alignment_p2) {
         ty->alignment_p2 = alignment;
     }
 
@@ -401,7 +401,7 @@ static void tacc_union_push_field(struct tacc_compiler *compiler,
     TACC_UNUSED(compiler);
 
     alignment = tacc_type_alignment_p2(field->type);
-    if (alignment < ty->alignment_p2) {
+    if (alignment > ty->alignment_p2) {
         ty->alignment_p2 = alignment;
     }
 
