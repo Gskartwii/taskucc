@@ -1630,11 +1630,9 @@ void tacc_cg_compile_function(struct tacc_cg_state *state,
     state->func_name = tacc_declarator_name(func_def->func_declaration);
     state->num_local_bytes = (size_t) (state->interface->frame_offset);
 
-    tacc_assert(ASSERT_TODO,
-                !state->func_type->is_vararg,
-                "support vararg in compile_statements");
     declarator = func_def->innermost_declarator;
-    if (declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST) {
+    if (declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST ||
+        declarator->extra.func_decl->param_list_kind == FUNCPARAM_LIST_VARARG) {
         param_list = declarator->extra.func_decl->param_list.modern_params;
         for (i = 0;
              i < tacc_callitf_part_list_len(state->interface->param_parts);
