@@ -12,10 +12,10 @@
       buildPhase = ''
         ${lib.strings.concatMapStringsSep "\n" (file: ''
             $TASKU ${file} -I${../tasku-libc/include} > \
-              ${builtins.replaceStrings ["/" ".s"] ["_" ".o"] file} || (echo failed to produce: ${file}; exit 1)
+              ${builtins.replaceStrings ["/" ".c"] ["_" ".s"] file} || (echo failed to produce: ${file}; exit 1)
           '')
           srcFiles}
-        $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".s"] ["_" ".o"]) srcFiles}
+        $CC -o tasku ${lib.strings.concatMapStringsSep " " (builtins.replaceStrings ["/" ".c"] ["_" ".s"]) srcFiles}
       '';
       installPhase = ''
         mkdir -p $out/bin
