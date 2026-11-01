@@ -19,7 +19,7 @@
       '';
       installPhase = ''
         mkdir -p $out/bin
-        cp tasku-tasku $out/bin/tasku-tasku
+        cp tasku $out/bin/tasku-tasku
       '';
       env.TASKU = lib.getExe compiler;
       dontStrip = true;
