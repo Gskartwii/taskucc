@@ -397,12 +397,17 @@ static void tacc_union_push_field(struct tacc_compiler *compiler,
                                   struct tacc_union_type *ty,
                                   struct tacc_field *field) {
     size_t alignment;
+    size_t size;
 
     TACC_UNUSED(compiler);
 
     alignment = tacc_type_alignment_p2(field->type);
+    size = tacc_type_size(field->type);
     if (alignment > ty->alignment_p2) {
         ty->alignment_p2 = alignment;
+    }
+    if (size > ty->size) {
+        ty->size = size;
     }
 
     tacc_field_list_push(ty->fields, field);
