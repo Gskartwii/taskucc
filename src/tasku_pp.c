@@ -1391,6 +1391,7 @@ static void tacc_pp_state_init(struct tacc_pp_state *state,
     tacc_gen_basic_types(target, state->basic_types);
 
     tacc_pp_define(state, "__STDC__", "1");
+    tacc_pp_define(state, "__TASKUC__", "1");
 }
 
 /* return: owning */
