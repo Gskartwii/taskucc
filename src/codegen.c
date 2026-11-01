@@ -717,7 +717,7 @@ void tacc_cg_call(struct tacc_cg_state *state,
         }
     }
     tacc_target_cg_alloc_stack(
-        state, needed_stack_space, needed_stack_alignment);
+        state, tacc_align_up(needed_stack_space, 4), needed_stack_alignment);
 
     current_param = NULL;
     current_param_idx = num_args;

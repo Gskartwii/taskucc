@@ -576,7 +576,7 @@ void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
 void tacc_target_cg_alloc_stack(struct tacc_cg_state *state,
                                 size_t space,
                                 size_t align_p2) {
-    if (align_p2 > 3) {
+    if (align_p2 > 4) {
         tacc_cg_output(state, "\n\t andq $-%d, %%rsp", 1 << align_p2);
     }
 #ifdef __M2__
