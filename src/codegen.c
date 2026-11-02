@@ -1177,11 +1177,13 @@ void tacc_cg_convert_top(struct tacc_cg_state *state,
 
     if (tacc_type_is_integral(from_type) && tacc_type_is_integral(to_type)) {
         if (tacc_int_type_has_compatible_repr(to_type, from_type)) {
+            slot->ty = to_type;
             return;
         }
         if (tacc_type_bit_width(from_type) > tacc_type_bit_width(to_type)) {
             tacc_target_cg_narrow_top(
                 state, to_type, tacc_type_is_signed(to_type));
+            slot = tacc_cg_get_top(state);
             slot->ty = to_type;
             return;
         }
