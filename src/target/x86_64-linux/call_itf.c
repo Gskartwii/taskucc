@@ -226,6 +226,7 @@ struct tacc_callitf *tacc_target_callitf_from_params(
         ret->target_extra = tacc_target_callitf_new();
         ret->target_extra->num_int_registers = (int) state.int_regs_used;
         ret->target_extra->num_float_registers = (int) state.float_regs_used;
+        ret->target_extra->stack_used = (int) state.used_stack;
     }
 
     return ret;
@@ -270,6 +271,7 @@ tacc_target_callitf_at_call_site(struct tacc_type_list *basic_types,
         ret->target_extra = tacc_target_callitf_new();
         ret->target_extra->num_int_registers = (int) state.int_regs_used;
         ret->target_extra->num_float_registers = (int) state.float_regs_used;
+        ret->target_extra->stack_used = (int) state.used_stack;
     }
 
     return ret;

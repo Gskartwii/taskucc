@@ -41,6 +41,7 @@ enum tacc_target_register_float {
 struct tacc_target_callitf {
     int num_int_registers;
     int num_float_registers;
+    int stack_used;
 };
 
 #define CALLITF_RETVAL_FLOAT_X87 CALLITF_RETVAL_FIRST_TARGET_SPECIAL

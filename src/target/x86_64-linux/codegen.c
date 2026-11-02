@@ -1427,17 +1427,20 @@ void tacc_target_cg_va_start(struct tacc_cg_state *state) {
     tmp_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~va_list_reg);
     tacc_cg_pop(state);
 
+    /* reg_save_area */
     tacc_cg_output(state,
                    "\n\t leaq -176(%%rbp), %s",
                    tacc_target_register_as_64(tmp_reg));
-    /* reg_save_area */
     tacc_cg_output(state,
                    "\n\t movq %s, 16(%s)",
                    tacc_target_register_as_64(tmp_reg),
                    tacc_target_register_as_64(va_list_reg));
-    tacc_cg_output(
-        state, "\n\t leaq 16(%%rbp), %s", tacc_target_register_as_64(tmp_reg));
+
     /* overflow_arg_area */
+    tacc_cg_output(state,
+                   "\n\t leaq %d(%%rbp), %s",
+                   (int) (state->interface->target_extra->stack_used),
+                   tacc_target_register_as_64(tmp_reg));
     tacc_cg_output(state,
                    "\n\t movq %s, 8(%s)",
                    tacc_target_register_as_64(tmp_reg),
@@ -1456,7 +1459,8 @@ void tacc_target_cg_va_start(struct tacc_cg_state *state) {
 }
 
 void tacc_target_cg_va_copy(struct tacc_cg_state *state) {
-    uint32_t va_list_reg_src, va_list_reg_dst;
+    uint32_t va_list_reg_src;
+    uint32_t va_list_reg_dst;
     uint32_t tmp_reg;
 
     va_list_reg_src = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
