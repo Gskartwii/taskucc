@@ -8,10 +8,10 @@
   inherit (import ./common.nix) src;
   system = stdenvNoCC.hostPlatform.system;
   m2libc = fetchFromGitHub {
-    owner = "oriansj";
+    owner = "Gskartwii";
     repo = "M2libc";
-    rev = "ca023d8dc855171fd0618951add5817e0e568fca";
-    hash = "sha256-7xjH/Dti62/s4cRVLE5NMDYEsiKIfuaDsF9a8+glW5o=";
+    rev = "f63ac2ddde36088ddd25149c433bdd37b4ba2974";
+    hash = "sha256-JXXUNfEFEuuHAjbQQkBLxvTGSzW76sdQGhnDPhJXFQ8=";
   };
   m2arch =
     {
