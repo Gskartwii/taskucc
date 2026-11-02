@@ -70,8 +70,6 @@ static char *tacc_target_register_as_64(enum tacc_target_register reg) {
         return "t4";
     case REG_T5:
         return "t5";
-    case REG_T6:
-        return "t6";
     default:
         return "INVALID-64";
     }
@@ -175,23 +173,16 @@ void tacc_target_cg_int(struct tacc_cg_state *state, struct tacc_val *val) {
     tacc_cg_push_reg(state, register_place, val->type);
 }
 
-static void tacc_target_cg_move(struct tacc_cg_state *state,
-                                struct tacc_slot *slot,
-                                uint32_t to_reg) {
-    enum tacc_target_register new_reg;
+static void tacc_target_cg_off_to_t6(struct tacc_cg_state *state, int offset) {
+    uint32_t offset_adjust;
 
-    if (slot->place_kind == PLACE_REGISTER && (slot->place.reg & to_reg) != 0) {
-        return;
-    }
-    new_reg = tacc_target_cg_alloc_reg(state, to_reg);
-    if (slot->place_kind == PLACE_REGISTER) {
-        tacc_cg_output(state,
-                       "\n\t mv %s, %s",
-                       tacc_target_register_as_64(new_reg),
-                       tacc_target_register_as_64(slot->place.reg));
-        slot->place.reg = new_reg;
+    offset_adjust = (uint32_t) offset + 2048;
+
+    if (offset_adjust <= 4096) {
+        tacc_cg_output(state, "\n\t addi t6, s0, %d", offset);
     } else {
-        tacc_assert(ASSERT_TODO, 0, "move from stack to register");
+        tacc_cg_output(state, "\n\t li t6, %d", offset);
+        tacc_cg_output(state, "\n\t add t6, s0, t6");
     }
 }
 
@@ -200,14 +191,13 @@ void tacc_target_cg_adjust_top_for_return(struct tacc_cg_state *state,
     int offset;
     if (itf->retval_kind == CALLITF_RETVAL_FLOAT_AS_INT_REGPAIR) {
         offset = tacc_cg_ensure_top_is_scratch(state);
+        tacc_target_cg_off_to_t6(state, offset);
         tacc_cg_output(state,
-                       "\n\t ld %s, %d(s0)",
-                       tacc_target_register_as_64(itf->retval_reg),
-                       offset);
+                       "\n\t ld %s, (t6)",
+                       tacc_target_register_as_64(itf->retval_reg));
         tacc_cg_output(state,
-                       "\n\t ld %s, %d(s0)",
-                       tacc_target_register_as_64(itf->retval_reg_2),
-                       offset + 8);
+                       "\n\t ld %s, 8(t6)",
+                       tacc_target_register_as_64(itf->retval_reg_2));
         return;
     }
     tacc_assert(ASSERT_ICE, 0, "unknown retval reg class");
@@ -236,15 +226,12 @@ tacc_bool tacc_type_needs_reg_pair(struct tacc_type *ty) {
 void tacc_target_cg_narrow_top(struct tacc_cg_state *state,
                                struct tacc_type *to_type,
                                tacc_bool is_sext) {
-    struct tacc_slot *slot;
     enum tacc_target_register top_reg;
     char *reg_name;
     size_t to_width;
     int width;
 
-    slot = tacc_cg_get_top(state);
-    tacc_target_cg_move(state, slot, REG_VOLATILE);
-    top_reg = slot->place.reg;
+    top_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
     to_width = tacc_type_bit_width(to_type);
     width = 64 - (int) to_width;
     reg_name = tacc_target_register_as_64(top_reg);
@@ -274,8 +261,7 @@ void tacc_target_cg_ext_top(struct tacc_cg_state *state,
 
     slot = tacc_cg_get_top(state);
     from_width = tacc_type_bit_width(slot->ty);
-    tacc_target_cg_move(state, slot, REG_VOLATILE);
-    top_reg = slot->place.reg;
+    top_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
     width = 64 - (int) from_width;
     reg_name = tacc_target_register_as_64(top_reg);
     tacc_cg_output(state, "\n\t slli %s, %s, %d", reg_name, reg_name, width);
@@ -453,7 +439,8 @@ void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
     reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
 
     reg_name = tacc_target_register_as_64(reg);
-    tacc_cg_output(state, "\n\t addi %s, s0, %d", reg_name, var->offset);
+    tacc_target_cg_off_to_t6(state, var->offset);
+    tacc_cg_output(state, "\n\t mv %s, t6", reg_name);
     tacc_cg_push_reg(
         state,
         reg,
@@ -517,17 +504,16 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
     char *reg_name;
     char *signedness;
 
+    tacc_target_cg_off_to_t6(state, offset);
     if (tacc_type_is_floating(ty)) {
         if (ty->kind == TYK_FLOAT) {
             tacc_cg_output(state,
-                           "\n\t flw %s, %d(s0)",
-                           tacc_target_f_register_name(to_reg),
-                           offset);
+                           "\n\t flw %s, (t6)",
+                           tacc_target_f_register_name(to_reg));
         } else {
             tacc_cg_output(state,
-                           "\n\t fld %s, %d(s0)",
-                           tacc_target_f_register_name(to_reg),
-                           offset);
+                           "\n\t fld %s, (t6)",
+                           tacc_target_f_register_name(to_reg));
         }
         return;
     }
@@ -540,18 +526,16 @@ void tacc_target_cg_load_scratch_part(struct tacc_cg_state *state,
 
     switch (tacc_type_bit_width(ty)) {
     case 64:
-        tacc_cg_output(state, "\n\t ld %s, %d(s0)", reg_name, offset);
+        tacc_cg_output(state, "\n\t ld %s, (t6)", reg_name);
         break;
     case 32:
-        tacc_cg_output(state, "\n\t lw %s, %d(s0)", reg_name, offset);
+        tacc_cg_output(state, "\n\t lw %s, (t6)", reg_name);
         break;
     case 16:
-        tacc_cg_output(
-            state, "\n\t lh%s %s, %d(s0)", signedness, reg_name, offset);
+        tacc_cg_output(state, "\n\t lh%s %s, (t6)", signedness, reg_name);
         break;
     case 8:
-        tacc_cg_output(
-            state, "\n\t lb%s %s, %d(s0)", signedness, reg_name, offset);
+        tacc_cg_output(state, "\n\t lb%s %s, (t6)", signedness, reg_name);
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "nonsensical bitwidth");
@@ -569,8 +553,10 @@ void tacc_target_cg_move_scratch_to_stack(struct tacc_cg_state *state,
                 (size & 7) == 0,
                 "move_scratch_to_stack: not a multiple of 8");
     for (i = 0; i < size; i = i + 8) {
-        tacc_cg_output(state, "\n\t ld t0, %d(s0)", from_fp_offset + (int) i);
-        tacc_cg_output(state, "\n\t sd t0, %d(s0)", to_sp_offset + (int) i);
+        tacc_target_cg_off_to_t6(state, from_fp_offset + (int) i);
+        tacc_cg_output(state, "\n\t ld t0, (t6)");
+        tacc_target_cg_off_to_t6(state, to_sp_offset + (int) i);
+        tacc_cg_output(state, "\n\t sd t0, (t6)");
     }
 }
 
@@ -603,10 +589,12 @@ void tacc_target_cg_store_reg_to_scratch(struct tacc_cg_state *state,
     }
 
     if (in_prelude) {
+        /* assume we don't need to resort to t6 */
         tacc_cg_output_prelude(
             state, "\n\t %s %s, %d(s0)", op, reg_name, offset);
     } else {
-        tacc_cg_output(state, "\n\t %s %s, %d(s0)", op, reg_name, offset);
+        tacc_target_cg_off_to_t6(state, offset);
+        tacc_cg_output(state, "\n\t %s %s, (t6)", op, reg_name);
     }
 }
 
@@ -633,10 +621,12 @@ void tacc_target_cg_store_f_reg_to_scratch(struct tacc_cg_state *state,
     }
 
     if (in_prelude) {
+        /* assume we don't need to resort to t6 */
         tacc_cg_output_prelude(
             state, "\n\t %s %s, %d(s0)", op, reg_name, offset);
     } else {
-        tacc_cg_output(state, "\n\t %s %s, %d(s0)", op, reg_name, offset);
+        tacc_target_cg_off_to_t6(state, offset);
+        tacc_cg_output(state, "\n\t %s %s, (t6)", op, reg_name);
     }
 }
 
@@ -662,7 +652,8 @@ void tacc_target_cg_call_top(struct tacc_cg_state *state,
     tacc_assert(ASSERT_ICE,
                 slot->place_kind == PLACE_SCRATCH,
                 "expected callee pointer to be in scratch");
-    tacc_cg_output(state, "\n\t ld t0, %d(s0)", slot->place.offset);
+    tacc_target_cg_off_to_t6(state, slot->place.offset);
+    tacc_cg_output(state, "\n\t ld t0, (t6)");
     tacc_cg_pop(state);
     tacc_cg_output(state, "\n\t jalr t0");
 }
@@ -676,14 +667,12 @@ void tacc_target_cg_normalize_retval(struct tacc_cg_state *state,
                 "this retval should have been normalized by generic code");
 
     offset = tacc_cg_alloc_scratch(state, 16, 4);
+    tacc_target_cg_off_to_t6(state, offset);
+    tacc_cg_output(
+        state, "\n\t sd %s, (t6)", tacc_target_register_as_64(itf->retval_reg));
     tacc_cg_output(state,
-                   "\n\t sd %s, %d(s0)",
-                   tacc_target_register_as_64(itf->retval_reg),
-                   offset);
-    tacc_cg_output(state,
-                   "\n\t sd %s, %d(s0)",
-                   tacc_target_register_as_64(itf->retval_reg_2),
-                   offset + 8);
+                   "\n\t sd %s, 8(t6)",
+                   tacc_target_register_as_64(itf->retval_reg_2));
     tacc_cg_push_scratch(
         state,
         offset,
@@ -750,22 +739,19 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
                                        tacc_type_size(float_type),
                                        tacc_type_alignment_p2(float_type));
         reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~ptr_reg);
+        tacc_target_cg_off_to_t6(state, offset);
         tacc_cg_output(state,
                        "\n\t ld %s, (%s)",
                        tacc_target_register_as_64(reg),
                        tacc_target_register_as_64(ptr_reg));
-        tacc_cg_output(state,
-                       "\n\t sd %s, %d(s0)",
-                       tacc_target_register_as_64(reg),
-                       offset);
+        tacc_cg_output(
+            state, "\n\t sd %s, (t6)", tacc_target_register_as_64(reg));
         tacc_cg_output(state,
                        "\n\t ld %s, 8(%s)",
                        tacc_target_register_as_64(reg),
                        tacc_target_register_as_64(ptr_reg));
-        tacc_cg_output(state,
-                       "\n\t sd %s, %d(s0)",
-                       tacc_target_register_as_64(reg),
-                       offset + 8);
+        tacc_cg_output(
+            state, "\n\t sd %s, 8(t6)", tacc_target_register_as_64(reg));
         tacc_cg_push_scratch(state, offset, float_type);
         return;
     }
@@ -794,18 +780,15 @@ void tacc_target_cg_store_float(struct tacc_cg_state *state,
     if (float_type->kind == TYK_LONGDOUBLE) {
         offset = tacc_cg_ensure_top_is_scratch(state);
         reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~ptr_reg);
-        tacc_cg_output(state,
-                       "\n\t ld %s, %d(s0)",
-                       tacc_target_register_as_64(reg),
-                       offset);
+        tacc_target_cg_off_to_t6(state, offset);
+        tacc_cg_output(
+            state, "\n\t ld %s, (t6)", tacc_target_register_as_64(reg));
         tacc_cg_output(state,
                        "\n\t sd %s, (%s)",
                        tacc_target_register_as_64(reg),
                        tacc_target_register_as_64(ptr_reg));
-        tacc_cg_output(state,
-                       "\n\t ld %s, %d(s0)",
-                       tacc_target_register_as_64(reg),
-                       offset + 8);
+        tacc_cg_output(
+            state, "\n\t ld %s, 8(t6)", tacc_target_register_as_64(reg));
         tacc_cg_output(state,
                        "\n\t sd %s, 8(%s)",
                        tacc_target_register_as_64(reg),
@@ -836,6 +819,7 @@ void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
 
     offset = tacc_cg_alloc_scratch(state, 16, 4);
     scratch_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE);
+    tacc_target_cg_off_to_t6(state, offset);
     tacc_cg_output(state,
                    "\n\t la %s, .Lfloat_%d",
                    tacc_target_register_as_64(scratch_reg),
@@ -844,10 +828,8 @@ void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
                    "\n\t ld %s, (%s)",
                    tacc_target_register_as_64(scratch_reg),
                    tacc_target_register_as_64(scratch_reg));
-    tacc_cg_output(state,
-                   "\n\t sd %s, %d(s0)",
-                   tacc_target_register_as_64(scratch_reg),
-                   offset);
+    tacc_cg_output(
+        state, "\n\t sd %s, (t6)", tacc_target_register_as_64(scratch_reg));
     tacc_cg_output(state,
                    "\n\t la %s, .Lfloat_%d",
                    tacc_target_register_as_64(scratch_reg),
@@ -856,10 +838,8 @@ void tacc_target_cg_float(struct tacc_cg_state *state, int index) {
                    "\n\t ld %s, 8(%s)",
                    tacc_target_register_as_64(scratch_reg),
                    tacc_target_register_as_64(scratch_reg));
-    tacc_cg_output(state,
-                   "\n\t sd %s, %d(s0)",
-                   tacc_target_register_as_64(scratch_reg),
-                   offset + 8);
+    tacc_cg_output(
+        state, "\n\t sd %s, 8(t6)", tacc_target_register_as_64(scratch_reg));
 
     tacc_cg_push_scratch(
         state,

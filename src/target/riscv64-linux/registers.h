@@ -26,7 +26,8 @@ enum tacc_target_register {
     REG_T3 = 0x200000,
     REG_T4 = 0x400000,
     REG_T5 = 0x800000,
-    REG_T6 = 0x1000000,
+
+    /* t6 is reserved for scratch purposes */
 };
 
 enum tacc_target_register_float {
@@ -66,9 +67,9 @@ enum tacc_target_register_float {
 
 #define CALLITF_RETVAL_FLOAT_AS_INT_REGPAIR CALLITF_RETVAL_FIRST_TARGET_SPECIAL
 
-#define REG_ANY 0x1FFFFFF
+#define REG_ANY 0xFFFFFF
 #define REG_NONVOLATILE 0x1FF804
-#define REG_VOLATILE 0x1E007FB
+#define REG_VOLATILE 0xE007FB
 
 #define REGF_ANY 0x7FFFFFFF
 #define REGF_NONVOLATILE 0x07FE0100
