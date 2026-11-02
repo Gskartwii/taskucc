@@ -86,6 +86,15 @@ static struct tacc_callitf *tacc_target_callitf_begin(
     return ret;
 }
 
+static struct tacc_target_callitf *tacc_target_callitf_new(void) {
+    struct tacc_target_callitf *callitf;
+
+    callitf = tacc_malloc(sizeof(struct tacc_target_callitf));
+    callitf->stack_used = 0;
+
+    return callitf;
+}
+
 struct tacc_callitf *tacc_target_callitf_from_params(
     struct tacc_type_list *basic_types, struct tacc_function_type *ty) {
     struct tacc_callitf *ret;
@@ -96,7 +105,6 @@ struct tacc_callitf *tacc_target_callitf_from_params(
 
     TACC_UNUSED(basic_types);
 
-    tacc_assert(ASSERT_TODO, !ty->is_vararg, "TODO: vararg in callitf");
     ret = tacc_target_callitf_begin(&state, ty->return_type);
 
     for (i = 0; i < tacc_type_list_len(ty->param_types); i = i + 1) {
@@ -106,13 +114,16 @@ struct tacc_callitf *tacc_target_callitf_from_params(
         tacc_callitf_part_list_push(ret->param_parts, part);
     }
 
+    if (ty->is_vararg) {
+        ret->target_extra = tacc_target_callitf_new();
+        ret->target_extra->stack_used = (int) state.used_stack;
+    }
+
     return ret;
 }
 
 void tacc_target_callitf_free(struct tacc_target_callitf *itf) {
-    TACC_UNUSED(itf);
-
-    tacc_assert(ASSERT_ICE, 0, "no i686 target-specific callitf");
+    tacc_free(itf);
 }
 
 struct tacc_callitf *

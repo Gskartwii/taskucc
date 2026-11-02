@@ -1502,3 +1502,52 @@ uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
 
     return b_reg;
 }
+
+struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
+    return tacc_type_to_pointer(
+        compiler->target->pointer_ty,
+        tacc_get_basic_type(compiler->basic_types, TYK_CHAR),
+        1);
+}
+
+void tacc_target_cg_va_start(struct tacc_cg_state *state) {
+    uint32_t va_reg;
+    uint32_t tmp_reg;
+
+    va_reg = tacc_cg_ensure_top_is_single(state, REG_ANY);
+    tmp_reg = tacc_target_cg_alloc_reg(state, REG_ANY & ~va_reg);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t leal %d(%%ebp), %s",
+                   (int) (state->interface->target_extra->stack_used),
+                   tacc_target_register_as_32(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t movl %s, (%s)",
+                   tacc_target_register_as_32(tmp_reg),
+                   tacc_target_register_as_32(va_reg));
+}
+
+void tacc_target_cg_va_copy(struct tacc_cg_state *state) {
+    uint32_t va_list_reg_src;
+    uint32_t va_list_reg_dst;
+
+    va_list_reg_src = tacc_cg_ensure_top_is_single(state, REG_ANY);
+    va_list_reg_dst =
+        tacc_cg_ensure_over_is_single(state, REG_ANY & ~va_list_reg_src);
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t movl %s, (%s)",
+                   tacc_target_register_as_32(va_list_reg_src),
+                   tacc_target_register_as_32(va_list_reg_dst));
+}
+
+void tacc_target_cg_va_arg(struct tacc_cg_state *state,
+                           struct tacc_type *arg_type) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(arg_type);
+
+    tacc_assert(ASSERT_TODO, 0, "va_arg");
+}

@@ -16,4 +16,8 @@ enum tacc_target_register {
 #define REG_NONVOLATILE 0x32
 #define REG_VOLATILE 0x0D
 
+struct tacc_target_callitf {
+    int stack_used;
+};
+
 #endif
