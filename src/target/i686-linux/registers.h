@@ -12,7 +12,7 @@ enum tacc_target_register {
 
 #define CALLITF_RETVAL_FLOAT_X87 CALLITF_RETVAL_FIRST_TARGET_SPECIAL
 
-#define REG_ANY 0x3F
+#define REG_ANY 0x0F
 #define REG_NONVOLATILE 0x32
 #define REG_VOLATILE 0x0D
 
