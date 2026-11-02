@@ -149,10 +149,23 @@ in
           STAGE2=${lib.getExe tasku-tasku.tasku-tasku-gcc}
           STAGE2A=${lib.getExe tasku-tasku.tasku-tasku-m2}
           STAGE3=${lib.getExe tasku-tasku.tasku-tasku-tasku}
+          ok=true
 
-          sha256sum "$STAGE2" "$STAGE3"
+          if ! cmp --silent "$STAGE2" "$STAGE2A"; then
+            ok=false
+            echo "$STAGE2 != $STAGE2A"
+          fi
+          if ! cmp --silent "$STAGE2" "$STAGE3"; then
+            ok=false
+            echo "$STAGE2 != $STAGE3"
+          fi
 
-          echo "$out"
+          if ! "$ok"; then
+            echo "FAIL"
+            eit 1
+          fi
+          echo "PASS"
+          touch "$out"
         '';
       };
     })
