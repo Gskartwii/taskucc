@@ -1358,18 +1358,19 @@ uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
 }
 
 struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
-    struct tacc_type *type;
+    struct tacc_type *base_type;
+    struct tacc_type *ty;
     struct tacc_type *void_ptr;
     struct tacc_field_list *fields;
     struct tacc_field *field;
 
-    type = tacc_type_new();
-    tacc_type_list_push(compiler->anonymous_types, type);
-    type->kind = TYK_STRUCT;
-    type->extra.structure = tacc_struct_type_new();
-    type->extra.structure->alignment_p2 = 3;
-    type->extra.structure->size = 24;
-    fields = type->extra.structure->fields;
+    base_type = tacc_type_new();
+    tacc_type_list_push(compiler->anonymous_types, base_type);
+    base_type->kind = TYK_STRUCT;
+    base_type->extra.structure = tacc_struct_type_new();
+    base_type->extra.structure->alignment_p2 = 3;
+    base_type->extra.structure->size = 24;
+    fields = base_type->extra.structure->fields;
 
     void_ptr = tacc_type_to_pointer(
         compiler->target->pointer_ty,
@@ -1408,7 +1409,14 @@ struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
     field->type = void_ptr;
     tacc_field_list_push(fields, field);
 
-    return type;
+    ty = tacc_type_new();
+    tacc_type_list_push(base_type->derived_array_types, ty);
+    ty->kind = TYK_ARRAY;
+    ty->extra.array = tacc_array_type_new();
+    ty->extra.array->element_type = base_type;
+    ty->extra.array->dimension = tacc_u64_new_from_u32(1);
+
+    return ty;
 }
 
 void tacc_target_cg_va_start(struct tacc_cg_state *state) {

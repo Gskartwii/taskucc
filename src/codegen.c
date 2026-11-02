@@ -1073,7 +1073,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         break;
 
     case EX_BUILTIN_VA_START:
-        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_compile_lval(state, expr->op1);
         tacc_target_cg_va_start(state);
         tacc_cg_push_void(state);
         break;
@@ -1082,7 +1082,7 @@ static void tacc_cg_compile_expr(struct tacc_cg_state *state,
         tacc_cg_push_void(state);
         break;
     case EX_BUILTIN_VA_COPY:
-        tacc_cg_compile_expr(state, expr->op1);
+        tacc_cg_compile_lval(state, expr->op1);
         tacc_cg_compile_expr(state, expr->op2);
         tacc_target_cg_va_copy(state);
         tacc_cg_push_void(state);

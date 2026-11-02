@@ -959,17 +959,8 @@ static void tacc_compile_init_predef(struct tacc_compiler *compiler) {
 }
 
 static void tacc_compile_init_builtin_types(struct tacc_compiler *compiler) {
-    struct tacc_type *base_type;
-    struct tacc_type *ty;
-
-    base_type = tacc_target_new_va_list_type(compiler);
-    ty = tacc_type_new();
-    tacc_type_list_push(base_type->derived_array_types, ty);
-    ty->kind = TYK_ARRAY;
-    ty->extra.array = tacc_array_type_new();
-    ty->extra.array->element_type = base_type;
-    ty->extra.array->dimension = tacc_u64_new_from_u32(1);
-    tacc_type_list_push(compiler->builtin_types, ty);
+    tacc_type_list_push(compiler->builtin_types,
+                        tacc_target_new_va_list_type(compiler));
 }
 
 void tacc_compile_prelude(struct tacc_compiler *compiler) {
