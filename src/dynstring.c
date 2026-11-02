@@ -28,19 +28,19 @@ void tacc_dynstring_reset(tacc_string_p string) {
     tacc_dynstring_init(string);
 }
 
-static void tacc_dynstring_grow_to(tacc_string_p string, size_t target_sz) {
+static void tacc_dynstring_grow_to(tacc_string_p string, size_t target_cap) {
     char *end;
-    if (string->cap > target_sz) {
+    if (string->cap >= target_cap) {
         return;
     }
     tacc_assert(ASSERT_ICE,
-                target_sz >= string->len,
+                target_cap >= string->len,
                 "cannot shrink tacc_string below its used length");
-    tacc_assert(ASSERT_ICE, target_sz != 0, "cannot grow to zero");
+    tacc_assert(ASSERT_ICE, target_cap != 0, "cannot grow to zero");
 
-    string->string = realloc(string->string, target_sz);
+    string->string = realloc(string->string, target_cap + 1);
     tacc_assert(ASSERT_ICE, string->string != NULL, "failed to realloc string");
-    string->cap = target_sz - 1;
+    string->cap = target_cap;
     end = string->string + string->cap;
     *end = 0;
 }
@@ -61,7 +61,7 @@ static void tacc_dynstring_ensure_further_cap(tacc_string_p string,
      * round up to power of 2
      * https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
      */
-    required_cap_p2 = required_full_cap - 1;
+    required_cap_p2 = required_full_cap;
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 1));
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 2));
     required_cap_p2 = required_cap_p2 | (required_cap_p2 >> ((unsigned) 4));
@@ -182,7 +182,7 @@ void tacc_dynstring_vprintf(tacc_string_p string, char *fmt, va_list arg) {
         if (((size_t) consumed + 1) >= remaining) {
             /* Always allocate at least one more character. */
             tacc_dynstring_ensure_further_cap(string,
-                                              ((size_t) consumed + 1) * 2);
+                                              ((size_t) consumed) * 2 + 1);
             remaining = string->cap - string->len;
         } else {
 #ifndef __M2__
