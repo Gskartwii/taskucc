@@ -75,4 +75,9 @@ enum tacc_target_register_float {
 #define REGF_NONVOLATILE 0x07FE0100
 #define REGF_VOLATILE 0x7801FEFF
 
+struct tacc_target_callitf {
+    int num_int_regs;
+    int used_stack;
+};
+
 #endif

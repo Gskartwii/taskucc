@@ -334,13 +334,31 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
     struct tacc_ident_list_entry *param_ident_entry;
     struct tacc_local_var_map_entry *locvar_place;
     size_t i;
+    int frame_pos;
 
-    tacc_cg_output_prelude(state, "\n\t sd ra, -8(sp)");
-    tacc_cg_output_prelude(state, "\n\t sd s0, -16(sp)");
-    tacc_cg_output_prelude(state, "\n\t mv s0, sp");
-    tacc_cg_output_prelude(state,
-                           "\n\t addi sp, sp, -%d",
-                           (int) (state->num_local_bytes + 0xF) & ~0xF);
+    if (state->func_type->is_vararg) {
+        frame_pos = -80;
+        tacc_cg_output_prelude(state, "\n\t sd a0, -64(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a1, -56(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a2, -48(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a3, -40(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a4, -32(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a5, -24(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a6, -16(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd a7, -8(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd ra, -72(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd s0, -80(sp)");
+        tacc_cg_output_prelude(state, "\n\t addi s0, sp, -64");
+    } else {
+        frame_pos = -16;
+        tacc_cg_output_prelude(state, "\n\t sd ra, -8(sp)");
+        tacc_cg_output_prelude(state, "\n\t sd s0, -16(sp)");
+        tacc_cg_output_prelude(state, "\n\t mv s0, sp");
+    }
+
+    tacc_cg_output_prelude(
+        state, "\n\t li t6, -%d", (int) (state->num_local_bytes + 0xF) & ~0xF);
+    tacc_cg_output_prelude(state, "\n\t add sp, s0, t6");
 
     for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
          i = i + 1) {
@@ -353,9 +371,13 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
         tacc_cg_copy_param(state, param_entry->content, locvar_place->content);
     }
 
-    tacc_cg_output(state, "\n\t mv sp, s0");
-    tacc_cg_output(state, "\n\t ld s0, -16(sp)");
-    tacc_cg_output(state, "\n\t ld ra, -8(sp)");
+    if (state->func_type->is_vararg) {
+        tacc_cg_output(state, "\n\t addi sp, s0, 64");
+    } else {
+        tacc_cg_output(state, "\n\t mv sp, s0");
+    }
+    tacc_cg_output(state, "\n\t ld s0, %d(sp)", frame_pos);
+    tacc_cg_output(state, "\n\t ld ra, %d(sp)", frame_pos + 8);
     tacc_cg_output(state, "\n\t ret");
 }
 
@@ -1319,4 +1341,60 @@ uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
                    to_label);
 
     return b_reg;
+}
+
+struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
+    return tacc_type_to_pointer(
+        compiler->target->pointer_ty,
+        tacc_get_basic_type(compiler->basic_types, TYK_CHAR),
+        1);
+}
+
+void tacc_target_cg_va_start(struct tacc_cg_state *state) {
+    uint32_t va_reg;
+    uint32_t tmp_reg;
+
+    va_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    tmp_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~va_reg);
+    tacc_cg_pop(state);
+
+    if (state->interface->target_extra->num_int_regs < 8) {
+        tacc_cg_output(state,
+                       "\n\t addi %s, s0, %d",
+                       tacc_target_register_as_64(tmp_reg),
+                       8 * state->interface->target_extra->num_int_regs);
+    } else {
+        tacc_cg_output(state,
+                       "\n\t addi %s, s0, %d",
+                       tacc_target_register_as_64(tmp_reg),
+                       64 + state->interface->target_extra->used_stack);
+    }
+    tacc_cg_output(state,
+                   "\n\t sd %s, (%s)",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_reg));
+}
+
+void tacc_target_cg_va_copy(struct tacc_cg_state *state) {
+    uint32_t va_list_reg_src;
+    uint32_t va_list_reg_dst;
+
+    va_list_reg_src = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    va_list_reg_dst =
+        tacc_cg_ensure_over_is_single(state, REG_VOLATILE & ~va_list_reg_src);
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t sd %s, (%s)",
+                   tacc_target_register_as_64(va_list_reg_src),
+                   tacc_target_register_as_64(va_list_reg_dst));
+}
+
+void tacc_target_cg_va_arg(struct tacc_cg_state *state,
+                           struct tacc_type *arg_type) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(arg_type);
+
+    tacc_assert(ASSERT_TODO, 0, "va_arg");
 }
