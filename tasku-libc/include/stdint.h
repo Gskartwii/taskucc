@@ -10,8 +10,13 @@ typedef long long int int64_t;
 typedef unsigned char uint8_t;
 typedef unsigned short int uint16_t;
 typedef unsigned int uint32_t;
-typedef unsigned long long int uint64_t;
 
+#ifdef __i386__
+typedef unsigned long long int uint64_t;
+#define SIZE_MAX 0xFFFFFFFF
+#else
 #define SIZE_MAX 0xFFFFFFFFFFFFFFFF
+typedef unsigned long int uint64_t;
+#endif
 
 #endif

@@ -5,6 +5,7 @@
 #include "expr.h"
 #include "machine.h"
 #include "parse.h"
+#include "target/pp.h"
 #include "type.h"
 #include "util.h"
 #include <stdint.h>
@@ -1392,6 +1393,7 @@ static void tacc_pp_state_init(struct tacc_pp_state *state,
 
     tacc_pp_define(state, "__STDC__", "1");
     tacc_pp_define(state, "__TASKUC__", "1");
+    tacc_target_pp_init_defines(state);
 }
 
 /* return: owning */

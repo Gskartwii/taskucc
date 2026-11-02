@@ -33,5 +33,6 @@ in {
     "target/${system}.c"
     "target/${system}/codegen.c"
     "target/${system}/call_itf.c"
+    "target/${system}/pp.c"
   ];
 }

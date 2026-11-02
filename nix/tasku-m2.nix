@@ -72,6 +72,7 @@
     "target/${stdenvNoCC.targetPlatform.system}/registers.h"
     "target/call_itf.h"
     "target/codegen.h"
+    "target/pp.h"
     "call_itf.h"
     "predef_func.h"
     "codegen.h"
