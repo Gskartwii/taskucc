@@ -792,6 +792,84 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
     tacc_cg_push_freg(state, reg, float_type);
 }
 
+void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
+                                       struct tacc_type *type) {
+    size_t i;
+    size_t size;
+    size_t alignment;
+    int offset;
+    uint32_t ptr_reg;
+    uint32_t tmp_reg;
+    size_t devnull;
+
+    size = tacc_type_size(type);
+    alignment = tacc_type_alignment_p2(type);
+    offset = tacc_cg_alloc_scratch(state, size, alignment);
+    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+
+    i = 0;
+    if (size >= 8 && alignment >= 3) {
+        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+        for (devnull = i; i < size; i = i + 8) {
+            tacc_cg_output(state,
+                           "\n\t ld %s, %d(%s)",
+                           tacc_target_register_as_64(tmp_reg),
+                           (int) i,
+                           tacc_target_register_as_64(ptr_reg));
+            tacc_cg_output(state,
+                           "\n\t sd %s, %d(s0)",
+                           tacc_target_register_as_64(tmp_reg),
+                           offset + (int) i);
+        }
+    }
+    if (size >= 4 && alignment >= 2) {
+        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+        for (devnull = i; i < size; i = i + 4) {
+            tacc_cg_output(state,
+                           "\n\t lw %s, %d(%s)",
+                           tacc_target_register_as_64(tmp_reg),
+                           (int) i,
+                           tacc_target_register_as_64(ptr_reg));
+            tacc_cg_output(state,
+                           "\n\t sw %s, %d(s0)",
+                           tacc_target_register_as_64(tmp_reg),
+                           offset + (int) i);
+        }
+    }
+    if (size >= 2 && alignment >= 1) {
+        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+        for (devnull = i; i < size; i = i + 2) {
+            tacc_cg_output(state,
+                           "\n\t lh %s, %d(%s)",
+                           tacc_target_register_as_64(tmp_reg),
+                           (int) i,
+                           tacc_target_register_as_64(ptr_reg));
+            tacc_cg_output(state,
+                           "\n\t sh %s, %d(s0)",
+                           tacc_target_register_as_64(tmp_reg),
+                           offset + (int) i);
+        }
+    }
+    tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+    for (devnull = i; i < size; i = i + 1) {
+        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+        for (devnull = i; i < size; i = i + 1) {
+            tacc_cg_output(state,
+                           "\n\t lb %s, %d(%s)",
+                           tacc_target_register_as_64(tmp_reg),
+                           (int) i,
+                           tacc_target_register_as_64(ptr_reg));
+            tacc_cg_output(state,
+                           "\n\t sb %s, %d(s0)",
+                           tacc_target_register_as_64(tmp_reg),
+                           offset + (int) i);
+        }
+    }
+    tacc_cg_pop(state);
+    tacc_cg_push_scratch(state, offset, type);
+    TACC_UNUSED(devnull);
+}
+
 void tacc_target_cg_store_float(struct tacc_cg_state *state,
                                 struct tacc_type *float_type) {
     int offset;

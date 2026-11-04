@@ -695,6 +695,36 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
     tacc_cg_push_scratch(state, offset, float_type);
 }
 
+void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
+                                       struct tacc_type *type) {
+    size_t size;
+    size_t alignment;
+    int offset;
+    size_t devnull;
+
+    size = tacc_type_size(type);
+    alignment = tacc_type_alignment_p2(type);
+    offset = tacc_cg_alloc_scratch(state, size, alignment);
+
+    tacc_cg_ensure_top_is_single(state, REG_ESI);
+    tacc_target_cg_alloc_reg(state, REG_ECX);
+    tacc_cg_output(state, "\n\t leal %d(%%ebp), %%edi", offset);
+    if (size & 1) {
+        tacc_cg_output(state, "\n\t mov $%d, %%ecx", (int) size);
+        tacc_cg_output(state, "\n\t rep movsb");
+    } else if (size & 3) {
+        tacc_cg_output(state, "\n\t mov $%d, %%ecx", (int) (size >> 1));
+        tacc_cg_output(state, "\n\t rep movsw");
+    } else if (size & 7) {
+        tacc_cg_output(state, "\n\t mov $%d, %%ecx", (int) (size >> 2));
+        tacc_cg_output(state, "\n\t rep movsd");
+    }
+
+    tacc_cg_pop(state);
+    tacc_cg_push_scratch(state, offset, type);
+    TACC_UNUSED(devnull);
+}
+
 void tacc_target_cg_store_float(struct tacc_cg_state *state,
                                 struct tacc_type *float_type) {
     int offset;

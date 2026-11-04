@@ -149,7 +149,7 @@ static void tacc_cg_deref(struct tacc_cg_state *state) {
     } else if (tacc_type_is_floating(pointed_ty)) {
         tacc_target_cg_deref_float(state, pointed_ty);
     } else {
-        tacc_assert(ASSERT_TODO, 0, "load of non-arithmetic type");
+        tacc_target_cg_deref_into_scratch(state, pointed_ty);
     }
 }
 
