@@ -1,6 +1,8 @@
 #ifndef TACC_AARCH64_LINUX_REGISTERS_H
 #define TACC_AARCH64_LINUX_REGISTERS_H
 
+#include <stddef.h>
+
 enum tacc_target_register {
     REG_X0 = 0x1,
     REG_X1 = 0x2,
@@ -74,5 +76,11 @@ enum tacc_target_register_float {
 #define REGV_VOLATILE 0x7FFF0000
 #define REGV_NONVOLATILE 0x0000FFFF
 #define REGV_ANY 0x7FFFFFFF
+
+struct tacc_target_callitf {
+    size_t used_stack;
+    int num_int_registers;
+    int num_vector_registers;
+};
 
 #endif

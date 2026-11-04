@@ -562,6 +562,16 @@ void tacc_target_cg_finalize(struct tacc_cg_state *state) {
                            "\n\t stp fp, lr, [sp, #-%d]!",
                            ((int) (state->num_local_bytes + 0xF) & ~0xF));
     tacc_cg_output_prelude(state, "\n\t mov fp, sp");
+    if (state->func_type->is_vararg) {
+        tacc_cg_output_prelude(state, "\n\t stp x0, x1, [fp, #16]");
+        tacc_cg_output_prelude(state, "\n\t stp x2, x3, [fp, #32]");
+        tacc_cg_output_prelude(state, "\n\t stp x4, x5, [fp, #48]");
+        tacc_cg_output_prelude(state, "\n\t stp x6, x7, [fp, #64]");
+        tacc_cg_output_prelude(state, "\n\t stp q0, q1, [fp, #80]");
+        tacc_cg_output_prelude(state, "\n\t stp q2, q3, [fp, #112]");
+        tacc_cg_output_prelude(state, "\n\t stp q4, q5, [fp, #144]");
+        tacc_cg_output_prelude(state, "\n\t stp q6, q7, [fp, #176]");
+    }
 
     for (i = 0; i < tacc_callitf_part_list_len(state->interface->param_parts);
          i = i + 1) {
@@ -1430,4 +1440,162 @@ uint32_t tacc_target_cg_branch_if_true_saving_reg(struct tacc_cg_state *state,
                    to_label);
 
     return b_reg;
+}
+
+struct tacc_type *tacc_target_new_va_list_type(struct tacc_compiler *compiler) {
+    struct tacc_type *ty;
+    struct tacc_type *void_ptr;
+    struct tacc_field_list *fields;
+    struct tacc_field *field;
+
+    ty = tacc_type_new();
+    tacc_type_list_push(compiler->anonymous_types, ty);
+    ty->kind = TYK_STRUCT;
+    ty->extra.structure = tacc_struct_type_new();
+    ty->extra.structure->alignment_p2 = 3;
+    ty->extra.structure->size = 32;
+    fields = ty->extra.structure->fields;
+
+    void_ptr = tacc_type_to_pointer(
+        compiler->target->pointer_ty,
+        tacc_get_basic_type(compiler->basic_types, TYK_VOID),
+        1);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "stack");
+    field->offset = 0;
+    field->type = void_ptr;
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "gr_top");
+    field->offset = 8;
+    field->type = void_ptr;
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "vr_top");
+    field->offset = 16;
+    field->type = void_ptr;
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "gr_offs");
+    field->offset = 24;
+    field->type = tacc_get_basic_type(compiler->basic_types, TYK_SINT);
+    tacc_field_list_push(fields, field);
+
+    field = tacc_field_new();
+    field->name = tacc_dynstring_new();
+    field->owned_name = 1;
+    tacc_dynstring_concat(field->name, "vr_offs");
+    field->offset = 28;
+    field->type = tacc_get_basic_type(compiler->basic_types, TYK_SINT);
+    tacc_field_list_push(fields, field);
+
+    return ty;
+}
+
+void tacc_target_cg_va_start(struct tacc_cg_state *state) {
+    uint32_t va_list_reg;
+    uint32_t tmp_reg;
+
+    va_list_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    tmp_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~va_list_reg);
+    tacc_cg_pop(state);
+
+    /* stack */
+    /* first, load entry sp */
+    tacc_cg_output(
+        state, "\n\t ldr %s, [fp]", tacc_target_register_as_64(tmp_reg));
+    /* then, add offset from sp to aligned end of stack params */
+    tacc_cg_output(
+        state,
+        "\n\t add %s, %s, #%d",
+        tacc_target_register_as_64(tmp_reg),
+        tacc_target_register_as_64(tmp_reg),
+        (int) (tacc_align_up(state->interface->target_extra->used_stack, 3)));
+    tacc_cg_output(state,
+                   "\n\t str %s, [%s]",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+
+    /* gr_top */
+    tacc_cg_output(
+        state, "\n\t add %s, fp, #80", tacc_target_register_as_64(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t str %s, [%s, #8]",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+
+    /* vr_top */
+    tacc_cg_output(
+        state, "\n\t add %s, fp, #208", tacc_target_register_as_64(tmp_reg));
+    tacc_cg_output(state,
+                   "\n\t str %s, [%s, #16]",
+                   tacc_target_register_as_64(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+
+    /* gr_offs */
+    tacc_cg_output(state,
+                   "\n\t mov %s, #-%d",
+                   tacc_target_register_as_32(tmp_reg),
+                   (8 - state->interface->target_extra->num_int_registers) * 8);
+    tacc_cg_output(state,
+                   "\n\t str %s, [%s, #24]",
+                   tacc_target_register_as_32(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+
+    /* vr_offs */
+    tacc_cg_output(state,
+                   "\n\t mov %s, #-%d",
+                   tacc_target_register_as_32(tmp_reg),
+                   (8 - state->interface->target_extra->num_vector_registers) *
+                       16);
+    tacc_cg_output(state,
+                   "\n\t str %s, [%s, #28]",
+                   tacc_target_register_as_32(tmp_reg),
+                   tacc_target_register_as_64(va_list_reg));
+}
+
+void tacc_target_cg_va_copy(struct tacc_cg_state *state) {
+    uint32_t va_list_reg_src;
+    uint32_t va_list_reg_dst;
+    uint32_t tmp_reg_1;
+    uint32_t tmp_reg_2;
+
+    va_list_reg_src = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    va_list_reg_dst =
+        tacc_cg_ensure_over_is_single(state, REG_VOLATILE & ~va_list_reg_src);
+    tmp_reg_1 = tacc_target_cg_alloc_freg(state, REGV_VOLATILE);
+    tmp_reg_2 = tacc_target_cg_alloc_freg(state, REGV_VOLATILE & ~tmp_reg_1);
+    tacc_cg_pop(state);
+    tacc_cg_pop(state);
+
+    tacc_cg_output(state,
+                   "\n\t ldp %s, %s, [%s]",
+                   tacc_target_f_register_as_128(tmp_reg_1),
+                   tacc_target_f_register_as_128(tmp_reg_2),
+                   tacc_target_register_as_64(va_list_reg_src));
+    tacc_cg_output(state,
+                   "\n\t stp %s, %s, [%s]",
+                   tacc_target_f_register_as_128(tmp_reg_1),
+                   tacc_target_f_register_as_128(tmp_reg_2),
+                   tacc_target_register_as_64(va_list_reg_dst));
+}
+
+void tacc_target_cg_va_arg(struct tacc_cg_state *state,
+                           struct tacc_type *arg_type) {
+    TACC_UNUSED(state);
+    TACC_UNUSED(arg_type);
+
+    tacc_assert(ASSERT_TODO, 0, "va_arg");
 }
