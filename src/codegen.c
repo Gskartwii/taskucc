@@ -2297,8 +2297,7 @@ int tacc_cg_alloc_scratch(struct tacc_cg_state *state,
         state->num_local_bytes =
             tacc_align_up(state->num_local_bytes, alignment_p2);
         state->num_local_bytes = state->num_local_bytes + actual_size;
-        return ((int) (state->num_local_bytes - actual_size)) +
-               state->interface->frame_offset;
+        return (int) (state->num_local_bytes - actual_size);
     } else {
         state->num_local_bytes =
             tacc_align_up(state->num_local_bytes, alignment_p2);
