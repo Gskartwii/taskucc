@@ -452,7 +452,8 @@ tacc_declarator_base_function(struct tacc_declarator *full_decl) {
                 full_decl->extra.func_decl->sub_declarator)) {
             return full_decl;
         }
-        return tacc_declarator_base_function(full_decl);
+        return tacc_declarator_base_function(
+            full_decl->extra.func_decl->sub_declarator);
     }
     return NULL;
 }
