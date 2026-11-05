@@ -7,11 +7,22 @@
 }: let
   inherit (import ./common.nix) src;
   system = stdenvNoCC.hostPlatform.system;
-  m2libc = fetchFromGitHub {
+  m2libc-unpatched = fetchFromGitHub {
     owner = "Gskartwii";
     repo = "M2libc";
     rev = "f63ac2ddde36088ddd25149c433bdd37b4ba2974";
     hash = "sha256-JXXUNfEFEuuHAjbQQkBLxvTGSzW76sdQGhnDPhJXFQ8=";
+  };
+  m2libc = stdenvNoCC.mkDerivation {
+    name = "m2libc-patched";
+    src = m2libc-unpatched;
+    buildPhase = ''
+      sed -i 's/value < 0/value >> 31 != 0/' stdio.c
+      sed -i 's/value = -value/value = (-value) \& 2147483647/' stdio.c
+    '';
+    installPhase = ''
+      cp -R . $out/
+    '';
   };
   m2arch =
     {
