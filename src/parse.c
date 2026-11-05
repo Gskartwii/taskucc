@@ -523,7 +523,7 @@ static void tacc_parse_init_stringlit(struct tacc_expr *expr) {
 }
 
 static void tacc_parse_continue_stringlit(struct pp_tok *tok,
-                                          struct tacc_expr *expr) {
+                                          struct tacc_string *string_out) {
     char *str_tok;
     int piece;
 
@@ -533,7 +533,26 @@ static void tacc_parse_continue_stringlit(struct pp_tok *tok,
 
     while ((*str_tok) != '"') {
         str_tok = tacc_parse_one_char(str_tok, &piece);
-        tacc_dynstring_push(expr->extra.string_literal, (char) piece);
+        tacc_dynstring_push(string_out, (char) piece);
+    }
+}
+
+static void tacc_parse_string_constant(struct tacc_tok_iter *iter,
+                                       struct tacc_string *str_out) {
+    struct pp_tok *tok;
+
+    tok = tacc_tok_iter_peek(iter);
+    tacc_parse_assert(
+        iter, tok->kind == TOK_STRING, "expected string constant");
+    tacc_parse_continue_stringlit(tok, str_out);
+    tacc_pp_tok_free(tacc_tok_iter_next(iter));
+    while (1) {
+        tok = tacc_tok_iter_peek(iter);
+        if (tok->kind != TOK_STRING) {
+            break;
+        }
+        tacc_parse_continue_stringlit(tok, str_out);
+        tacc_pp_tok_free(tacc_tok_iter_next(iter));
     }
 }
 
@@ -675,16 +694,7 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
         } else if (tok->kind == TOK_STRING) {
             expr->kind = EX_STRING_LIT;
             tacc_parse_init_stringlit(expr);
-            tacc_parse_continue_stringlit(tok, expr);
-            tacc_pp_tok_free(tacc_tok_iter_next(iter));
-            while (1) {
-                tok = tacc_tok_iter_peek(iter);
-                if (tok->kind != TOK_STRING) {
-                    break;
-                }
-                tacc_parse_continue_stringlit(tok, expr);
-                tacc_pp_tok_free(tacc_tok_iter_next(iter));
-            }
+            tacc_parse_string_constant(iter, expr->extra.string_literal);
         } else if (tok->kind == TOK_CHAR || tok->kind == TOK_WCHAR) {
             /* the parsing seems equivalent */
             expr->kind = EX_CHAR_LIT;
@@ -2419,6 +2429,18 @@ tacc_parse_new_decl(struct tacc_parse_registry *registry,
             init_declarator->declarator = declarator;
 
             if (ctx == DECL_CONTEXT_IN_BODY || ctx == DECL_CONTEXT_TOP_LEVEL) {
+                if (tacc_tok_iter_accept_kw(iter, ID_ASM)) {
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                        "expected ( after __asm__");
+                    init_declarator->asm_name = tacc_dynstring_new();
+                    tacc_parse_string_constant(iter, init_declarator->asm_name);
+                    tacc_parse_assert(
+                        iter,
+                        tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                        "expected ) after __asm__");
+                }
                 if (tacc_tok_iter_accept_tok(iter, TOK_EQ)) {
                     init_declarator->initializer =
                         tacc_parse_initializer(iter, registry);

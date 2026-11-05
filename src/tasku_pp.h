@@ -78,6 +78,7 @@ enum pp_tok_kind {
 enum pp_ident_kind {
     ID_OTHER,
 
+    ID_ASM,
     ID_ATTRIBUTE,
     ID_AUTO,
     ID_BREAK,

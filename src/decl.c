@@ -367,6 +367,11 @@ void tacc_init_declarator_free(struct tacc_init_declarator *init_declarator) {
     if (init_declarator->initializer != NULL) {
         tacc_initializer_free(init_declarator->initializer);
     }
+
+    if (init_declarator->asm_name != NULL) {
+        tacc_dynstring_free(init_declarator->asm_name);
+    }
+
     tacc_free(init_declarator);
 }
 
@@ -414,6 +419,7 @@ struct tacc_init_declarator *tacc_init_declarator_new(void) {
     init_declarator = tacc_malloc(sizeof(struct tacc_init_declarator));
     init_declarator->declarator = NULL;
     init_declarator->initializer = NULL;
+    init_declarator->asm_name = NULL;
 
     return init_declarator;
 }

@@ -210,6 +210,9 @@ struct tacc_init_declarator {
     struct tacc_declarator *declarator;
 
     /* owning */
+    struct tacc_string *asm_name;
+
+    /* owning */
     struct tacc_initializer *initializer;
 };
 
