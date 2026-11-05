@@ -436,18 +436,28 @@ tacc_eval_struct(struct tacc_compiler *compiler,
              j = j + 1) {
             declarator_entry =
                 tacc_struct_declarator_list_get(entry->content->declarators, j);
-            adjusted_ty = tacc_type_adjust_from_declarator(
-                compiler, base_ty, declarator_entry->content->underlying);
-            field = tacc_field_new();
-            field->type = adjusted_ty;
-            field->name = tacc_compile_get_name(
-                compiler,
-                tacc_declarator_name(declarator_entry->content->underlying));
+
+            if (declarator_entry->content->underlying != NULL) {
+                field = tacc_field_new();
+                adjusted_ty = tacc_type_adjust_from_declarator(
+                    compiler, base_ty, declarator_entry->content->underlying);
+                field->type = adjusted_ty;
+                field->name = tacc_compile_get_name(
+                    compiler,
+                    tacc_declarator_name(
+                        declarator_entry->content->underlying));
+            } else {
+                field = NULL;
+                adjusted_ty = base_ty;
+            }
+
             if (declarator_entry->content->bitfield_size == NULL) {
                 bit_offset = tacc_align_up(
                     bit_offset, 3 + tacc_type_alignment_p2(adjusted_ty));
-                field->offset = bit_offset >> ((unsigned) 3);
-                tacc_struct_push_field(compiler, ty, field);
+                if (field != NULL) {
+                    field->offset = bit_offset >> ((unsigned) 3);
+                    tacc_struct_push_field(compiler, ty, field);
+                }
                 bit_offset = bit_offset + (tacc_type_size(adjusted_ty) << 3);
                 continue;
             } else {
