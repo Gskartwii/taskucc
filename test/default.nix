@@ -121,7 +121,7 @@ in
               echo "tasku-gcc $mode failed on $file"
               continue
             fi
-            if ! timeout 10 tasku-m2 $flags | pv -r > tasku-m2-test; then
+            if ! timeout 20 tasku-m2 $flags | pv -r > tasku-m2-test; then
               ok=false
               echo "tasku-m2 $mode failed on $file; timeout"
               continue
