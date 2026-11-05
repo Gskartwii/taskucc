@@ -15,6 +15,7 @@
   pv,
   runCommand,
   coreutils,
+  musl,
 }: let
   tinycc-src = fetchgit {
     url = "https://github.com/tinycc/tinycc.git";
@@ -95,6 +96,7 @@ in
             flags="\
               $mode \
               $file \
+              -I ${lib.getDev musl}/include \
               -I ${../tasku-libc/include} \
               -DONE_SOURCE \
               -DTCC_TARGET_X86_64=1 \
