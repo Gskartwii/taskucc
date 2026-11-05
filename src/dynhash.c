@@ -31,6 +31,7 @@ void tacc_dynhash_insert_new(struct tacc_dynhash *hash,
     char *spot;
     char *buf;
 
+	tacc_assert(ASSERT_ICE, hash->fill < hash->cap - 1, "hash table filled up");
     buf = hash->buffer;
     spot = buf + (index & (hash->cap - 1)) * hash->element_size;
     memcpy(spot, elem, hash->element_size);
