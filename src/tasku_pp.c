@@ -3141,6 +3141,30 @@ static struct pp_tok *tacc_tok_iter_eval_line(struct tacc_tok_iter *last_iter) {
     return tacc_tok_iter_peek_nomacro(last_iter);
 }
 
+static struct pp_tok *tacc_tok_iter_eval_file(struct tacc_tok_iter *last_iter) {
+    struct pp_tok *tok;
+    struct tacc_string *str;
+
+    tok = tacc_pp_tok_new();
+    tok->kind = TOK_STRING;
+    tok->is_final = 1;
+    str = tacc_dynstring_new();
+    tacc_dynstring_push(str, '"');
+    /* assume no quotes in filename */
+    if (last_iter->file_iter == NULL ||
+        last_iter->file_iter->filename == NULL) {
+        tacc_dynstring_concat(str, "<anonymous>");
+    } else {
+        tacc_dynstring_concat(str, last_iter->file_iter->filename);
+    }
+    tacc_dynstring_push(str, '"');
+    tacc_pp_tok_assign_tstr(tok, str);
+
+    tacc_tok_iter_push_pending(last_iter, tok);
+
+    return tacc_tok_iter_peek_nomacro(last_iter);
+}
+
 /* return: borrow, first: borrow */
 static struct pp_tok *
 tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter *first) {
@@ -3193,6 +3217,10 @@ tacc_tok_iter_peek_handle_directives(struct tacc_tok_iter *first) {
                 if (!strcmp(peek_tok->str->string, "__LINE__")) {
                     tacc_tok_iter_drop_nomacro(last_iter);
                     peek_tok = tacc_tok_iter_eval_line(last_iter);
+                    return peek_tok;
+                } else if (!strcmp(peek_tok->str->string, "__FILE__")) {
+                    tacc_tok_iter_drop_nomacro(last_iter);
+                    peek_tok = tacc_tok_iter_eval_file(last_iter);
                     return peek_tok;
                 }
             }

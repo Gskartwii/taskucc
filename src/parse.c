@@ -643,7 +643,8 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                 tacc_parse_assert(iter,
                                   tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
                                   "__builtin_va_copy unclosed");
-            } else if (!strcmp("__FUNCTION__", str)) {
+            } else if (!strcmp("__FUNCTION__", str) ||
+                       !strcmp("__func__", str)) {
                 expr->kind = EX_NAME_OF_FUNC;
                 tacc_pp_tok_free(tacc_tok_iter_next(iter));
             } else {
