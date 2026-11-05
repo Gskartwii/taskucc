@@ -541,16 +541,55 @@ void tacc_target_cg_addrof_var(struct tacc_cg_state *state,
         tacc_type_to_pointer(state->compiler->target->pointer_ty, var->ty, 1));
 }
 
+static void tacc_target_cg_move_scratch_scratch(struct tacc_cg_state *state,
+                                                int from_fp_offset,
+                                                int to_fp_offset,
+                                                size_t size) {
+    tacc_target_cg_memcpy(state,
+                          MEMBASE_FP,
+                          (uint32_t) from_fp_offset,
+                          MEMBASE_FP,
+                          (uint32_t) to_fp_offset,
+                          size,
+                          3);
+}
+
 void tacc_target_cg_dup(struct tacc_cg_state *state) {
     struct tacc_slot *slot;
     uint32_t reg;
     uint32_t new_reg;
+    int offset;
+    int new_offset;
 
     slot = tacc_cg_get_top(state);
-    reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
-    new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
-    tacc_target_cg_move_reg_reg(state, reg, new_reg);
-    tacc_cg_push_reg(state, new_reg, slot->ty);
+    switch (slot->place_kind) {
+    case PLACE_NONE:
+        tacc_cg_push_void(state);
+        break;
+    case PLACE_REGISTER:
+        reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+        new_reg = tacc_target_cg_alloc_reg(state, REG_VOLATILE & ~reg);
+        tacc_target_cg_move_reg_reg(state, reg, new_reg);
+        tacc_cg_push_reg(state, new_reg, slot->ty);
+        break;
+    case PLACE_REGISTER_PAIR:
+        tacc_assert(ASSERT_ICE, 0, "register pair dup");
+        break;
+    case PLACE_SCRATCH:
+        offset = tacc_cg_ensure_top_is_scratch(state);
+        new_offset = tacc_cg_alloc_scratch(
+            state, tacc_type_size(slot->ty), tacc_type_alignment_p2(slot->ty));
+        tacc_target_cg_move_scratch_scratch(
+            state, offset, new_offset, tacc_type_size(slot->ty));
+        tacc_cg_push_scratch(state, offset, slot->ty);
+        break;
+    case PLACE_FLOAT_REGISTER:
+        reg = tacc_cg_ensure_top_is_single_f(state, REGV_VOLATILE);
+        new_reg = tacc_target_cg_alloc_freg(state, REGV_VOLATILE & ~reg);
+        tacc_target_cg_move_f_reg_reg(state, reg, new_reg, slot->ty);
+        tacc_cg_push_freg(state, new_reg, slot->ty);
+        break;
+    }
 }
 
 void tacc_target_cg_addrof_obj(struct tacc_cg_state *state,
@@ -845,20 +884,45 @@ void tacc_target_cg_deref_float(struct tacc_cg_state *state,
     tacc_cg_push_freg(state, reg, float_type);
 }
 
-void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
-                                       struct tacc_type *type) {
+void tacc_target_cg_memcpy(struct tacc_cg_state *state,
+                           enum tacc_cg_membase src_base,
+                           uint32_t src_descriptor,
+                           enum tacc_cg_membase dst_base,
+                           uint32_t dst_descriptor,
+                           size_t size,
+                           size_t alignment) {
     size_t i;
-    size_t size;
-    size_t alignment;
-    int offset;
-    uint32_t ptr_reg;
-    uint32_t tmp_reg;
+    int src_offset;
+    int dst_offset;
+    char *dst_reg;
+    char *src_reg;
     size_t devnull;
+    uint32_t tmp_valid;
+    uint32_t tmp_reg;
 
-    size = tacc_type_size(type);
-    alignment = tacc_type_alignment_p2(type);
-    offset = tacc_cg_alloc_scratch(state, size, alignment);
-    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+    tmp_valid = REG_VOLATILE;
+    if (src_base == MEMBASE_REG) {
+        tmp_valid = tmp_valid & ~src_descriptor;
+        src_reg = tacc_target_register_as_64(src_descriptor);
+        src_offset = 0;
+    } else if (src_base == MEMBASE_FP) {
+        src_reg = "%rbp";
+        src_offset = (int32_t) src_descriptor;
+    } else {
+        src_reg = "%rsp";
+        src_offset = (int32_t) src_descriptor;
+    }
+    if (dst_base == MEMBASE_REG) {
+        tmp_valid = tmp_valid & ~dst_descriptor;
+        dst_reg = tacc_target_register_as_64(dst_descriptor);
+        dst_offset = 0;
+    } else if (dst_base == MEMBASE_FP) {
+        dst_reg = "%rbp";
+        dst_offset = (int32_t) dst_descriptor;
+    } else {
+        dst_reg = "%rsp";
+        dst_offset = (int32_t) dst_descriptor;
+    }
 
     i = 0;
     if (size >= 16 && alignment >= 4) {
@@ -866,14 +930,14 @@ void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
         for (devnull = i; i < size; i = i + 16) {
             tacc_cg_output(state,
                            "\n\t movaps %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
+                           (int) i + src_offset,
+                           src_reg,
                            tacc_target_register_as_xmm(tmp_reg));
             tacc_cg_output(state,
                            "\n\t movaps %s, %d(%s)",
                            tacc_target_register_as_xmm(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
+                           (int) i + dst_offset,
+                           dst_reg);
         }
     }
     if (size >= 16) {
@@ -881,77 +945,98 @@ void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
         for (devnull = i; i < size; i = i + 16) {
             tacc_cg_output(state,
                            "\n\t movups %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
+                           (int) i + src_offset,
+                           src_reg,
                            tacc_target_register_as_xmm(tmp_reg));
             tacc_cg_output(state,
                            "\n\t movups %s, %d(%s)",
                            tacc_target_register_as_xmm(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
+                           (int) i + dst_offset,
+                           dst_reg);
         }
     }
     if (size >= 8) {
-        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+        tmp_reg = tacc_target_cg_alloc_reg(state, tmp_valid);
         for (devnull = i; i < size; i = i + 8) {
             tacc_cg_output(state,
                            "\n\t movq %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
+                           (int) i + src_offset,
+                           src_reg,
                            tacc_target_register_as_64(tmp_reg));
             tacc_cg_output(state,
                            "\n\t movq %s, %d(%s)",
                            tacc_target_register_as_64(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
+                           (int) i + dst_offset,
+                           dst_reg);
         }
     }
     if (size >= 4) {
-        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
-        for (devnull = i; i < size; i = i + 8) {
+        tmp_reg = tacc_target_cg_alloc_reg(state, tmp_valid);
+        for (devnull = i; i < size; i = i + 4) {
             tacc_cg_output(state,
                            "\n\t movl %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
+                           (int) i + src_offset,
+                           src_reg,
                            tacc_target_register_as_32(tmp_reg));
             tacc_cg_output(state,
                            "\n\t movl %s, %d(%s)",
                            tacc_target_register_as_32(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
+                           (int) i + dst_offset,
+                           dst_reg);
         }
     }
     if (size >= 2) {
-        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
-        for (devnull = i; i < size; i = i + 8) {
+        tmp_reg = tacc_target_cg_alloc_freg(state, tmp_valid);
+        for (devnull = i; i < size; i = i + 2) {
             tacc_cg_output(state,
                            "\n\t movw %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
+                           (int) i + src_offset,
+                           src_reg,
                            tacc_target_register_as_16(tmp_reg));
             tacc_cg_output(state,
                            "\n\t movw %s, %d(%s)",
                            tacc_target_register_as_16(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
+                           (int) i + dst_offset,
+                           dst_reg);
         }
     }
-    tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
+    tmp_reg = tacc_target_cg_alloc_reg(state, tmp_valid);
     for (devnull = i; i < size; i = i + 1) {
-        tmp_reg = tacc_target_cg_alloc_freg(state, REG_VOLATILE & ~ptr_reg);
-        for (devnull = i; i < size; i = i + 8) {
-            tacc_cg_output(state,
-                           "\n\t movb %d(%s), %s",
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg),
-                           tacc_target_register_as_8(tmp_reg));
-            tacc_cg_output(state,
-                           "\n\t movb %s, %d(%s)",
-                           tacc_target_register_as_8(tmp_reg),
-                           (int) i,
-                           tacc_target_register_as_64(ptr_reg));
-        }
+        tacc_cg_output(state,
+                       "\n\t movb %d(%s), %s",
+                       (int) i + src_offset,
+                       src_reg,
+                       tacc_target_register_as_8(tmp_reg));
+        tacc_cg_output(state,
+                       "\n\t movb %s, %d(%s)",
+                       tacc_target_register_as_8(tmp_reg),
+                       (int) i + dst_offset,
+                       dst_reg);
     }
+    TACC_UNUSED(devnull);
+}
+
+void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
+                                       struct tacc_type *type) {
+    size_t size;
+    size_t alignment;
+    int offset;
+    uint32_t ptr_reg;
+    size_t devnull;
+
+    size = tacc_type_size(type);
+    alignment = tacc_type_alignment_p2(type);
+    offset = tacc_cg_alloc_scratch(state, size, alignment);
+    ptr_reg = tacc_cg_ensure_top_is_single(state, REG_VOLATILE);
+
+    tacc_target_cg_memcpy(state,
+                          MEMBASE_REG,
+                          ptr_reg,
+                          MEMBASE_FP,
+                          (uint32_t) offset,
+                          size,
+                          alignment);
+
     tacc_cg_pop(state);
     tacc_cg_push_scratch(state, offset, type);
     TACC_UNUSED(devnull);

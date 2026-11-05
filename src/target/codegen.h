@@ -46,6 +46,23 @@ void tacc_target_cg_deref_int(struct tacc_cg_state *state,
                               struct tacc_type *int_type);
 void tacc_target_cg_deref_float(struct tacc_cg_state *state,
                                 struct tacc_type *float_type);
+
+enum tacc_cg_membase {
+    /* sp/fp: descriptor is a signed offset (cast to int32_t) */
+    MEMBASE_SP,
+    MEMBASE_FP,
+
+    /* descriptor is a register id */
+    MEMBASE_REG,
+};
+
+void tacc_target_cg_memcpy(struct tacc_cg_state *state,
+                           enum tacc_cg_membase src_base,
+                           uint32_t src_descriptor,
+                           enum tacc_cg_membase dst_base,
+                           uint32_t dst_descriptor,
+                           size_t size,
+                           size_t alignment);
 void tacc_target_cg_deref_into_scratch(struct tacc_cg_state *state,
                                        struct tacc_type *type);
 void tacc_target_cg_store_int(struct tacc_cg_state *state,
