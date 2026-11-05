@@ -12,8 +12,8 @@
       src = ../src;
       buildPhase = ''
         ${lib.strings.concatMapStringsSep "\n" (file: ''
-            $TASKU ${file} -I${../tasku-libc/include} > \
-              ${toXFile ".s" file} || (echo failed to produce: ${file}; exit 1)
+            $TASKU -c -S ${file} -I${../tasku-libc/include} -o ${toXFile ".s" file} \
+              || (echo failed to produce: ${file}; exit 1)
             $CC -o ${toXFile ".o" file} -c ${toXFile ".s" file} \
                || (echo failed to produce .o: ${file}; exit 1)
           '')

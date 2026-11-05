@@ -71,8 +71,8 @@ void tacc_compile_output_directive(struct tacc_compiler *compiler,
     TACC_UNUSED(compiler);
 
     va_start(va, directive_fmt);
-    printf("\n\t.");
-    vprintf(directive_fmt, va);
+    fprintf(compiler->out_file, "\n\t.");
+    vfprintf(compiler->out_file, directive_fmt, va);
     va_end(va);
 }
 
@@ -82,7 +82,7 @@ void tacc_compile_output(struct tacc_compiler *compiler, char *fmt, ...) {
     TACC_UNUSED(compiler);
 
     va_start(va, fmt);
-    vprintf(fmt, va);
+    vfprintf(compiler->out_file, fmt, va);
     va_end(va);
 }
 

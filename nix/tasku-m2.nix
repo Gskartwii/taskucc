@@ -70,6 +70,7 @@
     "dynarray.h"
     "dynhash.h"
     "dynstring.h"
+    "cmdline.h"
     "string_list.h"
     "tasku_file.h"
     "soft_u64.h"

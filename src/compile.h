@@ -33,6 +33,8 @@ DECL_DYNARRAY_OVER(tacc_ident_list,
                    tacc_ident_list_free)
 
 struct tacc_compiler {
+    FILE *out_file;
+
     struct tacc_target *target;
     struct tacc_type_list *basic_types;
     struct tacc_type_list *anonymous_types;
