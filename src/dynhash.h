@@ -25,6 +25,8 @@ void tacc_dynhash_insert_new(struct tacc_dynhash *hash,
 size_t tacc_dynhash_fill_count(struct tacc_dynhash *hash);
 void tacc_dynhash_free(struct tacc_dynhash *hash);
 
+#define DYNHASH_PROBE(i) (((i) >> 1) + (((i) * (i)) >> 1))
+
 #define DECL_DYNHASH_OVER(hash_type,                                        \
                           elem_wrapper_type,                                \
                           elem_type,                                        \
@@ -108,7 +110,7 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         h = tacc_str_hash(key);                                             \
         i = 0;                                                              \
         while (1) {                                                         \
-            probe = tacc_dynhash_probe(map->map, h + i + i * i);            \
+            probe = tacc_dynhash_probe(map->map, h + DYNHASH_PROBE(i));     \
             if (probe->content == NULL) {                                   \
                 break;                                                      \
             }                                                               \
@@ -134,14 +136,14 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         h = tacc_str_hash(content->hash_key);                               \
         i = 0;                                                              \
         while (1) {                                                         \
-            probe = tacc_dynhash_probe(map->map, h + i + i * i);            \
+            probe = tacc_dynhash_probe(map->map, h + DYNHASH_PROBE(i));     \
             if (probe->content == NULL) {                                   \
                 break;                                                      \
             }                                                               \
             i = i + 1;                                                      \
         }                                                                   \
         wrapper.content = content;                                          \
-        tacc_dynhash_insert_new(map->map, h + i + i * i, &wrapper);         \
+        tacc_dynhash_insert_new(map->map, h + DYNHASH_PROBE(i), &wrapper);  \
     }                                                                       \
     size_t fill_count_func(struct hash_type *map) {                         \
         return tacc_dynhash_fill_count(map->map);                           \
@@ -199,7 +201,7 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         h = tacc_u32_hash(key);                                               \
         i = 0;                                                                \
         while (1) {                                                           \
-            probe = tacc_dynhash_probe(map->map, h + i + i * i);              \
+            probe = tacc_dynhash_probe(map->map, h + DYNHASH_PROBE(i));       \
             if (probe->content == NULL) {                                     \
                 break;                                                        \
             }                                                                 \
@@ -225,14 +227,14 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         h = tacc_u32_hash(content->hash_key);                                 \
         i = 0;                                                                \
         while (1) {                                                           \
-            probe = tacc_dynhash_probe(map->map, h + i + i * i);              \
+            probe = tacc_dynhash_probe(map->map, h + DYNHASH_PROBE(i));       \
             if (probe->content == NULL) {                                     \
                 break;                                                        \
             }                                                                 \
             i = i + 1;                                                        \
         }                                                                     \
         wrapper.content = content;                                            \
-        tacc_dynhash_insert_new(map->map, h + i + i * i, &wrapper);           \
+        tacc_dynhash_insert_new(map->map, h + DYNHASH_PROBE(i), &wrapper);    \
     }                                                                         \
     size_t fill_count_func(struct hash_type *map) {                           \
         return tacc_dynhash_fill_count(map->map);                             \
