@@ -54,12 +54,13 @@ enum {
     TYPESPEC_UNION = 0x8000,
     TYPESPEC_TYPEDEF = 0x10000,
     TYPESPEC_BUILTIN = 0x20000,
+    TYPESPEC_TYPEOF = 0x40000,
 
-    TYPESPEC_INLINE = 0x40000,
+    TYPESPEC_INLINE = 0x80000,
 
-    TYPEQUAL_VOLATILE = 0x80000,
-    TYPEQUAL_RESTRICT = 0x100000,
-    TYPEQUAL_CONST = 0x200000
+    TYPEQUAL_VOLATILE = 0x100000,
+    TYPEQUAL_RESTRICT = 0x200000,
+    TYPEQUAL_CONST = 0x400000
 };
 
 enum tacc_builtin_type_name {
@@ -101,6 +102,9 @@ struct tacc_decl_type {
         struct tacc_struct_decl_list *struct_fields;
         /* owning */
         struct tacc_enumerator_list *enumerators;
+
+        /* owning */
+        struct tacc_expr *expr;
 
         enum tacc_builtin_type_name builtin_type;
     } extra;

@@ -335,6 +335,9 @@ void tacc_decl_type_free(struct tacc_decl_type *ty) {
             tacc_free(ty->extra.enumerators);
         }
     }
+    if ((ty->spec_qual_flags & TYPESPEC_TYPEOF) != 0) {
+        tacc_expr_free(ty->extra.expr);
+    }
     tacc_attribute_list_free(ty->attributes);
     tacc_free(ty->attributes);
     tacc_free(ty);

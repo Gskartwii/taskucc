@@ -258,7 +258,10 @@ tacc_bool tacc_tok_is_decl_specifier(struct pp_tok *tok,
                            TYPEQUAL_VOLATILE | TYPESPEC_INLINE))) != 0) {
             return 0;
         }
-        if (!strcmp(tacc_dynstring_as_str(tok->str), "__builtin_va_list")) {
+        /* TODO: maybe make into keywords? */
+        if (!strcmp(tacc_dynstring_as_str(tok->str), "__builtin_va_list") ||
+            !strcmp(tacc_dynstring_as_str(tok->str), "__typeof") ||
+            !strcmp(tacc_dynstring_as_str(tok->str), "__typeof__")) {
             return 1;
         }
         ident_descriptor = tacc_parse_registry_lookup_untagged(
@@ -1686,6 +1689,21 @@ static struct tacc_decl_type *tacc_parse_declaration_specifiers(
             if (!strcmp("__builtin_va_list", tacc_dynstring_as_str(tok->str))) {
                 ENSURE_ONE(TYPESPEC_BUILTIN);
                 out_type->extra.builtin_type = BUILTINTY_VA_LIST;
+                break;
+            }
+            if (!strcmp("__typeof__", tacc_dynstring_as_str(tok->str)) ||
+                !strcmp("__typeof", tacc_dynstring_as_str(tok->str))) {
+                ENSURE_ONE(TYPESPEC_TYPEOF);
+                tacc_pp_tok_free(tacc_tok_iter_next(iter));
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_LPAREN),
+                                  "expected ( after typeof");
+                out_type->extra.expr = tacc_parse_new_expr(registry, iter);
+                tacc_parse_assert(iter,
+                                  tacc_tok_iter_accept_tok(iter, TOK_RPAREN),
+                                  "expected ) after typeof(...");
+                tok_handled = 1;
+                tok = tacc_tok_iter_peek(iter);
                 break;
             }
             ENSURE_ONE(TYPESPEC_TYPEDEF);
