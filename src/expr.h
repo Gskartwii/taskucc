@@ -110,6 +110,7 @@ struct tacc_int_literal {
 
 struct tacc_char_literal {
     struct tacc_u64 *number;
+    tacc_bool is_wide;
 };
 
 struct tacc_float_literal {

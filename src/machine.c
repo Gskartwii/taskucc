@@ -102,6 +102,85 @@ tacc_bool tacc_val_is_eq(struct tacc_val *a, struct tacc_val *b) {
     return tacc_u64_eq(a->value.int_value, b->value.int_value);
 }
 
+struct tacc_val *tacc_val_add(struct tacc_val *a, struct tacc_val *b) {
+    struct tacc_val *result;
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral const-eval +");
+
+    result = tacc_val_new();
+    result->value.int_value = tacc_u64_new();
+    result->type = a->type;
+
+    tacc_u64_add(
+        result->value.int_value, a->value.int_value, b->value.int_value);
+    /* TODO: sign-extend/zero-extend */
+
+    return result;
+}
+
+struct tacc_val *tacc_val_sub(struct tacc_val *a, struct tacc_val *b) {
+    struct tacc_val *result;
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral const-eval +");
+
+    result = tacc_val_new();
+    result->value.int_value = tacc_u64_new();
+    result->type = a->type;
+
+    tacc_u64_sub(
+        result->value.int_value, a->value.int_value, b->value.int_value);
+    /* TODO: sign-extend/zero-extend */
+
+    return result;
+}
+
+struct tacc_val *tacc_val_mul(struct tacc_val *a, struct tacc_val *b) {
+    struct tacc_val *result;
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral const-eval +");
+
+    result = tacc_val_new();
+    result->value.int_value = tacc_u64_new();
+    result->type = a->type;
+
+    tacc_u64_mul(
+        result->value.int_value, a->value.int_value, b->value.int_value);
+    /* TODO: sign-extend/zero-extend */
+
+    return result;
+}
+
+tacc_bool tacc_val_is_ge(struct tacc_val *a, struct tacc_val *b) {
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral ge");
+    if (tacc_val_is_signed(a)) {
+        return tacc_u64_sge(a->value.int_value, b->value.int_value);
+    }
+    return tacc_u64_uge(a->value.int_value, b->value.int_value);
+}
+tacc_bool tacc_val_is_gt(struct tacc_val *a, struct tacc_val *b) {
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral ge");
+    if (tacc_val_is_signed(a)) {
+        return tacc_u64_sgt(a->value.int_value, b->value.int_value);
+    }
+    return tacc_u64_ugt(a->value.int_value, b->value.int_value);
+}
+tacc_bool tacc_val_is_lt(struct tacc_val *a, struct tacc_val *b) {
+    tacc_assert(ASSERT_TODO,
+                tacc_val_is_integral(a) && tacc_val_is_integral(b),
+                "non-integral lt");
+    if (tacc_val_is_signed(a)) {
+        return tacc_u64_slt(a->value.int_value, b->value.int_value);
+    }
+    return tacc_u64_ult(a->value.int_value, b->value.int_value);
+}
+
 struct tacc_val *tacc_val_from_int(int value, struct tacc_type *ty) {
     struct tacc_val *val;
 
@@ -241,6 +320,7 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                                       struct tacc_eval_context *ctx) {
     struct tacc_val *l_result;
     struct tacc_val *r_result;
+    struct tacc_val *result;
     struct tacc_global_object_map_entry *obj_entry;
     struct tacc_type *sint_ty;
 
@@ -255,7 +335,12 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
             expr->extra.int_literal, ctx->target, ctx->basic_types);
     case EX_CHAR_LIT:
         l_result = tacc_val_new();
-        l_result->type = sint_ty;
+        if (expr->extra.char_literal->is_wide &&
+            ctx->target->cchar->is_signed) {
+            l_result->type = tacc_get_basic_type(ctx->basic_types, TYK_UINT);
+        } else {
+            l_result->type = sint_ty;
+        }
         l_result->value.int_value =
             tacc_u64_clone(expr->extra.char_literal->number);
         return l_result;
@@ -284,14 +369,62 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
                       obj_entry->content->extra.enumerator_value);
         return l_result;
     case EX_ADD:
-        tacc_assert(ASSERT_TODO, 0, "add consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_TODO,
+                    "non-arithmetic eq consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        result = tacc_val_add(l_result, r_result);
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return result;
     case EX_SUB:
-        tacc_assert(ASSERT_TODO, 0, "sub consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_TODO,
+                    "non-arithmetic eq consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        result = tacc_val_sub(l_result, r_result);
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return result;
     case EX_MUL:
-        tacc_assert(ASSERT_TODO, 0, "mul consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_TODO,
+                    "non-arithmetic eq consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        result = tacc_val_mul(l_result, r_result);
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return result;
     case EX_DIV:
         tacc_assert(ASSERT_TODO, 0, "div consteval");
         break;
@@ -440,14 +573,74 @@ struct tacc_val *tacc_expr_const_eval(struct tacc_expr *expr,
         tacc_assert(ASSERT_TODO, 0, "<= consteval");
         break;
     case EX_LT:
-        tacc_assert(ASSERT_TODO, 0, "< consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_TODO,
+                    "non-arithmetic ne consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        if (tacc_val_is_lt(l_result, r_result)) {
+            tacc_val_free(l_result);
+            tacc_val_free(r_result);
+            return tacc_val_from_int(1, sint_ty);
+        }
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return tacc_val_from_int(0, sint_ty);
     case EX_GE:
-        tacc_assert(ASSERT_TODO, 0, ">= consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_DIAG,
+                    "non-arithmetic >= consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        if (tacc_val_is_ge(l_result, r_result)) {
+            tacc_val_free(l_result);
+            tacc_val_free(r_result);
+            return tacc_val_from_int(1, sint_ty);
+        }
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return tacc_val_from_int(0, sint_ty);
     case EX_GT:
-        tacc_assert(ASSERT_TODO, 0, "> consteval");
-        break;
+        l_result = tacc_expr_const_eval(expr->op1, ctx);
+        if (l_result == NULL) {
+            return NULL;
+        }
+        r_result = tacc_expr_const_eval(expr->op2, ctx);
+        if (r_result == NULL) {
+            return NULL;
+        }
+        tacc_assert(tacc_val_is_arithmetic(l_result) &&
+                        tacc_val_is_arithmetic(r_result),
+                    ASSERT_DIAG,
+                    "non-arithmetic > consteval");
+        tacc_val_usual_arithmetic_conversions(
+            l_result, r_result, ctx->basic_types);
+        if (tacc_val_is_gt(l_result, r_result)) {
+            tacc_val_free(l_result);
+            tacc_val_free(r_result);
+            return tacc_val_from_int(1, sint_ty);
+        }
+        tacc_val_free(l_result);
+        tacc_val_free(r_result);
+        return tacc_val_from_int(0, sint_ty);
     case EX_ASSI:
         tacc_assert(ASSERT_TODO, 0, "= consteval");
         break;

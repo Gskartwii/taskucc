@@ -681,10 +681,12 @@ static void tacc_parse_expr_postfix(struct tacc_parse_registry *registry,
                 tacc_parse_continue_stringlit(tok, expr);
                 tacc_pp_tok_free(tacc_tok_iter_next(iter));
             }
-        } else if (tok->kind == TOK_CHAR) {
+        } else if (tok->kind == TOK_CHAR || tok->kind == TOK_WCHAR) {
+            /* the parsing seems equivalent */
             expr->kind = EX_CHAR_LIT;
             expr->extra.char_literal = tacc_char_literal_new();
             expr->extra.char_literal->number = tacc_parse_charlit(tok);
+            expr->extra.char_literal->is_wide = tok->kind == TOK_WCHAR;
             tacc_pp_tok_free(tacc_tok_iter_next(iter));
         } else {
             tacc_parse_error(

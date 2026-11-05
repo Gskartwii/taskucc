@@ -111,6 +111,7 @@ char *tacc_pp_tok_content(struct pp_tok *tok) {
     case TOK_PPNUM:
     case TOK_IDENT:
     case TOK_CHAR:
+    case TOK_WCHAR:
     case TOK_STRING:
     case TOK_UNRECOGNIZED:
     case TOK_OTHER:
@@ -254,6 +255,8 @@ char *tacc_pp_to_string(struct pp_tok *tok) {
         return "TOK_SHARP_2";
     case TOK_CHAR:
         return "TOK_CHAR";
+    case TOK_WCHAR:
+        return "TOK_WCHAR";
     case TOK_STRING:
         return "TOK_STRING";
     case TOK_PPNUM:
@@ -649,58 +652,9 @@ static void tacc_file_iter_lex_all_ws(struct tacc_file_iter *iter,
 /* iter: borrow, str: borrow */
 static void tacc_file_iter_lex_escape(struct tacc_file_iter *iter,
                                       struct tacc_string *str) {
-    char ch;
-
-    ch = tacc_file_iter_consume_ch(iter);
-    switch (ch) {
-    case '\\':
-    case '"':
-    case '\'':
-    case '?':
-    case 'a':
-    case 'b':
-    case 'e':
-    case 'f':
-    case 'n':
-    case 'r':
-    case 't':
-    case 'v':
-        tacc_dynstring_push(str, '\\');
-        tacc_dynstring_push(str, ch);
-        return;
-    case 'x':
-        tacc_dynstring_push(str, '\\');
-        tacc_dynstring_push(str, ch);
-
-        ch = tacc_file_iter_consume_ch(iter);
-        tacc_assert(
-            ASSERT_DIAG, tacc_char_is_hex(ch), "invalid hex escape", ch);
-        tacc_dynstring_push(str, ch);
-        ch = tacc_file_iter_consume_ch(iter);
-        tacc_assert(
-            ASSERT_DIAG, tacc_char_is_hex(ch), "invalid hex escape", ch);
-        tacc_dynstring_push(str, ch);
-        return;
-    default:
-        tacc_assert(
-            ASSERT_DIAG, ch >= '0' && ch <= '7', "invalid escape %x", ch);
-        tacc_dynstring_push(str, '\\');
-        tacc_dynstring_push(str, ch);
-
-        ch = tacc_file_iter_peek_ch(iter);
-        if (ch >= '0' && ch <= '7') {
-            tacc_dynstring_push(str, ch);
-        } else {
-            return;
-        }
-        tacc_file_iter_consume_ch(iter);
-        ch = tacc_file_iter_peek_ch(iter);
-        if (ch >= '0' && ch <= '7') {
-            tacc_file_iter_consume_ch(iter);
-            tacc_dynstring_push(str, ch);
-        }
-        return;
-    }
+    /* validate escape later */
+    tacc_dynstring_push(str, '\\');
+    tacc_dynstring_push(str, tacc_file_iter_consume_ch(iter));
 }
 
 /* tok: borrow, str: owning */
@@ -757,7 +711,6 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
                                               struct pp_tok *tok_out) {
     /* not permitted to match a partial or malformed character per 6.4p3 */
     struct pp_tok *ret;
-    char contained;
     struct tacc_string *out_str;
 
     ret = tok_out;
@@ -768,21 +721,44 @@ static struct pp_tok *tacc_file_iter_lex_char(struct tacc_file_iter *iter,
     tacc_assert(ASSERT_DIAG,
                 !tacc_file_iter_accept_ch(iter, '\''),
                 "empty character literal");
-    if (!tacc_file_iter_accept_ch(iter, '\\')) {
-        contained = tacc_file_iter_consume_ch(iter);
-        tacc_assert(ASSERT_DIAG,
-                    tacc_file_iter_accept_ch(iter, '\''),
-                    "overlong character literal");
-
-        tacc_dynstring_push(out_str, contained);
-        tacc_dynstring_push(out_str, '\'');
-        tacc_pp_tok_assign_tstr(ret, out_str);
-        return ret;
+    while (!tacc_file_iter_accept_ch(iter, '\'')) {
+        if (!tacc_file_iter_accept_ch(iter, '\\')) {
+            tacc_dynstring_push(out_str, tacc_file_iter_consume_ch(iter));
+            continue;
+        }
+        tacc_file_iter_lex_escape(iter, out_str);
     }
-    tacc_file_iter_lex_escape(iter, out_str);
+    tacc_dynstring_push(out_str, '\'');
+    tacc_pp_tok_assign_tstr(ret, out_str);
+
+    return ret;
+}
+
+static struct pp_tok *tacc_file_iter_lex_wchar(struct tacc_file_iter *iter,
+                                               struct pp_tok *tok_out) {
+    /* not permitted to match a partial or malformed character per 6.4p3 */
+    struct pp_tok *ret;
+    struct tacc_string *out_str;
+
+    ret = tok_out;
+    out_str = tacc_dynstring_new();
+    ret->kind = TOK_WCHAR;
+    tacc_dynstring_push(out_str, 'L');
     tacc_assert(ASSERT_DIAG,
                 tacc_file_iter_accept_ch(iter, '\''),
-                "overlong character literal");
+                "wide character literal must start with L'");
+    tacc_dynstring_push(out_str, '\'');
+
+    tacc_assert(ASSERT_DIAG,
+                !tacc_file_iter_accept_ch(iter, '\''),
+                "empty wide character literal");
+    while (!tacc_file_iter_accept_ch(iter, '\'')) {
+        if (!tacc_file_iter_accept_ch(iter, '\\')) {
+            tacc_dynstring_push(out_str, tacc_file_iter_consume_ch(iter));
+            continue;
+        }
+        tacc_file_iter_lex_escape(iter, out_str);
+    }
     tacc_dynstring_push(out_str, '\'');
     tacc_pp_tok_assign_tstr(ret, out_str);
 
@@ -1333,6 +1309,13 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     case ',':
         kind = TOK_COMMA;
         break;
+    case 'L':
+        if (!tacc_file_is_eof(iter)) {
+            if (tacc_file_iter_peek_ch(iter) == '\'') {
+                return tacc_file_iter_lex_wchar(iter, ret);
+            }
+        }
+        /* fallthrough */
     default:
         if (first >= '0' && first <= '9') {
             return tacc_file_iter_lex_ppnum(iter, ret, first);
@@ -2541,7 +2524,8 @@ static struct pp_tok *tacc_pp_stringify(struct tacc_token_list *tokens) {
         if ((i != 0) && (tok->preceded_by_ws || tok->preceded_by_bol)) {
             tacc_dynstring_push(ret_tok_str, ' ');
         }
-        if ((tok->kind == TOK_STRING) || (tok->kind == TOK_CHAR)) {
+        if ((tok->kind == TOK_STRING) || (tok->kind == TOK_CHAR) ||
+            (tok->kind == TOK_WCHAR)) {
             this_tok_str = tok->str;
             tacc_assert(ASSERT_DIAG,
                         this_tok_str != NULL,

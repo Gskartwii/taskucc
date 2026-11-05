@@ -13,6 +13,7 @@ enum pp_tok_kind {
     TOK_SHARP,
     TOK_SHARP_2,
     TOK_CHAR,
+    TOK_WCHAR,
     TOK_STRING,
     TOK_PPNUM,
     TOK_IDENT,
