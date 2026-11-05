@@ -1357,18 +1357,27 @@ static struct pp_tok *tacc_file_iter_expect_ident(struct tacc_file_iter *iter) {
     return tok;
 }
 
+static struct tacc_include_place *tacc_include_place_new(char *path,
+                                                         tacc_bool for_angle) {
+    struct tacc_include_place *place;
+
+    place = tacc_malloc(sizeof(struct tacc_include_place));
+    place->path = tacc_dynstring_new();
+    tacc_dynstring_concat(place->path, path);
+    place->for_angle = for_angle;
+
+    return place;
+}
+
 /* state: borrow */
 static void tacc_pp_state_init(struct tacc_pp_state *state,
                                struct tacc_parse_registry *registry,
                                struct tacc_target *target) {
-    struct tacc_string *thisdir_incpath;
-
     state->registry = registry;
 
-    state->include_path = tacc_string_list_new();
-    thisdir_incpath = tacc_dynstring_new();
-    tacc_dynstring_concat(thisdir_incpath, ".");
-    tacc_string_list_push(state->include_path, thisdir_incpath);
+    state->include_path = tacc_include_place_list_new();
+    tacc_include_place_list_push(state->include_path,
+                                 tacc_include_place_new(".", 0));
     state->macros = tacc_macro_def_list_new(8192);
     state->target = target;
     state->basic_types = tacc_type_list_new();
@@ -1390,12 +1399,11 @@ struct tacc_pp_state *tacc_pp_state_new(struct tacc_parse_registry *registry,
     return state;
 }
 
-void tacc_pp_add_include_dir(struct tacc_pp_state *state, char *dir) {
-    struct tacc_string *string;
-
-    string = tacc_dynstring_new();
-    tacc_dynstring_concat(string, dir);
-    tacc_string_list_push(state->include_path, string);
+void tacc_pp_add_include_dir(struct tacc_pp_state *state,
+                             char *dir,
+                             tacc_bool for_angle) {
+    tacc_include_place_list_push(state->include_path,
+                                 tacc_include_place_new(dir, for_angle));
 }
 
 /* return: borrow, state: borrow, name: borrow */
@@ -1434,6 +1442,11 @@ static void tacc_macro_def_free(struct tacc_macro_def *macro_def) {
     tacc_free(macro_def);
 }
 
+static void tacc_include_place_free(struct tacc_include_place *place) {
+    tacc_dynstring_free(place->path);
+    tacc_free(place);
+}
+
 MK_DYNARRAY_OVER(tacc_token_list,
                  tacc_token_list_entry,
                  struct pp_tok *,
@@ -1445,6 +1458,18 @@ MK_DYNARRAY_OVER(tacc_token_list,
                  tacc_token_list_len,
                  tacc_pp_tok_free,
                  tacc_token_list_free)
+
+MK_DYNARRAY_OVER(tacc_include_place_list,
+                 tacc_include_place_list_entry,
+                 struct tacc_include_place *,
+                 tacc_include_place_list_new,
+                 tacc_include_place_list_init,
+                 tacc_include_place_list_get,
+                 tacc_include_place_list_push,
+                 tacc_include_place_list_pop,
+                 tacc_include_place_list_len,
+                 tacc_include_place_free,
+                 tacc_include_place_list_free)
 
 MK_DYNHASH_OVER(tacc_macro_def_list,
                 name->string,
@@ -1583,44 +1608,53 @@ static struct tacc_file *tacc_pp_try_file(char *base, char *subpath) {
 }
 
 /* return: owning, state: borrow, cur_file_path: borrow, subpath: borrow */
-static struct tacc_file *tacc_pp_search_include_path(
-    struct tacc_pp_state *state, char *cur_file_path, char *subpath) {
+static struct tacc_file *
+tacc_pp_search_include_path(struct tacc_pp_state *state,
+                            char *cur_file_path,
+                            char *subpath,
+                            tacc_bool is_angle) {
     /* owning */
     char *cur_file_dirname;
     char *cur_file_path_cur;
     char *cur_file_path_end;
     struct tacc_file *try_file;
-    struct tacc_string_list_entry *entry;
+    struct tacc_include_place_list_entry *entry;
     size_t i;
 
     tacc_assert(ASSERT_ICE, cur_file_path != NULL, "opened file without path");
 
-    cur_file_path_end = cur_file_path + strlen(cur_file_path);
-    cur_file_path_cur = cur_file_path_end;
-    cur_file_dirname = NULL;
-    while (cur_file_path_cur != cur_file_path) {
-        if (*cur_file_path_cur == '/') {
-            cur_file_dirname =
-                tacc_malloc((size_t) (cur_file_path_cur - cur_file_path) + 1);
-            strncpy(cur_file_dirname,
-                    cur_file_path,
-                    (size_t) (cur_file_path_cur - cur_file_path));
-            cur_file_dirname[cur_file_path_cur - cur_file_path] = 0;
-            break;
+    if (!is_angle) {
+        cur_file_path_end = cur_file_path + strlen(cur_file_path);
+        cur_file_path_cur = cur_file_path_end;
+        cur_file_dirname = NULL;
+        while (cur_file_path_cur != cur_file_path) {
+            if (*cur_file_path_cur == '/') {
+                cur_file_dirname = tacc_malloc(
+                    (size_t) (cur_file_path_cur - cur_file_path) + 1);
+                strncpy(cur_file_dirname,
+                        cur_file_path,
+                        (size_t) (cur_file_path_cur - cur_file_path));
+                cur_file_dirname[cur_file_path_cur - cur_file_path] = 0;
+                break;
+            }
+            cur_file_path_cur = cur_file_path_cur - 1;
         }
-        cur_file_path_cur = cur_file_path_cur - 1;
-    }
-    if (cur_file_dirname) {
-        try_file = tacc_pp_try_file(cur_file_dirname, subpath);
-        tacc_free(cur_file_dirname);
-        if (try_file) {
-            return try_file;
+        if (cur_file_dirname) {
+            try_file = tacc_pp_try_file(cur_file_dirname, subpath);
+            tacc_free(cur_file_dirname);
+            if (try_file) {
+                return try_file;
+            }
         }
     }
-    for (i = 0; i < tacc_string_list_len(state->include_path); i = i + 1) {
-        entry = tacc_string_list_get(state->include_path, i);
-        try_file =
-            tacc_pp_try_file(tacc_dynstring_as_str(entry->content), subpath);
+    for (i = 0; i < tacc_include_place_list_len(state->include_path);
+         i = i + 1) {
+        entry = tacc_include_place_list_get(state->include_path, i);
+        if (is_angle && !entry->content->for_angle) {
+            continue;
+        }
+        try_file = tacc_pp_try_file(tacc_dynstring_as_str(entry->content->path),
+                                    subpath);
         if (try_file) {
             return try_file;
         }
@@ -1659,6 +1693,7 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
     struct tacc_file *included_file;
     struct tacc_file_iter *included_file_iter;
     struct tacc_tok_iter *included_file_tok_iter;
+    tacc_bool is_angle;
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -1672,10 +1707,13 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
 
     tok = tacc_tok_iter_next(tok_iter);
     if (tok->kind != TOK_INCDIR_ANGLE) {
+        is_angle = 0;
         tacc_assert(ASSERT_DIAG,
                     tok->kind == TOK_INCDIR_STRING,
                     "expected include file string, got %s",
                     tacc_pp_to_string(tok));
+    } else {
+        is_angle = 1;
     }
 
     hdr_name = tacc_malloc(1024);
@@ -1702,7 +1740,7 @@ static void tacc_tok_iter_handle_include(struct tacc_tok_iter *first,
                 last_iter->file_iter != NULL,
                 "cannot use #include from floating tok_iter");
     included_file = tacc_pp_search_include_path(
-        first->state, last_iter->file_iter->filename, hdr_name_start);
+        first->state, last_iter->file_iter->filename, hdr_name_start, is_angle);
 
     tacc_free(hdr_name);
 
@@ -3264,7 +3302,7 @@ void tacc_tok_iter_dump_state(FILE *to, struct tacc_tok_iter *iter) {
 void tacc_pp_state_free(struct tacc_pp_state *state) {
     tacc_type_list_free(state->basic_types);
     tacc_free(state->basic_types);
-    tacc_string_list_free(state->include_path);
+    tacc_include_place_list_free(state->include_path);
     tacc_free(state->include_path);
     tacc_macro_def_list_free(state->macros);
     tacc_free(state->macros);

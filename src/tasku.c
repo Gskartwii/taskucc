@@ -216,7 +216,7 @@ void tacc_apply_include_path(struct tacc_string_list *include_path,
         str_entry = tacc_string_list_get(include_path, i);
         str = str_entry->content;
 
-        tacc_pp_add_include_dir(state, tacc_dynstring_as_str(str));
+        tacc_pp_add_include_dir(state, tacc_dynstring_as_str(str), 1);
     }
 }
 

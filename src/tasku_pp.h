@@ -198,6 +198,11 @@ struct tacc_macro_def {
     tacc_bool is_replacing;
 };
 
+struct tacc_include_place {
+    struct tacc_string *path;
+    tacc_bool for_angle;
+};
+
 DECL_DYNARRAY_OVER(tacc_token_list,
                    tacc_token_list_entry,
                    struct pp_tok *,
@@ -208,6 +213,17 @@ DECL_DYNARRAY_OVER(tacc_token_list,
                    tacc_token_list_pop,
                    tacc_token_list_len,
                    tacc_token_list_free)
+
+DECL_DYNARRAY_OVER(tacc_include_place_list,
+                   tacc_include_place_list_entry,
+                   struct tacc_include_place *,
+                   tacc_include_place_list_new,
+                   tacc_include_place_list_init,
+                   tacc_include_place_list_get,
+                   tacc_include_place_list_push,
+                   tacc_include_place_list_pop,
+                   tacc_include_place_list_len,
+                   tacc_include_place_list_free)
 
 DECL_DYNHASH_OVER(tacc_macro_def_list,
                   tacc_macro_def_list_entry,
@@ -221,7 +237,7 @@ DECL_DYNHASH_OVER(tacc_macro_def_list,
 
 struct tacc_pp_state {
     /* owning */
-    struct tacc_string_list *include_path;
+    struct tacc_include_place_list *include_path;
     struct tacc_macro_def_list *macros;
 
     /* borrowed */
@@ -297,7 +313,9 @@ tacc_pp_find_macro(struct tacc_pp_state *state, char *name);
 void tacc_pp_insert_macro(struct tacc_pp_state *state,
                           struct tacc_macro_def *macro);
 /* state: borrow, dir: owning */
-void tacc_pp_add_include_dir(struct tacc_pp_state *state, char *dir);
+void tacc_pp_add_include_dir(struct tacc_pp_state *state,
+                             char *dir,
+                             tacc_bool for_angle);
 
 void tacc_tok_iter_dump_state(FILE *to, struct tacc_tok_iter *iter);
 
