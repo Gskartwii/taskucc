@@ -85,6 +85,7 @@
     "target/call_itf.h"
     "target/codegen.h"
     "target/pp.h"
+    "target/asm.h"
     "call_itf.h"
     "predef_func.h"
     "codegen.h"
@@ -98,6 +99,7 @@
     "compile.h"
     "testdata/floatscan_in.inc"
     "testdata/floatscan_out.inc"
+    "taas.h"
     "test.h"
   ];
   m2-all = includes ++ local_hdrs ++ srcFiles;

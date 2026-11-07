@@ -28,9 +28,11 @@ in {
     "tasku_file.c"
     "tasku_pp.c"
     "test.c"
+    "taas.c"
     "tasku.c"
 
     "target/${system}.c"
+    "target/${system}/asm.c"
     "target/${system}/codegen.c"
     "target/${system}/call_itf.c"
     "target/${system}/pp.c"

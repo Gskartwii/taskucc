@@ -7,6 +7,7 @@
 #include "global_object.h"
 #include "parse.h"
 #include "string_list.h"
+#include "taas.h"
 #include "target/target.h"
 #include "tasku_file.h"
 #include "tasku_pp.h"
@@ -18,12 +19,13 @@
 struct tacc_options {
     char *filename;
     struct tacc_string *output_filename;
+    struct tacc_string *input_language;
 
     struct tacc_string_list *defines;
     struct tacc_string_list *include_path;
     tacc_bool preprocess;
     tacc_bool dump_ast;
-    tacc_bool assembly;
+    tacc_bool output_assembly;
     tacc_bool single_object;
 };
 
@@ -37,6 +39,7 @@ static void tacc_parse_options(struct tacc_options *options,
 
     options->filename = NULL;
     options->output_filename = NULL;
+    options->input_language = NULL;
     options->defines = tacc_string_list_new();
     options->include_path = tacc_string_list_new();
     options->preprocess = 0;
@@ -55,10 +58,11 @@ static void tacc_parse_options(struct tacc_options *options,
         ARG_SHORT_APPEND('D', options->defines);
         ARG_SHORT_SET_FLAG('E', options->preprocess);
         ARG_SHORT_SET_FLAG('c', options->single_object);
-        ARG_SHORT_SET_FLAG('S', options->assembly);
+        ARG_SHORT_SET_FLAG('S', options->output_assembly);
         ARG_LONG_SET_FLAG("dA", options->dump_ast);
         ARG_SHORT_APPEND('I', options->include_path);
         ARG_SHORT_SET('o', options->output_filename);
+        ARG_SHORT_SET('x', options->input_language);
         tacc_assert(ASSERT_DIAG, 0, "invalid option %s\n", argv[i]);
 #ifdef __M2__
     next:
@@ -250,6 +254,12 @@ static void tacc_compile_ast(struct tacc_string_list *names,
     }
 }
 
+enum tacc_input_language {
+    INPUTLANG_C,
+    INPUTLANG_ASM,
+    INPUTLANG_ASMPP,
+};
+
 int main(int argc, char **argv) {
     struct tacc_file *input_file;
     struct tacc_file_iter *file_iter;
@@ -259,7 +269,9 @@ int main(int argc, char **argv) {
     struct tacc_target *target;
     struct tacc_parse_registry *registry;
     struct tacc_options options;
+    enum tacc_input_language lang;
     FILE *out_file;
+    char *name_end;
 
     init_io();
 
@@ -275,24 +287,87 @@ int main(int argc, char **argv) {
     }
 
     target = tacc_target_new();
-    registry = tacc_parse_registry_new();
-    pp_state = tacc_pp_state_new(registry, target);
-    tacc_apply_defines(options.defines, pp_state);
-    tacc_apply_include_path(options.include_path, pp_state);
-
     if (options.output_filename != NULL) {
         out_file = fopen(tacc_dynstring_as_str(options.output_filename), "w");
     } else if (options.preprocess || options.dump_ast) {
         out_file = stdout;
     } else {
         tacc_assert(ASSERT_TODO, 0, "automatically derive output filename");
-        return 1;
     }
     if (!options.preprocess && !options.dump_ast) {
         tacc_assert(
             ASSERT_TODO, options.single_object, "no linker yet; use -c");
     }
+    if (options.input_language != NULL) {
+        if (!strcmp(tacc_dynstring_as_str(options.input_language), "c")) {
+            lang = INPUTLANG_C;
+        } else if (!strcmp(tacc_dynstring_as_str(options.input_language),
+                           "assembly")) {
+            lang = INPUTLANG_ASM;
+        } else if (!strcmp(tacc_dynstring_as_str(options.input_language),
+                           "assembly-with-cpp")) {
+            lang = INPUTLANG_ASMPP;
+        } else {
+            tacc_assert(ASSERT_DIAG,
+                        0,
+                        "unsupported option: -x %s",
+                        tacc_dynstring_as_str(options.input_language));
+        }
+    } else {
+        /* TODO: support .i files */
+        /* TODO: move language determination to driver if/once that exists */
 
+        tacc_assert(ASSERT_DIAG,
+                    strlen(options.filename) >= 2,
+                    "unable to determine input language");
+        name_end = options.filename + strlen(options.filename) - 2;
+        if (!strcmp(name_end, ".s")) {
+            lang = INPUTLANG_ASM;
+        } else if (!strcmp(name_end, ".S")) {
+            lang = INPUTLANG_ASMPP;
+        } else if (!strcmp(name_end, ".c") || !strcmp(name_end, ".h")) {
+            lang = INPUTLANG_C;
+        } else {
+            tacc_assert(ASSERT_DIAG, 0, "unable to determine input language");
+        }
+    }
+
+    tacc_assert(ASSERT_TODO, lang != INPUTLANG_ASMPP, "assembly with CPP");
+    input_file = tacc_open(options.filename);
+
+    if (lang == INPUTLANG_ASM) {
+        taas_assemble(input_file, out_file);
+    } else {
+        registry = tacc_parse_registry_new();
+        pp_state = tacc_pp_state_new(registry, target);
+        tacc_apply_defines(options.defines, pp_state);
+        tacc_apply_include_path(options.include_path, pp_state);
+        file_iter = tacc_file_iter_new_file(input_file);
+        tok_iter = tacc_tok_iter_new(file_iter, pp_state);
+
+        if (options.preprocess) {
+            tok_iter->want_trivia = 1;
+            tacc_output_pp(tok_iter, out_file);
+            if (out_file != stdout) {
+                fclose(out_file);
+            }
+        } else {
+            ast = tacc_parse_file(registry, tok_iter);
+            if (options.dump_ast) {
+                tacc_dump_ast(ast);
+            } else {
+                tacc_compile_ast(
+                    registry->interned_strings, target, ast, out_file);
+            }
+            tacc_ast_free(ast);
+        }
+
+        tacc_tok_iter_free(tok_iter);
+        tacc_parse_registry_free(registry);
+        tacc_pp_state_free(pp_state);
+    }
+
+    tacc_target_free(target);
     tacc_string_list_free(options.defines);
     tacc_free(options.defines);
     tacc_string_list_free(options.include_path);
@@ -300,31 +375,9 @@ int main(int argc, char **argv) {
     if (options.output_filename != NULL) {
         tacc_dynstring_free(options.output_filename);
     }
-
-    input_file = tacc_open(options.filename);
-    file_iter = tacc_file_iter_new_file(input_file);
-    tok_iter = tacc_tok_iter_new(file_iter, pp_state);
-
-    if (options.preprocess) {
-        tok_iter->want_trivia = 1;
-        tacc_output_pp(tok_iter, out_file);
-        if (out_file != stdout) {
-            fclose(out_file);
-        }
-    } else {
-        ast = tacc_parse_file(registry, tok_iter);
-        if (options.dump_ast) {
-            tacc_dump_ast(ast);
-        } else {
-            tacc_compile_ast(registry->interned_strings, target, ast, out_file);
-        }
-        tacc_ast_free(ast);
+    if (options.input_language != NULL) {
+        tacc_dynstring_free(options.input_language);
     }
-
-    tacc_tok_iter_free(tok_iter);
-    tacc_parse_registry_free(registry);
-    tacc_target_free(target);
-    tacc_pp_state_free(pp_state);
 
     return 0;
 }
