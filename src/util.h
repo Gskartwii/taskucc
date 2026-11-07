@@ -22,9 +22,17 @@ enum tacc_assertion_class {
 #define TACC_UNUSED(x) (void) x
 #endif
 
+#ifdef __M2__
+#define TACC_ATTR_NORETURN
+#else
+#define TACC_ATTR_NORETURN __attribute__((noreturn))
+#endif
+
 typedef int tacc_bool;
 
-void tacc_die(enum tacc_assertion_class class, char *err, ...);
+void tacc_die(enum tacc_assertion_class class,
+              char *err,
+              ...) TACC_ATTR_NORETURN;
 void *tacc_malloc(size_t sz);
 void tacc_free(void *allocation);
 uint8_t tacc_hex_to_dec(char hex);
