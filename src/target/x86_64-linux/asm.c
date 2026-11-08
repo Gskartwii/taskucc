@@ -18,10 +18,43 @@ enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
 };
 
+enum tacc_target_asm_reg {
+    REG_RAX,
+    REG_RBX,
+    REG_RCX,
+    REG_RDX,
+    REG_RSP,
+    REG_RBP,
+    REG_RSI,
+    REG_RDI,
+    REG_R8,
+    REG_R9,
+    REG_R10,
+    REG_R11,
+    REG_R12,
+    REG_R13,
+    REG_R14,
+    REG_R15,
+    REG_AH,
+    REG_CH,
+    REG_DH,
+    REG_BH,
+};
+
 static const char *tacc_target_asm_reg_names_8_all[] = {
     "al",   "bl",   "cl",   "dl",   "spl",  "bpl",  "sil", "dil", "r8b", "r9b",
     "r10b", "r11b", "r12b", "r13b", "r14b", "r15b", "ah",  "ch",  "dh",  "bh",
 };
+
+static tacc_bool tacc_target_asm_reg8_is_high(uint32_t reg_id) {
+    return reg_id >= REG_AH && reg_id <= REG_BH;
+}
+static tacc_bool tacc_target_asm_reg_needs_rex_r8(uint32_t reg_id) {
+    return (reg_id >= REG_RSP && reg_id <= REG_R15);
+}
+static tacc_bool tacc_target_asm_reg_needs_rex(uint32_t reg_id) {
+    return (reg_id >= REG_R8 && reg_id <= REG_R15);
+}
 
 static const char *tacc_target_asm_reg_names_16[] = {
     "ax",
@@ -119,17 +152,60 @@ tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
         stmt, action->extra.target_data->sub_action, iter, state);
 }
 
-static void tacc_target_asm_process_movreg(struct tacc_asm_statement *stmt,
-                                           struct tacc_asm_state *state) {
+static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
+                                          uint8_t base_op,
+                                          struct tacc_asm_state *state) {
     uint32_t width;
     uint32_t from;
     uint32_t to;
+    uint8_t rex;
+    uint8_t modrm;
+    uint8_t op;
+    tacc_bool has_high;
 
     width = tacc_asm_stmt_get_i32(stmt, 1);
     from = tacc_asm_stmt_get_i32(stmt, 2);
     to = tacc_asm_stmt_get_i32(stmt, 3);
 
-    fprintf(state->out_file, "move %d bits from %d to %d\n", width, from, to);
+    rex = 0;
+    has_high = 0;
+    if (width == 8) {
+        if (tacc_target_asm_reg8_is_high(from)) {
+            has_high = 1;
+            from = (from - REG_AH) + REG_RSP;
+        } else if (tacc_target_asm_reg_needs_rex_r8(from)) {
+            rex = rex | 0x04;
+        }
+        if (tacc_target_asm_reg8_is_high(to)) {
+            has_high = 1;
+            to = (to - REG_AH) + REG_RSP;
+        } else if (tacc_target_asm_reg_needs_rex_r8(to)) {
+            rex = rex | 0x01;
+        }
+        op = base_op;
+    } else {
+        if (width == 16) {
+            tacc_asm_out8(state, 0x66);
+        } else if (width == 64) {
+            rex = 0x08;
+        }
+        if (tacc_target_asm_reg_needs_rex(from)) {
+            rex = rex | 0x04;
+        }
+        if (tacc_target_asm_reg_needs_rex(to)) {
+            rex = rex | 0x01;
+        }
+        op = base_op | 1;
+    }
+    if (rex != 0) {
+        tacc_assert(ASSERT_DIAG,
+                    !has_high,
+                    "cannot encode high 8-bit registers with REX prefix");
+        tacc_asm_out8(state, rex | 0x40);
+    }
+    tacc_asm_out8(state, op);
+    modrm = (uint8_t) (0xc0 | (to & 7) | ((from & 7) << 3));
+    tacc_asm_out8(state, modrm);
 }
 
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
@@ -139,7 +215,7 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
     kind = tacc_asm_stmt_get_i32(stmt, 0);
     switch ((enum tacc_target_asm_stmt) kind) {
     case INSTR_MOV_REG:
-        tacc_target_asm_process_movreg(stmt, state);
+        tacc_target_asm_process_modrm(stmt, 0x88, state);
         break;
     }
 }

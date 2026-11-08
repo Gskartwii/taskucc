@@ -147,6 +147,8 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                               struct tacc_asm_state *state);
 uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index);
 
+void tacc_asm_out8(struct tacc_asm_state *state, uint8_t data);
+
 struct tacc_asm_statement *tacc_asm_statement_new(void);
 void tacc_asm_statement_free(struct tacc_asm_statement *statement);
 void tacc_asm_match_action_free(struct tacc_asm_match_action *action);

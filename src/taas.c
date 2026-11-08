@@ -632,6 +632,14 @@ static void tacc_asm_state_free(struct tacc_asm_state *state) {
     tacc_free(state);
 }
 
+void tacc_asm_out8(struct tacc_asm_state *state, uint8_t data) {
+    if ((data & 0xf) == data) {
+        fprintf(state->out_file, "0%x ", data);
+    } else {
+        fprintf(state->out_file, "%x ", data);
+    }
+}
+
 void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
     struct tacc_string *key;
     struct tacc_asm_target *target;
