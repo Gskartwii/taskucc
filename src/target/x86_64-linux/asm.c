@@ -233,14 +233,8 @@ void tacc_target_asm_match_action_free(
     tacc_free(action);
 }
 
-#define S tacc_asm_strtok
-#define I tacc_asm_imm32
-struct tacc_asm_match_action_list *
-tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
-    struct tacc_asm_match_action_list *m;
+struct tacc_target_asm_actions {
     struct tacc_asm_match_action *r8;
-    struct tacc_asm_match_action *r8unrex;
-    struct tacc_asm_match_action *r8rex;
     struct tacc_asm_match_action *r16;
     struct tacc_asm_match_action *r32;
     struct tacc_asm_match_action *r64;
@@ -249,41 +243,68 @@ tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     struct tacc_asm_match_action *i16;
     struct tacc_asm_match_action *i32;
     struct tacc_asm_match_action *i64;
+};
+
+#define I8 actions->i8
+#define I16 actions->i16
+#define I32 actions->i32
+#define I64 actions->i64
+#define R8 actions->r8
+#define R16 actions->r16
+#define R32 actions->r32
+#define R64 actions->r64
+void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
+                               struct tacc_target_asm_actions *actions,
+                               struct tacc_asm_match_action *insn,
+                               const char *key,
+                               const char *key_b,
+                               const char *key_w,
+                               const char *key_l,
+                               const char *key_q) {
+    tacc_asm_form(matcher, key_b, insn, I8, R8, actions->comma, R8, NULL);
+    tacc_asm_form(matcher, key, insn, I8, R8, actions->comma, R8, NULL);
+    tacc_asm_form(matcher, key_w, insn, I16, R16, actions->comma, R16, NULL);
+    tacc_asm_form(matcher, key, insn, I16, R16, actions->comma, R16, NULL);
+    tacc_asm_form(matcher, key_l, insn, I32, R32, actions->comma, R32, NULL);
+    tacc_asm_form(matcher, key, insn, I32, R32, actions->comma, R32, NULL);
+    tacc_asm_form(matcher, key_q, insn, I64, R64, actions->comma, R64, NULL);
+    tacc_asm_form(matcher, key, insn, I64, R64, actions->comma, R64, NULL);
+}
+
+#define S tacc_asm_strtok
+#define I tacc_asm_imm32
+#define GEN_BWLQS(base_name)                                              \
+    base_name, base_name "b", base_name "w", base_name "l", base_name "q"
+
+struct tacc_asm_match_action_list *
+tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
+    struct tacc_asm_match_action_list *m;
     struct tacc_asm_match_action *insn;
+    struct tacc_target_asm_actions actions;
 
     m = tacc_asm_match_action_list_new();
-    r8 = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_all, 20);
-    r16 = tacc_target_reg_matcher(tacc_target_asm_reg_names_16, 16);
-    r32 = tacc_target_reg_matcher(tacc_target_asm_reg_names_32, 16);
-    r64 = tacc_target_reg_matcher(tacc_target_asm_reg_names_64, 16);
-    tacc_asm_match_action_list_push(m, r8);
-    tacc_asm_match_action_list_push(m, r16);
-    tacc_asm_match_action_list_push(m, r32);
-    tacc_asm_match_action_list_push(m, r64);
-    i8 = I(8);
-    i16 = I(16);
-    i32 = I(32);
-    i64 = I(64);
-    tacc_asm_match_action_list_push(m, i8);
-    tacc_asm_match_action_list_push(m, i16);
-    tacc_asm_match_action_list_push(m, i32);
-    tacc_asm_match_action_list_push(m, i64);
-    comma = S(",");
-    tacc_asm_match_action_list_push(m, comma);
-
-    TACC_UNUSED(r8unrex);
-    TACC_UNUSED(r8rex);
+    actions.r8 = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_all, 20);
+    actions.r16 = tacc_target_reg_matcher(tacc_target_asm_reg_names_16, 16);
+    actions.r32 = tacc_target_reg_matcher(tacc_target_asm_reg_names_32, 16);
+    actions.r64 = tacc_target_reg_matcher(tacc_target_asm_reg_names_64, 16);
+    tacc_asm_match_action_list_push(m, actions.r8);
+    tacc_asm_match_action_list_push(m, actions.r16);
+    tacc_asm_match_action_list_push(m, actions.r32);
+    tacc_asm_match_action_list_push(m, actions.r64);
+    actions.i8 = I(8);
+    actions.i16 = I(16);
+    actions.i32 = I(32);
+    actions.i64 = I(64);
+    tacc_asm_match_action_list_push(m, actions.i8);
+    tacc_asm_match_action_list_push(m, actions.i16);
+    tacc_asm_match_action_list_push(m, actions.i32);
+    tacc_asm_match_action_list_push(m, actions.i64);
+    actions.comma = S(",");
+    tacc_asm_match_action_list_push(m, actions.comma);
 
     insn = I(INSTR_MOV_REG);
     tacc_asm_match_action_list_push(m, insn);
-    tacc_asm_form(matcher, "movb", insn, i8, r8, comma, r8, NULL);
-    tacc_asm_form(matcher, "mov", insn, i8, r8, comma, r8, NULL);
-    tacc_asm_form(matcher, "movw", insn, i16, r16, comma, r16, NULL);
-    tacc_asm_form(matcher, "mov", insn, i16, r16, comma, r16, NULL);
-    tacc_asm_form(matcher, "movl", insn, i32, r32, comma, r32, NULL);
-    tacc_asm_form(matcher, "mov", insn, i32, r32, comma, r32, NULL);
-    tacc_asm_form(matcher, "movq", insn, i64, r64, comma, r64, NULL);
-    tacc_asm_form(matcher, "mov", insn, i64, r64, comma, r64, NULL);
+    tacc_target_asm_form_bwlq(matcher, &actions, insn, GEN_BWLQS("mov"));
 
     return m;
 }

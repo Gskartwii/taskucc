@@ -444,7 +444,7 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
         break;
     case ASMACT_ENUM:
         for (i = 0; i < action->extra.enumeration->num_options; i = i + 1) {
-            pos = (char *) action->extra.enumeration->options;
+            pos = (char *) (action->extra.enumeration->options);
             pos = pos + (sizeof(char *) * i);
             option = (char **) pos;
             if (tacc_asm_file_iter_accept_tok(iter, *option)) {
