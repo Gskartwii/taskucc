@@ -13,6 +13,7 @@ struct tacc_asm_target *tacc_asm_target_new(void) {
 }
 
 #define ASMACT_REG (ASMACT_FIRST_TARGET_SPECIAL + 0)
+#define ASMACT_SIB (ASMACT_FIRST_TARGET_SPECIAL + 1)
 
 enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
@@ -42,7 +43,7 @@ enum tacc_target_asm_reg {
 };
 
 static const char *tacc_target_asm_reg_names_8_all[] = {
-    "al",   "bl",   "cl",   "dl",   "spl",  "bpl",  "sil", "dil", "r8b", "r9b",
+    "al",   "cl",   "dl",   "bl",   "spl",  "bpl",  "sil", "dil", "r8b", "r9b",
     "r10b", "r11b", "r12b", "r13b", "r14b", "r15b", "ah",  "ch",  "dh",  "bh",
 };
 
@@ -58,9 +59,9 @@ static tacc_bool tacc_target_asm_reg_needs_rex(uint32_t reg_id) {
 
 static const char *tacc_target_asm_reg_names_16[] = {
     "ax",
-    "bx",
     "cx",
     "dx",
+    "bx",
     "sp",
     "bp",
     "si",
@@ -77,9 +78,9 @@ static const char *tacc_target_asm_reg_names_16[] = {
 
 static const char *tacc_target_asm_reg_names_32[] = {
     "eax",
-    "ebx",
     "ecx",
     "edx",
+    "ebx",
     "esp",
     "ebp",
     "esi",
@@ -96,9 +97,9 @@ static const char *tacc_target_asm_reg_names_32[] = {
 
 static const char *tacc_target_asm_reg_names_64[] = {
     "rax",
-    "rbx",
     "rcx",
     "rdx",
+    "rbx",
     "rsp",
     "rbp",
     "rsi",
@@ -113,45 +114,6 @@ static const char *tacc_target_asm_reg_names_64[] = {
     "r15",
 };
 
-struct tacc_target_asm_match_action {
-    struct tacc_asm_match_action *sub_action;
-};
-
-static struct tacc_asm_match_action *
-tacc_target_reg_matcher(const char **options, size_t count) {
-    struct tacc_asm_match_action *sub_action;
-    struct tacc_asm_match_action *target_action;
-
-    sub_action = tacc_asm_enum(options, count);
-    target_action = tacc_asm_match_action_new();
-    target_action->kind = ASMACT_REG;
-    target_action->extra.target_data =
-        tacc_malloc(sizeof(struct tacc_target_asm_match_action));
-    target_action->extra.target_data->sub_action = sub_action;
-
-    return target_action;
-}
-
-tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
-                                     struct tacc_asm_match_action *action,
-                                     struct tacc_asm_file_iter *iter,
-                                     struct tacc_asm_state *state) {
-    TACC_UNUSED(state);
-
-    tacc_assert(ASSERT_ICE,
-                action->kind == ASMACT_REG,
-                "I thought reg was the only target-specific matcher for us");
-
-    tacc_asm_file_iter_eat_ws_no_newlines(iter);
-    if (!tacc_asm_file_iter_accept_tok(iter, "%")) {
-        return 0;
-    }
-    tacc_asm_file_iter_eat_ws_no_newlines(iter);
-
-    return tacc_asm_part_match(
-        stmt, action->extra.target_data->sub_action, iter, state);
-}
-
 static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
                                           uint8_t base_op,
                                           struct tacc_asm_state *state) {
@@ -164,8 +126,8 @@ static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
     tacc_bool has_high;
 
     width = tacc_asm_stmt_get_i32(stmt, 1);
-    from = tacc_asm_stmt_get_i32(stmt, 2);
-    to = tacc_asm_stmt_get_i32(stmt, 3);
+    from = tacc_asm_stmt_get_i32(tacc_asm_stmt_get_sub(stmt, 2), 0);
+    to = tacc_asm_stmt_get_i32(tacc_asm_stmt_get_sub(stmt, 3), 0);
 
     rex = 0;
     has_high = 0;
@@ -220,6 +182,18 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
     }
 }
 
+tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
+                                     struct tacc_asm_match_action *action,
+                                     struct tacc_asm_file_iter *iter,
+                                     struct tacc_asm_state *state) {
+    TACC_UNUSED(stmt);
+    TACC_UNUSED(action);
+    TACC_UNUSED(iter);
+    TACC_UNUSED(state);
+
+    tacc_assert(ASSERT_TODO, 0, "asm part match");
+}
+
 void tacc_target_asm_statement_part_free(
     struct tacc_target_asm_statement_part *part) {
     TACC_UNUSED(part);
@@ -229,8 +203,7 @@ void tacc_target_asm_statement_part_free(
 
 void tacc_target_asm_match_action_free(
     struct tacc_target_asm_match_action *action) {
-    tacc_asm_match_action_free(action->sub_action);
-    tacc_free(action);
+    TACC_UNUSED(action);
 }
 
 struct tacc_target_asm_actions {
@@ -261,6 +234,8 @@ void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
                                const char *key_w,
                                const char *key_l,
                                const char *key_q) {
+    /* TODO: expect linesep */
+
     tacc_asm_form(matcher, key_b, insn, I8, R8, actions->comma, R8, NULL);
     tacc_asm_form(matcher, key, insn, I8, R8, actions->comma, R8, NULL);
     tacc_asm_form(matcher, key_w, insn, I16, R16, actions->comma, R16, NULL);
@@ -270,6 +245,14 @@ void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
     tacc_asm_form(matcher, key_q, insn, I64, R64, actions->comma, R64, NULL);
     tacc_asm_form(matcher, key, insn, I64, R64, actions->comma, R64, NULL);
 }
+#undef I8
+#undef I16
+#undef I32
+#undef I64
+#undef R8
+#undef R16
+#undef R32
+#undef R64
 
 #define S tacc_asm_strtok
 #define I tacc_asm_imm32
@@ -280,13 +263,18 @@ struct tacc_asm_match_action_list *
 tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     struct tacc_asm_match_action_list *m;
     struct tacc_asm_match_action *insn;
+    struct tacc_asm_match_action *action;
+    struct tacc_asm_match_action *i_action;
+    struct tacc_asm_match_action *pct;
     struct tacc_target_asm_actions actions;
+    size_t i;
 
     m = tacc_asm_match_action_list_new();
-    actions.r8 = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_all, 20);
-    actions.r16 = tacc_target_reg_matcher(tacc_target_asm_reg_names_16, 16);
-    actions.r32 = tacc_target_reg_matcher(tacc_target_asm_reg_names_32, 16);
-    actions.r64 = tacc_target_reg_matcher(tacc_target_asm_reg_names_64, 16);
+    /* @ can never be part of a real instruction's key */
+    actions.r8 = tacc_asm_sub_form("@reg8");
+    actions.r16 = tacc_asm_sub_form("@reg16");
+    actions.r32 = tacc_asm_sub_form("@reg32");
+    actions.r64 = tacc_asm_sub_form("@reg64");
     tacc_asm_match_action_list_push(m, actions.r8);
     tacc_asm_match_action_list_push(m, actions.r16);
     tacc_asm_match_action_list_push(m, actions.r32);
@@ -302,6 +290,33 @@ tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     actions.comma = S(",");
     tacc_asm_match_action_list_push(m, actions.comma);
 
+    pct = S("%");
+    tacc_asm_match_action_list_push(m, pct);
+    for (i = 0; i < 20; i = i + 1) {
+        i_action = I((uint32_t) i);
+        tacc_asm_match_action_list_push(m, i_action);
+
+        action = S(tacc_target_asm_reg_names_8_all[i]);
+        tacc_asm_match_action_list_push(m, action);
+        tacc_asm_form(matcher, "@reg8", pct, action, i_action, NULL);
+
+        if (i >= 16) {
+            continue;
+        }
+
+        action = S(tacc_target_asm_reg_names_16[i]);
+        tacc_asm_match_action_list_push(m, action);
+        tacc_asm_form(matcher, "@reg16", pct, action, i_action, NULL);
+
+        action = S(tacc_target_asm_reg_names_32[i]);
+        tacc_asm_match_action_list_push(m, action);
+        tacc_asm_form(matcher, "@reg32", pct, action, i_action, NULL);
+
+        action = S(tacc_target_asm_reg_names_64[i]);
+        tacc_asm_match_action_list_push(m, action);
+        tacc_asm_form(matcher, "@reg64", pct, action, i_action, NULL);
+    }
+
     insn = I(INSTR_MOV_REG);
     tacc_asm_match_action_list_push(m, insn);
     tacc_target_asm_form_bwlq(matcher, &actions, insn, GEN_BWLQS("mov"));
@@ -309,3 +324,4 @@ tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     return m;
 }
 #undef S
+#undef I

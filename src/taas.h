@@ -14,20 +14,15 @@ enum tacc_asm_match_action_kind {
     ASMACT_EXPR,
     ASMACT_PUSH_IMM32,
     ASMACT_PUSH_IMM64,
-    ASMACT_ENUM,
+    ASMACT_SUB_FORM,
     ASMACT_EXPECT_LINESEP,
     ASMACT_FIRST_TARGET_SPECIAL,
-};
-
-struct tacc_asm_match_enum {
-    const char **options;
-    size_t num_options;
 };
 
 struct tacc_asm_match_action {
     enum tacc_asm_match_action_kind kind;
     union {
-        /* STRTOK, MAYBE_STRTOK */
+        /* STRTOK, MAYBE_STRTOK, SUB_FORM */
         const char *str_tok;
 
         /* PUSH_IMM32 */
@@ -35,9 +30,6 @@ struct tacc_asm_match_action {
 
         /* PUSH_IMM64 */
         struct tacc_u64 *imm64;
-
-        /* ENUM */
-        struct tacc_asm_match_enum *enumeration;
 
         /* TARGET_SPECIAL */
         struct tacc_target_asm_match_action *target_data;
@@ -75,6 +67,11 @@ struct tacc_asm_candidates {
     struct tacc_asm_candidate_list *list;
 };
 
+struct tacc_asm_element_matcher {
+    uint32_t key;
+    struct tacc_asm_candidate_list *list;
+};
+
 DECL_DYNHASH_OVER(tacc_asm_candidates_map,
                   tacc_asm_candidates_map_entry,
                   struct tacc_asm_candidates *,
@@ -85,13 +82,25 @@ DECL_DYNHASH_OVER(tacc_asm_candidates_map,
                   tacc_asm_candidates_map_fill_count,
                   tacc_asm_candidates_map_free)
 
+DECL_DYNHASH_OVER_U32(tacc_asm_element_matcher_map,
+                      tacc_asm_element_matcher_map_entry,
+                      struct tacc_asm_element_matcher *,
+                      tacc_asm_element_matcher_map_new,
+                      tacc_asm_element_matcher_map_init,
+                      tacc_asm_element_matcher_map_get,
+                      tacc_asm_element_matcher_map_insert,
+                      tacc_asm_element_matcher_map_fill_count,
+                      tacc_asm_element_matcher_map_free)
+
 struct tacc_asm_matcher {
     struct tacc_asm_candidates_map *matchers;
+    struct tacc_asm_element_matcher_map *elem_matchers;
 };
 
 enum tacc_asm_statement_part_kind {
     ASMPART_IMM32,
     ASMPART_IMM64,
+    ASMPART_SUB_ELEMENT,
     ASMPART_TARGET,
 };
 
@@ -101,6 +110,7 @@ struct tacc_asm_statement_part {
     union {
         uint32_t imm32;
         struct tacc_u64 *imm64;
+        struct tacc_asm_statement *sub_element;
         struct tacc_target_asm_statement_part *target_data;
     } extra;
 };
@@ -146,6 +156,8 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                               struct tacc_asm_file_iter *iter,
                               struct tacc_asm_state *state);
 uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index);
+struct tacc_asm_statement *
+tacc_asm_stmt_get_sub(struct tacc_asm_statement *stmt, size_t index);
 
 void tacc_asm_out8(struct tacc_asm_state *state, uint8_t data);
 
@@ -163,9 +175,8 @@ void tacc_asm_vform(struct tacc_asm_matcher *matcher,
                     va_list parts);
 struct tacc_asm_match_action *tacc_asm_match_action_new(void);
 struct tacc_asm_match_action *tacc_asm_strtok(const char *token);
+struct tacc_asm_match_action *tacc_asm_sub_form(const char *key);
 struct tacc_asm_match_action *tacc_asm_imm32(uint32_t imm);
-struct tacc_asm_match_action *tacc_asm_enum(const char **options,
-                                            size_t num_options);
 struct tacc_asm_match_action *tacc_asm_target_matcher(
     uint32_t kind, struct tacc_target_asm_match_action *target_data);
 void taas_assemble(struct tacc_file *in_file, FILE *out_file);
