@@ -83,7 +83,7 @@ size_t tacc_sizeadj(size_t count, size_t size) {
 #endif
 }
 
-tacc_bool tacc_str_is_eq(char *a, char *b) {
+tacc_bool tacc_str_is_eq(const char *a, const char *b) {
     while (*a == *b) {
         if (*a == 0) {
             return 1;

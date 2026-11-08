@@ -12,7 +12,7 @@ struct tacc_dynhash {
     size_t element_size;
 };
 
-uint32_t tacc_str_hash(char *name);
+uint32_t tacc_str_hash(const char *name);
 uint32_t tacc_u32_hash(uint32_t n);
 struct tacc_dynhash *tacc_dynhash_new(size_t cap, size_t element_size);
 void tacc_dynhash_init(struct tacc_dynhash *hash,
@@ -27,26 +27,27 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
 
 #define DYNHASH_PROBE(i) (((i) >> 1) + (((i) * (i)) >> 1))
 
-#define DECL_DYNHASH_OVER(hash_type,                                        \
-                          elem_wrapper_type,                                \
-                          elem_type,                                        \
-                          new_func,                                         \
-                          init_func,                                        \
-                          get_func,                                         \
-                          insert_func,                                      \
-                          fill_count_func,                                  \
-                          free_func)                                        \
-    struct elem_wrapper_type {                                              \
-        elem_type content;                                                  \
-    };                                                                      \
-    struct hash_type {                                                      \
-        struct tacc_dynhash *map;                                           \
-    };                                                                      \
-    struct hash_type *new_func(size_t cap);                                 \
-    void init_func(struct hash_type *array, size_t cap);                    \
-    struct elem_wrapper_type *get_func(struct hash_type *array, char *key); \
-    void insert_func(struct hash_type *array, elem_type content);           \
-    size_t fill_count_func(struct hash_type *array);                        \
+#define DECL_DYNHASH_OVER(hash_type,                              \
+                          elem_wrapper_type,                      \
+                          elem_type,                              \
+                          new_func,                               \
+                          init_func,                              \
+                          get_func,                               \
+                          insert_func,                            \
+                          fill_count_func,                        \
+                          free_func)                              \
+    struct elem_wrapper_type {                                    \
+        elem_type content;                                        \
+    };                                                            \
+    struct hash_type {                                            \
+        struct tacc_dynhash *map;                                 \
+    };                                                            \
+    struct hash_type *new_func(size_t cap);                       \
+    void init_func(struct hash_type *array, size_t cap);          \
+    struct elem_wrapper_type *get_func(struct hash_type *array,   \
+                                       const char *key);          \
+    void insert_func(struct hash_type *array, elem_type content); \
+    size_t fill_count_func(struct hash_type *array);              \
     void free_func(struct hash_type *array);
 
 #define DECL_DYNHASH_OVER_U32(hash_type,                                       \
@@ -101,7 +102,8 @@ void tacc_dynhash_free(struct tacc_dynhash *hash);
         }                                                                   \
         map->map->fill = 0;                                                 \
     }                                                                       \
-    struct elem_wrapper_type *get_func(struct hash_type *map, char *key) {  \
+    struct elem_wrapper_type *get_func(struct hash_type *map,               \
+                                       const char *key) {                   \
         size_t i;                                                           \
         uint32_t h;                                                         \
         struct elem_wrapper_type *probe;                                    \

@@ -42,7 +42,7 @@ void tacc_dynhash_free(struct tacc_dynhash *hash) {
     tacc_free(hash);
 }
 
-uint32_t tacc_str_hash(char *name) {
+uint32_t tacc_str_hash(const char *name) {
     uint32_t h1;
     uint32_t h2;
     uint32_t ch;

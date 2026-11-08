@@ -38,7 +38,7 @@ void tacc_free(void *allocation);
 uint8_t tacc_hex_to_dec(char hex);
 tacc_bool tacc_char_is_hex(char hex);
 size_t tacc_sizeadj(size_t count, size_t size);
-tacc_bool tacc_str_is_eq(char *a, char *b);
+tacc_bool tacc_str_is_eq(const char *a, const char *b);
 size_t tacc_align_down(size_t x, size_t alignment_p2);
 size_t tacc_align_up(size_t x, size_t alignment_p2);
 

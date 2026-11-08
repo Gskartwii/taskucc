@@ -4,6 +4,8 @@
 #include "dynarray.h"
 #include "dynhash.h"
 #include "tasku_file.h"
+#include "util.h"
+#include <stdarg.h>
 #include <stdio.h>
 
 enum tacc_asm_match_action_kind {
@@ -12,21 +14,30 @@ enum tacc_asm_match_action_kind {
     ASMACT_EXPR,
     ASMACT_PUSH_IMM32,
     ASMACT_PUSH_IMM64,
+    ASMACT_ENUM,
     ASMACT_EXPECT_LINESEP,
     ASMACT_FIRST_TARGET_SPECIAL,
+};
+
+struct tacc_asm_match_enum {
+    const char **options;
+    size_t num_options;
 };
 
 struct tacc_asm_match_action {
     enum tacc_asm_match_action_kind kind;
     union {
         /* STRTOK, MAYBE_STRTOK */
-        char *str_tok;
+        const char *str_tok;
 
         /* PUSH_IMM32 */
         uint32_t imm32;
 
         /* PUSH_IMM64 */
         struct tacc_u64 *imm64;
+
+        /* ENUM */
+        struct tacc_asm_match_enum *enumeration;
 
         /* TARGET_SPECIAL */
         struct tacc_target_asm_match_action *target_data;
@@ -60,7 +71,7 @@ DECL_DYNARRAY_OVER(tacc_asm_candidate_list,
                    tacc_asm_candidate_list_free)
 
 struct tacc_asm_candidates {
-    char *key;
+    const char *key;
     struct tacc_asm_candidate_list *list;
 };
 
@@ -127,6 +138,15 @@ struct tacc_asm_state {
     struct tacc_asm_matcher *matcher;
 };
 
+void tacc_asm_file_iter_eat_ws_no_newlines(struct tacc_asm_file_iter *iter);
+tacc_bool tacc_asm_file_iter_accept_tok(struct tacc_asm_file_iter *iter,
+                                        const char *tok);
+tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
+                              struct tacc_asm_match_action *action,
+                              struct tacc_asm_file_iter *iter,
+                              struct tacc_asm_state *state);
+uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index);
+
 struct tacc_asm_statement *tacc_asm_statement_new(void);
 void tacc_asm_statement_free(struct tacc_asm_statement *statement);
 void tacc_asm_match_action_free(struct tacc_asm_match_action *action);
@@ -134,6 +154,18 @@ void tacc_asm_candidate_free(struct tacc_asm_candidate *candidate);
 void tacc_asm_candidates_free(struct tacc_asm_candidates *candidates);
 void tacc_asm_statement_part_free(struct tacc_asm_statement_part *part);
 struct tacc_asm_statement_part *tacc_asm_statement_part_new(void);
+
+void tacc_asm_form(struct tacc_asm_matcher *matcher, const char *key, ...);
+void tacc_asm_vform(struct tacc_asm_matcher *matcher,
+                    const char *key,
+                    va_list parts);
+struct tacc_asm_match_action *tacc_asm_match_action_new(void);
+struct tacc_asm_match_action *tacc_asm_strtok(const char *token);
+struct tacc_asm_match_action *tacc_asm_imm32(uint32_t imm);
+struct tacc_asm_match_action *tacc_asm_enum(const char **options,
+                                            size_t num_options);
+struct tacc_asm_match_action *tacc_asm_target_matcher(
+    uint32_t kind, struct tacc_target_asm_match_action *target_data);
 void taas_assemble(struct tacc_file *in_file, FILE *out_file);
 
 #endif

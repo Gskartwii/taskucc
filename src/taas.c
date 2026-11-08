@@ -51,6 +51,15 @@ MK_DYNARRAY_OVER(tacc_asm_statement_part_list,
                  tacc_asm_statement_part_free,
                  tacc_asm_statement_part_list_free)
 
+struct tacc_asm_match_action *tacc_asm_match_action_new(void) {
+    struct tacc_asm_match_action *action;
+
+    action = tacc_malloc(sizeof(struct tacc_asm_match_action));
+    action->kind = ASMACT_EXPR;
+
+    return action;
+}
+
 struct tacc_asm_statement_part *tacc_asm_statement_part_new(void) {
     struct tacc_asm_statement_part *part;
 
@@ -70,6 +79,24 @@ struct tacc_asm_statement *tacc_asm_statement_new(void) {
     return stmt;
 }
 
+struct tacc_asm_candidate *tacc_asm_candidate_new(void) {
+    struct tacc_asm_candidate *cand;
+
+    cand = tacc_malloc(sizeof(struct tacc_asm_candidate));
+    cand->actions = tacc_asm_match_action_list_new();
+
+    return cand;
+}
+
+struct tacc_asm_candidates *tacc_asm_candidates_new(void) {
+    struct tacc_asm_candidates *candidates;
+
+    candidates = tacc_malloc(sizeof(struct tacc_asm_candidates));
+    candidates->list = tacc_asm_candidate_list_new();
+
+    return candidates;
+}
+
 void tacc_asm_statement_part_free(struct tacc_asm_statement_part *part) {
     switch (part->kind) {
     case ASMPART_IMM32:
@@ -78,7 +105,9 @@ void tacc_asm_statement_part_free(struct tacc_asm_statement_part *part) {
         tacc_free(part->extra.imm64);
         break;
     case ASMPART_TARGET:
-        tacc_target_asm_statement_part_free(part->extra.target_data);
+        if (part->extra.target_data != NULL) {
+            tacc_target_asm_statement_part_free(part->extra.target_data);
+        }
         break;
     }
     tacc_free(part);
@@ -95,8 +124,10 @@ void tacc_asm_match_action_free(struct tacc_asm_match_action *action) {
     case ASMACT_PUSH_IMM64:
         tacc_free(action->extra.imm64);
         break;
-    case ASMACT_FIRST_TARGET_SPECIAL:
-        tacc_target_asm_match_action_free(action->extra.target_data);
+    default:
+        if (action->extra.target_data != NULL) {
+            tacc_target_asm_match_action_free(action->extra.target_data);
+        }
         break;
     }
     tacc_free(action);
@@ -213,8 +244,7 @@ tacc_asm_file_iter_eat_line_comment(struct tacc_asm_file_iter *iter) {
     }
 }
 
-static void
-tacc_asm_file_iter_eat_ws_no_newlines(struct tacc_asm_file_iter *iter) {
+void tacc_asm_file_iter_eat_ws_no_newlines(struct tacc_asm_file_iter *iter) {
     char ch;
     char *src;
     while (1) {
@@ -316,11 +346,21 @@ static struct tacc_string *tacc_asm_find_key(struct tacc_asm_file_iter *iter) {
     }
 }
 
+static struct tacc_asm_matcher *tacc_asm_matcher_new(void) {
+    struct tacc_asm_matcher *matcher;
+
+    matcher = tacc_malloc(sizeof(struct tacc_asm_matcher));
+    matcher->matchers = tacc_asm_candidates_map_new(0x1000);
+
+    return matcher;
+}
+
 static struct tacc_asm_state *tacc_asm_state_new(void) {
     struct tacc_asm_state *state;
 
     state = tacc_malloc(sizeof(struct tacc_asm_state));
     state->out_file = NULL;
+    state->matcher = tacc_asm_matcher_new();
 
     return state;
 }
@@ -335,58 +375,54 @@ static void tacc_asm_match_directive(struct tacc_asm_file_iter *iter,
     tacc_assert(ASSERT_TODO, 0, "asm directives");
 }
 
-static tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
-                                     struct tacc_asm_match_action *action,
-                                     struct tacc_asm_file_iter *iter,
-                                     struct tacc_asm_state *state) {
-    struct tacc_asm_statement_part *part;
-    char *end;
+tacc_bool tacc_asm_file_iter_accept_tok(struct tacc_asm_file_iter *iter,
+                                        const char *tok) {
     size_t len;
+    char *end;
+
+    len = strlen(tok);
+    if (strncmp(iter->src, tok, len)) {
+        return 0;
+    }
+
+    end = iter->src + (len - 1);
+    if (tacc_is_labelic(*end)) {
+        end = iter->src + len;
+        if (tacc_is_labelic(*end)) {
+            /*
+             * the matched token is alphanumeric and its edge is not here.
+             * don't accept.
+             */
+            return 0;
+        }
+    }
+
+    iter->src = iter->src + len;
+    return 1;
+}
+
+tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
+                              struct tacc_asm_match_action *action,
+                              struct tacc_asm_file_iter *iter,
+                              struct tacc_asm_state *state) {
+    struct tacc_asm_statement_part *part;
+    size_t i;
+    char *end;
+    char *pos;
+    char **option;
 
     switch (action->kind) {
     case ASMACT_STRTOK:
         tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        len = strlen(action->extra.str_tok);
-        if (strncmp(iter->src, action->extra.str_tok, len)) {
+        if (tacc_asm_file_iter_accept_tok(iter, action->extra.str_tok)) {
+            tacc_asm_file_iter_eat_ws_no_newlines(iter);
+            return 1;
+        } else {
             return 0;
         }
-
-        end = iter->src + (len - 1);
-        if (tacc_is_labelic(*end)) {
-            end = iter->src + len;
-            if (tacc_is_labelic(*end)) {
-                /*
-                 * the matched token is alphanumeric and its edge is not here.
-                 * don't accept.
-                 */
-                return 0;
-            }
-        }
-
-        iter->src = iter->src + len;
-        tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        return 1;
     case ASMACT_MAYBE_STRTOK:
         tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        len = strlen(action->extra.str_tok);
-        if (strncmp(iter->src, action->extra.str_tok, len)) {
-            /* matcher accepts, even if not present */
-            return 1;
-        }
-
-        end = iter->src + (len - 1);
-        if (tacc_is_labelic(*end)) {
-            end = iter->src + len;
-            if (tacc_is_labelic(*end)) {
-                /*
-                 * the matched token is alphanumeric and its edge is not here.
-                 * don't accept.
-                 */
-                return 0;
-            }
-        }
-
-        iter->src = iter->src + len;
+        tacc_asm_file_iter_accept_tok(iter, action->extra.str_tok);
         tacc_asm_file_iter_eat_ws_no_newlines(iter);
         return 1;
     case ASMACT_EXPR:
@@ -396,12 +432,25 @@ static tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
         part = tacc_asm_statement_part_new();
         part->kind = ASMPART_IMM32;
         part->extra.imm32 = action->extra.imm32;
-        return 1;
+        break;
     case ASMACT_PUSH_IMM64:
         part = tacc_asm_statement_part_new();
-        part->kind = ASMPART_IMM32;
+        part->kind = ASMPART_IMM64;
         part->extra.imm64 = action->extra.imm64;
-        return 1;
+        break;
+    case ASMACT_ENUM:
+        for (i = 0; i < action->extra.enumeration->num_options; i = i + 1) {
+            pos = (char *) action->extra.enumeration->options;
+            pos = pos + (sizeof(char *) * i);
+            option = (char **) pos;
+            if (tacc_asm_file_iter_accept_tok(iter, *option)) {
+                part = tacc_asm_statement_part_new();
+                part->kind = ASMPART_IMM32;
+                part->extra.imm32 = (uint32_t) i;
+                goto push_part;
+            }
+        }
+        return 0;
     case ASMACT_EXPECT_LINESEP:
         tacc_asm_file_iter_eat_ws_no_newlines(iter);
         end = iter->src;
@@ -413,6 +462,10 @@ static tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
     default:
         return tacc_target_asm_part_match(stmt, action, iter, state);
     }
+
+push_part:
+    tacc_asm_statement_part_list_push(stmt->parts, part);
+    return 1;
 }
 
 static tacc_bool tacc_asm_try_match(struct tacc_asm_candidate *candidate,
@@ -471,6 +524,98 @@ static void tacc_asm_match(struct tacc_asm_file_iter *iter,
                 tacc_dynstring_as_str(key));
 }
 
+void tacc_asm_form(struct tacc_asm_matcher *matcher, const char *key, ...) {
+    va_list parts;
+
+    va_start(parts, key);
+    tacc_asm_vform(matcher, key, parts);
+    va_end(parts);
+}
+
+void tacc_asm_vform(struct tacc_asm_matcher *matcher,
+                    const char *key,
+                    va_list parts) {
+    struct tacc_asm_candidate *cand;
+    struct tacc_asm_match_action *action;
+    struct tacc_asm_candidates_map_entry *map_entry;
+    struct tacc_asm_candidates *candidates;
+
+    cand = tacc_asm_candidate_new();
+    while (1) {
+        action = va_arg(parts, void *);
+        if (action == NULL) {
+            break;
+        }
+        tacc_asm_match_action_list_push(cand->actions, action);
+    }
+
+    map_entry = tacc_asm_candidates_map_get(matcher->matchers, key);
+    if (map_entry != NULL) {
+        candidates = map_entry->content;
+    } else {
+        candidates = tacc_asm_candidates_new();
+        candidates->key = key;
+        tacc_asm_candidates_map_insert(matcher->matchers, candidates);
+    }
+    tacc_asm_candidate_list_push(candidates->list, cand);
+}
+
+uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index) {
+    struct tacc_asm_statement_part_list_entry *entry;
+
+    entry = tacc_asm_statement_part_list_get(stmt->parts, index);
+    tacc_assert(ASSERT_ICE,
+                entry->content->kind == ASMPART_IMM32,
+                "didn't get imm32 at %d",
+                index);
+
+    return entry->content->extra.imm32;
+}
+
+struct tacc_asm_match_action *tacc_asm_strtok(const char *token) {
+    struct tacc_asm_match_action *action;
+
+    action = tacc_asm_match_action_new();
+    action->kind = ASMACT_STRTOK;
+    action->extra.str_tok = token;
+
+    return action;
+}
+
+struct tacc_asm_match_action *tacc_asm_imm32(uint32_t imm) {
+    struct tacc_asm_match_action *action;
+
+    action = tacc_asm_match_action_new();
+    action->kind = ASMACT_PUSH_IMM32;
+    action->extra.imm32 = imm;
+
+    return action;
+}
+
+struct tacc_asm_match_action *tacc_asm_target_matcher(
+    uint32_t kind, struct tacc_target_asm_match_action *target_data) {
+    struct tacc_asm_match_action *action;
+
+    action = tacc_asm_match_action_new();
+    action->kind = kind;
+    action->extra.target_data = target_data;
+
+    return action;
+}
+
+struct tacc_asm_match_action *tacc_asm_enum(const char **options,
+                                            size_t count) {
+    struct tacc_asm_match_action *action;
+
+    action = tacc_asm_match_action_new();
+    action->kind = ASMACT_ENUM;
+    action->extra.enumeration = tacc_malloc(sizeof(struct tacc_asm_match_enum));
+    action->extra.enumeration->options = options;
+    action->extra.enumeration->num_options = count;
+
+    return action;
+}
+
 void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
     struct tacc_string *key;
     struct tacc_asm_file_iter *iter;
@@ -478,9 +623,13 @@ void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
 
     iter = tacc_asm_file_iter_new_file(in_file, tacc_asm_target_new());
     state = tacc_asm_state_new();
+    tacc_target_asm_init_matchers(state->matcher);
     state->out_file = out_file;
 
     while (1) {
+        if (tacc_asm_file_iter_is_eof(iter)) {
+            break;
+        }
         if (iter->target->hash_comments_bol) {
             if (tacc_asm_file_iter_accept_ch(iter, '#')) {
                 tacc_asm_file_iter_eat_line_comment(iter);
@@ -490,6 +639,8 @@ void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
         key = tacc_asm_find_key(iter);
         if (key != NULL) {
             tacc_asm_match(iter, key, state);
+            tacc_dynstring_free(key);
+            key = NULL;
         } else {
             /* only labels, or perhaps an empty line */
         }

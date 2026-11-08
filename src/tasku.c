@@ -337,6 +337,9 @@ int main(int argc, char **argv) {
 
     if (lang == INPUTLANG_ASM) {
         taas_assemble(input_file, out_file);
+        if (out_file != stdout) {
+            fclose(out_file);
+        }
     } else {
         registry = tacc_parse_registry_new();
         pp_state = tacc_pp_state_new(registry, target);
