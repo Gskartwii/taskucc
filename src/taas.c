@@ -121,6 +121,9 @@ void tacc_asm_match_action_free(struct tacc_asm_match_action *action) {
     case ASMACT_PUSH_IMM32:
     case ASMACT_EXPECT_LINESEP:
         break;
+    case ASMACT_ENUM:
+        tacc_free(action->extra.enumeration);
+        break;
     case ASMACT_PUSH_IMM64:
         tacc_free(action->extra.imm64);
         break;
@@ -134,7 +137,8 @@ void tacc_asm_match_action_free(struct tacc_asm_match_action *action) {
 }
 
 void tacc_asm_candidate_free(struct tacc_asm_candidate *candidate) {
-    tacc_asm_match_action_list_free(candidate->actions);
+    /* list is a list of borrows */
+    tacc_dynarray_free(candidate->actions->list);
     tacc_free(candidate->actions);
     tacc_free(candidate);
 }
@@ -485,6 +489,7 @@ static tacc_bool tacc_asm_try_match(struct tacc_asm_candidate *candidate,
         }
     }
     tacc_target_asm_process_statement(statement, state);
+    tacc_asm_statement_free(statement);
 
     return 1;
 }
@@ -616,14 +621,29 @@ struct tacc_asm_match_action *tacc_asm_enum(const char **options,
     return action;
 }
 
+static void tacc_asm_matcher_free(struct tacc_asm_matcher *matcher) {
+    tacc_asm_candidates_map_free(matcher->matchers);
+    tacc_free(matcher->matchers);
+    tacc_free(matcher);
+}
+
+static void tacc_asm_state_free(struct tacc_asm_state *state) {
+    tacc_asm_matcher_free(state->matcher);
+    tacc_free(state);
+}
+
 void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
     struct tacc_string *key;
+    struct tacc_asm_target *target;
     struct tacc_asm_file_iter *iter;
     struct tacc_asm_state *state;
+    struct tacc_asm_match_action_list *actions;
 
-    iter = tacc_asm_file_iter_new_file(in_file, tacc_asm_target_new());
+    target = tacc_asm_target_new();
+    iter = tacc_asm_file_iter_new_file(in_file, target);
+    tacc_free(in_file);
     state = tacc_asm_state_new();
-    tacc_target_asm_init_matchers(state->matcher);
+    actions = tacc_target_asm_init_matchers(state->matcher);
     state->out_file = out_file;
 
     while (1) {
@@ -645,4 +665,10 @@ void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
             /* only labels, or perhaps an empty line */
         }
     }
+
+    tacc_asm_match_action_list_free(actions);
+    tacc_free(actions);
+    tacc_free(target);
+    tacc_asm_file_iter_free(iter);
+    tacc_asm_state_free(state);
 }

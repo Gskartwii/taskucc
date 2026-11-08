@@ -18,45 +18,9 @@ enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
 };
 
-static const char *tacc_target_asm_reg_names_8_rex[] = {
-    "al",
-    "bl",
-    "cl",
-    "dl",
-    "spl",
-    "bpl",
-    "sil",
-    "dil",
-    "r8b",
-    "r9b",
-    "r10b",
-    "r11b",
-    "r12b",
-    "r13b",
-    "r14b",
-    "r15b",
-};
 static const char *tacc_target_asm_reg_names_8_all[] = {
     "al",   "bl",   "cl",   "dl",   "spl",  "bpl",  "sil", "dil", "r8b", "r9b",
     "r10b", "r11b", "r12b", "r13b", "r14b", "r15b", "ah",  "ch",  "dh",  "bh",
-};
-static const char *tacc_target_asm_reg_names_8_unrex[] = {
-    "al",
-    "bl",
-    "cl",
-    "dl",
-    "ah",
-    "ch",
-    "dh",
-    "bh",
-    "r8b",
-    "r9b",
-    "r10b",
-    "r11b",
-    "r12b",
-    "r13b",
-    "r14b",
-    "r15b",
 };
 
 static const char *tacc_target_asm_reg_names_16[] = {
@@ -189,16 +153,15 @@ void tacc_target_asm_statement_part_free(
 
 void tacc_target_asm_match_action_free(
     struct tacc_target_asm_match_action *action) {
-
-    if (action->sub_action != NULL) {
-        tacc_asm_match_action_free(action->sub_action);
-    }
+    tacc_asm_match_action_free(action->sub_action);
     tacc_free(action);
 }
 
 #define S tacc_asm_strtok
 #define I tacc_asm_imm32
-void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
+struct tacc_asm_match_action_list *
+tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
+    struct tacc_asm_match_action_list *m;
     struct tacc_asm_match_action *r8;
     struct tacc_asm_match_action *r8unrex;
     struct tacc_asm_match_action *r8rex;
@@ -206,31 +169,46 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     struct tacc_asm_match_action *r32;
     struct tacc_asm_match_action *r64;
     struct tacc_asm_match_action *comma;
+    struct tacc_asm_match_action *i8;
+    struct tacc_asm_match_action *i16;
+    struct tacc_asm_match_action *i32;
+    struct tacc_asm_match_action *i64;
+    struct tacc_asm_match_action *insn;
 
-    r8unrex = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_unrex, 16);
-    r8rex = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_rex, 16);
+    m = tacc_asm_match_action_list_new();
     r8 = tacc_target_reg_matcher(tacc_target_asm_reg_names_8_all, 20);
     r16 = tacc_target_reg_matcher(tacc_target_asm_reg_names_16, 16);
     r32 = tacc_target_reg_matcher(tacc_target_asm_reg_names_32, 16);
     r64 = tacc_target_reg_matcher(tacc_target_asm_reg_names_64, 16);
+    tacc_asm_match_action_list_push(m, r8);
+    tacc_asm_match_action_list_push(m, r16);
+    tacc_asm_match_action_list_push(m, r32);
+    tacc_asm_match_action_list_push(m, r64);
+    i8 = I(8);
+    i16 = I(16);
+    i32 = I(32);
+    i64 = I(64);
+    tacc_asm_match_action_list_push(m, i8);
+    tacc_asm_match_action_list_push(m, i16);
+    tacc_asm_match_action_list_push(m, i32);
+    tacc_asm_match_action_list_push(m, i64);
     comma = S(",");
+    tacc_asm_match_action_list_push(m, comma);
 
     TACC_UNUSED(r8unrex);
     TACC_UNUSED(r8rex);
 
-    tacc_asm_form(matcher, "movb", I(INSTR_MOV_REG), I(8), r8, comma, r8, NULL);
-    tacc_asm_form(matcher, "mov", I(INSTR_MOV_REG), I(8), r8, comma, r8, NULL);
-    tacc_asm_form(
-        matcher, "movw", I(INSTR_MOV_REG), I(16), r16, comma, r16, NULL);
-    tacc_asm_form(
-        matcher, "mov", I(INSTR_MOV_REG), I(16), r16, comma, r16, NULL);
-    tacc_asm_form(
-        matcher, "movl", I(INSTR_MOV_REG), I(32), r32, comma, r32, NULL);
-    tacc_asm_form(
-        matcher, "mov", I(INSTR_MOV_REG), I(32), r32, comma, r32, NULL);
-    tacc_asm_form(
-        matcher, "movq", I(INSTR_MOV_REG), I(64), r64, comma, r64, NULL);
-    tacc_asm_form(
-        matcher, "mov", I(INSTR_MOV_REG), I(64), r64, comma, r64, NULL);
+    insn = I(INSTR_MOV_REG);
+    tacc_asm_match_action_list_push(m, insn);
+    tacc_asm_form(matcher, "movb", insn, i8, r8, comma, r8, NULL);
+    tacc_asm_form(matcher, "mov", insn, i8, r8, comma, r8, NULL);
+    tacc_asm_form(matcher, "movw", insn, i16, r16, comma, r16, NULL);
+    tacc_asm_form(matcher, "mov", insn, i16, r16, comma, r16, NULL);
+    tacc_asm_form(matcher, "movl", insn, i32, r32, comma, r32, NULL);
+    tacc_asm_form(matcher, "mov", insn, i32, r32, comma, r32, NULL);
+    tacc_asm_form(matcher, "movq", insn, i64, r64, comma, r64, NULL);
+    tacc_asm_form(matcher, "mov", insn, i64, r64, comma, r64, NULL);
+
+    return m;
 }
 #undef S
