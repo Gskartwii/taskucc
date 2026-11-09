@@ -468,6 +468,7 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
         part->extra.sub_element =
             tacc_asm_match(iter, action->extra.str_tok, state);
         if (part->extra.sub_element == NULL) {
+            tacc_free(part);
             return 0;
         }
         break;

@@ -218,23 +218,40 @@ struct tacc_target_asm_actions {
     struct tacc_asm_match_action *i64;
 };
 
-void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
-                               uint32_t insn,
-                               const char *key,
-                               const char *key_b,
-                               const char *key_w,
-                               const char *key_l,
-                               const char *key_q) {
-    /* TODO: expect linesep */
+static void tacc_target_asm_form_2(struct tacc_asm_matcher *matcher,
+                                   const char *key_suffixed,
+                                   const char *key_unsuffixed,
+                                   const char *template,
+                                   ...) {
+    va_list va;
+    va_start(va, template);
 
-    tacc_asm_form(matcher, key_b, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
-    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
-    tacc_asm_form(matcher, key_w, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
-    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
-    tacc_asm_form(matcher, key_l, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
-    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
-    tacc_asm_form(matcher, key_q, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
-    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
+    tacc_asm_vform(matcher, key_suffixed, template, va);
+
+    va_end(va);
+
+    va_start(va, template);
+
+    tacc_asm_vform(matcher, key_unsuffixed, template, va);
+
+    va_end(va);
+}
+
+static void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
+                                      uint32_t insn,
+                                      const char *key,
+                                      const char *key_b,
+                                      const char *key_w,
+                                      const char *key_l,
+                                      const char *key_q) {
+    tacc_target_asm_form_2(
+        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
+    tacc_target_asm_form_2(
+        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
+    tacc_target_asm_form_2(
+        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
+    tacc_target_asm_form_2(
+        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
 }
 
 #define GEN_BWLQS(base_name)                                              \
