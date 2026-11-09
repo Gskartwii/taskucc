@@ -17,8 +17,7 @@ tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
                                      struct tacc_asm_state *state);
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
                                        struct tacc_asm_state *state);
-struct tacc_asm_match_action_list *
-tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher);
+void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher);
 void tacc_target_asm_statement_part_free(
     struct tacc_target_asm_statement_part *part);
 void tacc_target_asm_match_action_free(

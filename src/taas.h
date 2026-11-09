@@ -10,7 +10,6 @@
 
 enum tacc_asm_match_action_kind {
     ASMACT_STRTOK,
-    ASMACT_MAYBE_STRTOK,
     ASMACT_EXPR,
     ASMACT_PUSH_IMM32,
     ASMACT_PUSH_IMM64,
@@ -21,8 +20,10 @@ enum tacc_asm_match_action_kind {
 
 struct tacc_asm_match_action {
     enum tacc_asm_match_action_kind kind;
+
+    tacc_bool extra_owned;
     union {
-        /* STRTOK, MAYBE_STRTOK, SUB_FORM */
+        /* STRTOK, SUB_FORM */
         const char *str_tok;
 
         /* PUSH_IMM32 */
@@ -169,14 +170,15 @@ void tacc_asm_candidates_free(struct tacc_asm_candidates *candidates);
 void tacc_asm_statement_part_free(struct tacc_asm_statement_part *part);
 struct tacc_asm_statement_part *tacc_asm_statement_part_new(void);
 
-void tacc_asm_form(struct tacc_asm_matcher *matcher, const char *key, ...);
+void tacc_asm_form(struct tacc_asm_matcher *matcher,
+                   const char *key,
+                   const char *template,
+                   ...);
 void tacc_asm_vform(struct tacc_asm_matcher *matcher,
                     const char *key,
+                    const char *template,
                     va_list parts);
 struct tacc_asm_match_action *tacc_asm_match_action_new(void);
-struct tacc_asm_match_action *tacc_asm_strtok(const char *token);
-struct tacc_asm_match_action *tacc_asm_sub_form(const char *key);
-struct tacc_asm_match_action *tacc_asm_imm32(uint32_t imm);
 struct tacc_asm_match_action *tacc_asm_target_matcher(
     uint32_t kind, struct tacc_target_asm_match_action *target_data);
 void taas_assemble(struct tacc_file *in_file, FILE *out_file);

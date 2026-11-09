@@ -227,8 +227,7 @@ struct tacc_target_asm_actions {
 #define R32 actions->r32
 #define R64 actions->r64
 void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
-                               struct tacc_target_asm_actions *actions,
-                               struct tacc_asm_match_action *insn,
+                               uint32_t insn,
                                const char *key,
                                const char *key_b,
                                const char *key_w,
@@ -236,14 +235,14 @@ void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
                                const char *key_q) {
     /* TODO: expect linesep */
 
-    tacc_asm_form(matcher, key_b, insn, I8, R8, actions->comma, R8, NULL);
-    tacc_asm_form(matcher, key, insn, I8, R8, actions->comma, R8, NULL);
-    tacc_asm_form(matcher, key_w, insn, I16, R16, actions->comma, R16, NULL);
-    tacc_asm_form(matcher, key, insn, I16, R16, actions->comma, R16, NULL);
-    tacc_asm_form(matcher, key_l, insn, I32, R32, actions->comma, R32, NULL);
-    tacc_asm_form(matcher, key, insn, I32, R32, actions->comma, R32, NULL);
-    tacc_asm_form(matcher, key_q, insn, I64, R64, actions->comma, R64, NULL);
-    tacc_asm_form(matcher, key, insn, I64, R64, actions->comma, R64, NULL);
+    tacc_asm_form(matcher, key_b, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
+    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
+    tacc_asm_form(matcher, key_w, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
+    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
+    tacc_asm_form(matcher, key_l, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
+    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
+    tacc_asm_form(matcher, key_q, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
+    tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
 }
 #undef I8
 #undef I16
@@ -259,69 +258,29 @@ void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
 #define GEN_BWLQS(base_name)                                              \
     base_name, base_name "b", base_name "w", base_name "l", base_name "q"
 
-struct tacc_asm_match_action_list *
-tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
-    struct tacc_asm_match_action_list *m;
-    struct tacc_asm_match_action *insn;
-    struct tacc_asm_match_action *action;
-    struct tacc_asm_match_action *i_action;
-    struct tacc_asm_match_action *pct;
-    struct tacc_target_asm_actions actions;
+void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     size_t i;
 
-    m = tacc_asm_match_action_list_new();
-    /* @ can never be part of a real instruction's key */
-    actions.r8 = tacc_asm_sub_form("@reg8");
-    actions.r16 = tacc_asm_sub_form("@reg16");
-    actions.r32 = tacc_asm_sub_form("@reg32");
-    actions.r64 = tacc_asm_sub_form("@reg64");
-    tacc_asm_match_action_list_push(m, actions.r8);
-    tacc_asm_match_action_list_push(m, actions.r16);
-    tacc_asm_match_action_list_push(m, actions.r32);
-    tacc_asm_match_action_list_push(m, actions.r64);
-    actions.i8 = I(8);
-    actions.i16 = I(16);
-    actions.i32 = I(32);
-    actions.i64 = I(64);
-    tacc_asm_match_action_list_push(m, actions.i8);
-    tacc_asm_match_action_list_push(m, actions.i16);
-    tacc_asm_match_action_list_push(m, actions.i32);
-    tacc_asm_match_action_list_push(m, actions.i64);
-    actions.comma = S(",");
-    tacc_asm_match_action_list_push(m, actions.comma);
-
-    pct = S("%");
-    tacc_asm_match_action_list_push(m, pct);
     for (i = 0; i < 20; i = i + 1) {
-        i_action = I((uint32_t) i);
-        tacc_asm_match_action_list_push(m, i_action);
-
-        action = S(tacc_target_asm_reg_names_8_all[i]);
-        tacc_asm_match_action_list_push(m, action);
-        tacc_asm_form(matcher, "@reg8", pct, action, i_action, NULL);
+        tacc_asm_form(matcher,
+                      "@reg8",
+                      "%% %s %d",
+                      tacc_target_asm_reg_names_8_all[i],
+                      i);
 
         if (i >= 16) {
             continue;
         }
 
-        action = S(tacc_target_asm_reg_names_16[i]);
-        tacc_asm_match_action_list_push(m, action);
-        tacc_asm_form(matcher, "@reg16", pct, action, i_action, NULL);
-
-        action = S(tacc_target_asm_reg_names_32[i]);
-        tacc_asm_match_action_list_push(m, action);
-        tacc_asm_form(matcher, "@reg32", pct, action, i_action, NULL);
-
-        action = S(tacc_target_asm_reg_names_64[i]);
-        tacc_asm_match_action_list_push(m, action);
-        tacc_asm_form(matcher, "@reg64", pct, action, i_action, NULL);
+        tacc_asm_form(
+            matcher, "@reg16", "%% %s %d", tacc_target_asm_reg_names_16[i], i);
+        tacc_asm_form(
+            matcher, "@reg32", "%% %s %d", tacc_target_asm_reg_names_32[i], i);
+        tacc_asm_form(
+            matcher, "@reg64", "%% %s %d", tacc_target_asm_reg_names_64[i], i);
     }
 
-    insn = I(INSTR_MOV_REG);
-    tacc_asm_match_action_list_push(m, insn);
-    tacc_target_asm_form_bwlq(matcher, &actions, insn, GEN_BWLQS("mov"));
-
-    return m;
+    tacc_target_asm_form_bwlq(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
 }
 #undef S
 #undef I
