@@ -135,35 +135,42 @@ static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
         if (tacc_target_asm_reg8_is_high(from)) {
             has_high = 1;
             from = (from - REG_AH) + REG_RSP;
+        } else if (tacc_target_asm_reg_needs_rex(from)) {
+            rex = rex | 0x44;
         } else if (tacc_target_asm_reg_needs_rex_r8(from)) {
-            rex = rex | 0x04;
+            rex = rex | 0x40;
         }
         if (tacc_target_asm_reg8_is_high(to)) {
             has_high = 1;
             to = (to - REG_AH) + REG_RSP;
+        } else if (tacc_target_asm_reg_needs_rex(to)) {
+            rex = rex | 0x41;
         } else if (tacc_target_asm_reg_needs_rex_r8(to)) {
-            rex = rex | 0x01;
+            rex = rex | 0x40;
+        }
+        if (rex != 0) {
+            tacc_assert(ASSERT_DIAG,
+                        !has_high,
+                        "cannot encode high 8-bit registers with REX prefix");
+            tacc_asm_out8(state, rex);
         }
         op = base_op;
     } else {
         if (width == 16) {
             tacc_asm_out8(state, 0x66);
         } else if (width == 64) {
-            rex = 0x08;
+            rex = 0x48;
         }
         if (tacc_target_asm_reg_needs_rex(from)) {
-            rex = rex | 0x04;
+            rex = rex | 0x44;
         }
         if (tacc_target_asm_reg_needs_rex(to)) {
-            rex = rex | 0x01;
+            rex = rex | 0x41;
         }
         op = base_op | 1;
-    }
-    if (rex != 0) {
-        tacc_assert(ASSERT_DIAG,
-                    !has_high,
-                    "cannot encode high 8-bit registers with REX prefix");
-        tacc_asm_out8(state, rex | 0x40);
+        if (rex != 0) {
+            tacc_asm_out8(state, rex);
+        }
     }
     tacc_asm_out8(state, op);
     modrm = (uint8_t) (0xc0 | (to & 7) | ((from & 7) << 3));
