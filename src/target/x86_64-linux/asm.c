@@ -218,14 +218,6 @@ struct tacc_target_asm_actions {
     struct tacc_asm_match_action *i64;
 };
 
-#define I8 actions->i8
-#define I16 actions->i16
-#define I32 actions->i32
-#define I64 actions->i64
-#define R8 actions->r8
-#define R16 actions->r16
-#define R32 actions->r32
-#define R64 actions->r64
 void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
                                uint32_t insn,
                                const char *key,
@@ -244,17 +236,7 @@ void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
     tacc_asm_form(matcher, key_q, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
     tacc_asm_form(matcher, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
 }
-#undef I8
-#undef I16
-#undef I32
-#undef I64
-#undef R8
-#undef R16
-#undef R32
-#undef R64
 
-#define S tacc_asm_strtok
-#define I tacc_asm_imm32
 #define GEN_BWLQS(base_name)                                              \
     base_name, base_name "b", base_name "w", base_name "l", base_name "q"
 
@@ -282,5 +264,3 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
 
     tacc_target_asm_form_bwlq(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
 }
-#undef S
-#undef I
