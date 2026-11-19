@@ -537,7 +537,10 @@ static const char *tacc_asm_strtok_from_template(const char *template,
     start = template + (*i);
     start_char = *start;
     if (tacc_is_labelic(start_char)) {
-        end = strchr(start, ' ');
+        end = start;
+        while (tacc_is_labelic(*end)) {
+            end = end + 1;
+        }
         tok_length = (size_t) (end - start);
     } else {
         tok_length = 1;
@@ -574,16 +577,19 @@ void tacc_asm_vform(struct tacc_asm_matcher *matcher,
      * instruction
      */
     expect_linesep = (*key) != '@';
-    for (i = 0; i < strlen(template); i = i + 1) {
+    for (i = 0; i < strlen(template); i = i + 0 /* incremented within loop */) {
         template_pos = template + i;
         template_ch = *template_pos;
         if (template_ch == ' ') {
+            i = i + 1;
             continue;
         }
         if (template_ch == '%') {
             i = i + 1;
             template_pos = template + i;
             template_ch = *template_pos;
+            i = i + 1;
+
             if (template_ch == '?') {
                 in_str = va_arg(parts, void *);
                 action = tacc_asm_match_action_new();
@@ -631,6 +637,8 @@ void tacc_asm_vform(struct tacc_asm_matcher *matcher,
             tacc_assert(ASSERT_ICE,
                         template_ch == '%',
                         "bad character in tacc_asm_vform()");
+            /* point i back at % */
+            i = i - 1;
         }
         action = tacc_asm_match_action_new();
         action->kind = ASMACT_STRTOK;
