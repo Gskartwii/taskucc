@@ -202,6 +202,9 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
     case INSTR_MOV_REG:
         tacc_target_asm_process_modrm(stmt, 0x88, state);
         break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "I don't know this instruction...");
+        break;
     }
 }
 
@@ -275,6 +278,22 @@ static void tacc_target_asm_form_bwlq(struct tacc_asm_matcher *matcher,
         matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
     tacc_target_asm_form_2(
         matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
+    tacc_target_asm_form_2(
+        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@sib", "@reg8");
+    tacc_target_asm_form_2(
+        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@sib", "@reg16");
+    tacc_target_asm_form_2(
+        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@sib", "@reg32");
+    tacc_target_asm_form_2(
+        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@sib", "@reg64");
+    tacc_target_asm_form_2(
+        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@reg8", "@sib");
+    tacc_target_asm_form_2(
+        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@reg16", "@sib");
+    tacc_target_asm_form_2(
+        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@sib");
+    tacc_target_asm_form_2(
+        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@sib");
 }
 
 #define GEN_BWLQS(base_name)                                              \
