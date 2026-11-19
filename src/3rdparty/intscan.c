@@ -228,7 +228,7 @@ static const unsigned char table[] = {
 
 static int shgetc(struct tacc_file_iter *file) {
     char ch;
-    if (tacc_file_is_eof(file)) {
+    if (tacc_file_iter_is_eof(file)) {
         return -1;
     }
     ch = tacc_file_iter_consume_ch(file);

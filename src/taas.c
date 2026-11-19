@@ -1,5 +1,6 @@
 #include "taas.h"
 #include "dynstring.h"
+#include "file_iter.h"
 #include "target/asm.h"
 #include "util.h"
 
@@ -152,144 +153,10 @@ void tacc_asm_candidates_free(struct tacc_asm_candidates *candidates) {
     tacc_free(candidates);
 }
 
-void tacc_asm_file_iter_free(struct tacc_asm_file_iter *iter) {
-    if (iter->filename) {
-        tacc_free(iter->filename);
-    }
-    tacc_free(iter->orig);
-    tacc_free(iter);
-}
-
 void tacc_asm_statement_free(struct tacc_asm_statement *statement) {
     tacc_asm_statement_part_list_free(statement->parts);
     tacc_free(statement->parts);
     tacc_free(statement);
-}
-
-struct tacc_asm_file_iter *tacc_asm_file_iter_new_file(
-    struct tacc_file *file, struct tacc_asm_target *target) {
-    struct tacc_asm_file_iter *iter;
-
-    iter = tacc_malloc(sizeof(struct tacc_asm_file_iter));
-    iter->filename = file->name;
-    iter->src = file->src;
-    iter->orig = file->src;
-    iter->end = file->src + file->len;
-    iter->target = target;
-
-    return iter;
-}
-
-static tacc_bool tacc_asm_file_iter_is_eof(struct tacc_asm_file_iter *iter) {
-    return iter->src == iter->end;
-}
-
-static char tacc_asm_file_iter_peek_ch(struct tacc_asm_file_iter *iter) {
-    char *cur;
-
-    cur = iter->src;
-    tacc_assert(
-        ASSERT_DIAG, !tacc_asm_file_iter_is_eof(iter), "eof while peeking");
-    return *cur;
-}
-
-static char tacc_asm_file_iter_consume_ch(struct tacc_asm_file_iter *iter) {
-    char *cur;
-    char ch;
-
-    cur = iter->src;
-    tacc_assert(
-        ASSERT_DIAG, !tacc_asm_file_iter_is_eof(iter), "unexpected eof");
-    ch = *cur;
-
-    iter->src = iter->src + 1;
-    return ch;
-}
-
-static tacc_bool tacc_asm_file_iter_accept_ch(struct tacc_asm_file_iter *iter,
-                                              char accept) {
-    if (tacc_asm_file_iter_is_eof(iter)) {
-        return 0;
-    }
-    if (tacc_asm_file_iter_peek_ch(iter) == accept) {
-        tacc_asm_file_iter_consume_ch(iter);
-        return 1;
-    }
-    return 0;
-}
-
-static void tacc_asm_file_iter_eat_comment(struct tacc_asm_file_iter *iter) {
-    char ch;
-
-    tacc_assert(ASSERT_DIAG,
-                tacc_asm_file_iter_accept_ch(iter, '/'),
-                "error while scanning comment");
-    tacc_assert(ASSERT_DIAG,
-                tacc_asm_file_iter_accept_ch(iter, '*'),
-                "error while scanning comment");
-
-    while (1) {
-        tacc_assert(
-            ASSERT_DIAG, !tacc_asm_file_iter_is_eof(iter), "eof in comment");
-        ch = tacc_asm_file_iter_consume_ch(iter);
-        if (ch == '*') {
-            if (tacc_asm_file_iter_accept_ch(iter, '/')) {
-                break;
-            }
-        }
-    }
-}
-
-static void
-tacc_asm_file_iter_eat_line_comment(struct tacc_asm_file_iter *iter) {
-    char ch;
-
-    ch = tacc_asm_file_iter_peek_ch(iter);
-    while (ch != '\n') {
-        tacc_asm_file_iter_consume_ch(iter);
-        ch = tacc_asm_file_iter_peek_ch(iter);
-    }
-}
-
-void tacc_asm_file_iter_eat_ws_no_newlines(struct tacc_asm_file_iter *iter) {
-    char ch;
-    char *src;
-    while (1) {
-        if (tacc_asm_file_iter_accept_ch(iter, ' ')) {
-            continue;
-        }
-        if (tacc_asm_file_iter_accept_ch(iter, 9)) {
-            continue;
-        }
-        if (iter->target->at_comments) {
-            if (tacc_asm_file_iter_accept_ch(iter, '@')) {
-                tacc_asm_file_iter_eat_line_comment(iter);
-                break;
-            }
-        }
-        if (iter->target->hash_comments) {
-            if (tacc_asm_file_iter_accept_ch(iter, '#')) {
-                tacc_asm_file_iter_eat_line_comment(iter);
-                break;
-            }
-        }
-        if ((iter->end - iter->src) >= 2) {
-            src = iter->src;
-            ch = *src;
-            if (ch == '/') {
-                ch = src[1];
-                if (ch == '*') {
-                    tacc_asm_file_iter_eat_comment(iter);
-                    continue;
-                }
-                if (ch == '/') {
-                    tacc_asm_file_iter_eat_line_comment(iter);
-                    continue;
-                }
-            }
-        }
-        break;
-    }
 }
 
 tacc_bool tacc_is_labelic(char ch) {
@@ -305,7 +172,7 @@ tacc_bool tacc_is_labelic(char ch) {
     return ch == '_';
 }
 
-struct tacc_string *tacc_asm_try_parse_key(struct tacc_asm_file_iter *iter) {
+struct tacc_string *tacc_asm_try_parse_key(struct tacc_file_iter *iter) {
     char *start;
     char *ch_ptr;
     char ch;
@@ -331,12 +198,12 @@ struct tacc_string *tacc_asm_try_parse_key(struct tacc_asm_file_iter *iter) {
     return result;
 }
 
-static struct tacc_string *tacc_asm_find_key(struct tacc_asm_file_iter *iter) {
+static struct tacc_string *tacc_asm_find_key(struct tacc_file_iter *iter) {
     struct tacc_string *maybe_key;
 
     while (1) {
-        tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        if (tacc_asm_file_iter_accept_ch(iter, '\n')) {
+        tacc_file_iter_eat_ws_no_newlines(iter);
+        if (tacc_file_iter_accept_ch(iter, '\n')) {
             return NULL;
         }
 
@@ -344,8 +211,8 @@ static struct tacc_string *tacc_asm_find_key(struct tacc_asm_file_iter *iter) {
         tacc_assert(
             ASSERT_DIAG, maybe_key, "invalid token to start an asm line");
 
-        tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        if (tacc_asm_file_iter_accept_ch(iter, ':')) {
+        tacc_file_iter_eat_ws_no_newlines(iter);
+        if (tacc_file_iter_accept_ch(iter, ':')) {
             tacc_assert(ASSERT_TODO, 0, "process labels");
         }
 
@@ -372,7 +239,7 @@ static struct tacc_asm_state *tacc_asm_state_new(void) {
     return state;
 }
 
-static void tacc_asm_match_directive(struct tacc_asm_file_iter *iter,
+static void tacc_asm_match_directive(struct tacc_file_iter *iter,
                                      struct tacc_string *key,
                                      struct tacc_asm_state *state) {
     TACC_UNUSED(iter);
@@ -382,8 +249,8 @@ static void tacc_asm_match_directive(struct tacc_asm_file_iter *iter,
     tacc_assert(ASSERT_TODO, 0, "asm directives");
 }
 
-tacc_bool tacc_asm_file_iter_accept_tok(struct tacc_asm_file_iter *iter,
-                                        const char *tok) {
+tacc_bool tacc_file_iter_accept_tok(struct tacc_file_iter *iter,
+                                    const char *tok) {
     size_t len;
     char *end;
 
@@ -408,7 +275,7 @@ tacc_bool tacc_asm_file_iter_accept_tok(struct tacc_asm_file_iter *iter,
     return 1;
 }
 
-tacc_bool tacc_asm_try_enum(struct tacc_asm_file_iter *iter,
+tacc_bool tacc_asm_try_enum(struct tacc_file_iter *iter,
                             const char **options,
                             size_t num_options,
                             uint32_t *chosen) {
@@ -420,7 +287,7 @@ tacc_bool tacc_asm_try_enum(struct tacc_asm_file_iter *iter,
         pos = (char *) options;
         pos = pos + (sizeof(char *) * i);
         option = (char **) pos;
-        if (tacc_asm_file_iter_accept_tok(iter, *option)) {
+        if (tacc_file_iter_accept_tok(iter, *option)) {
             *chosen = (uint32_t) i;
             return 1;
         }
@@ -429,23 +296,22 @@ tacc_bool tacc_asm_try_enum(struct tacc_asm_file_iter *iter,
     return 0;
 }
 
-static struct tacc_asm_statement *
-tacc_asm_match(struct tacc_asm_file_iter *iter,
-               const char *key,
-               struct tacc_asm_state *state);
+static struct tacc_asm_statement *tacc_asm_match(struct tacc_file_iter *iter,
+                                                 const char *key,
+                                                 struct tacc_asm_state *state);
 
 tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                               struct tacc_asm_match_action *action,
-                              struct tacc_asm_file_iter *iter,
+                              struct tacc_file_iter *iter,
                               struct tacc_asm_state *state) {
     struct tacc_asm_statement_part *part;
     char *end;
 
     switch (action->kind) {
     case ASMACT_STRTOK:
-        tacc_asm_file_iter_eat_ws_no_newlines(iter);
-        if (tacc_asm_file_iter_accept_tok(iter, action->extra.str_tok)) {
-            tacc_asm_file_iter_eat_ws_no_newlines(iter);
+        tacc_file_iter_eat_ws_no_newlines(iter);
+        if (tacc_file_iter_accept_tok(iter, action->extra.str_tok)) {
+            tacc_file_iter_eat_ws_no_newlines(iter);
             return 1;
         }
         return 0;
@@ -473,7 +339,7 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
         }
         break;
     case ASMACT_EXPECT_LINESEP:
-        tacc_asm_file_iter_eat_ws_no_newlines(iter);
+        tacc_file_iter_eat_ws_no_newlines(iter);
         end = iter->src;
         if (*end != '\n' && *end != ';') {
             return 0;
@@ -490,7 +356,7 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
 
 static struct tacc_asm_statement *
 tacc_asm_try_match(struct tacc_asm_candidate *candidate,
-                   struct tacc_asm_file_iter *iter,
+                   struct tacc_file_iter *iter,
                    struct tacc_asm_state *state) {
     struct tacc_asm_match_action_list_entry *part_match;
     struct tacc_asm_statement *statement;
@@ -509,10 +375,9 @@ tacc_asm_try_match(struct tacc_asm_candidate *candidate,
     return statement;
 }
 
-static struct tacc_asm_statement *
-tacc_asm_match(struct tacc_asm_file_iter *iter,
-               const char *key,
-               struct tacc_asm_state *state) {
+static struct tacc_asm_statement *tacc_asm_match(struct tacc_file_iter *iter,
+                                                 const char *key,
+                                                 struct tacc_asm_state *state) {
     struct tacc_asm_candidates_map_entry *candidates;
     struct tacc_asm_candidate_list_entry *candidate;
     struct tacc_asm_statement *statement;
@@ -724,24 +589,29 @@ void tacc_asm_out8(struct tacc_asm_state *state, uint8_t data) {
 void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
     struct tacc_string *key;
     struct tacc_asm_target *target;
-    struct tacc_asm_file_iter *iter;
+    struct tacc_file_iter *iter;
     struct tacc_asm_state *state;
     struct tacc_asm_statement *statement;
+    char ch;
 
     target = tacc_asm_target_new();
-    iter = tacc_asm_file_iter_new_file(in_file, target);
+    iter = tacc_file_iter_new_file(in_file);
     tacc_free(in_file);
     state = tacc_asm_state_new();
     tacc_target_asm_init_matchers(state->matcher);
     state->out_file = out_file;
 
     while (1) {
-        if (tacc_asm_file_iter_is_eof(iter)) {
+        if (tacc_file_iter_is_eof(iter)) {
             break;
         }
-        if (iter->target->hash_comments_bol) {
-            if (tacc_asm_file_iter_accept_ch(iter, '#')) {
-                tacc_asm_file_iter_eat_line_comment(iter);
+        if (iter->hash_comments_bol) {
+            if (tacc_file_iter_accept_ch(iter, '#')) {
+                ch = tacc_file_iter_peek_ch(iter);
+                while (ch != '\n') {
+                    tacc_file_iter_consume_ch(iter);
+                    ch = tacc_file_iter_peek_ch(iter);
+                }
                 continue;
             }
         }
@@ -768,6 +638,6 @@ void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
     }
 
     tacc_free(target);
-    tacc_asm_file_iter_free(iter);
+    tacc_file_iter_free(iter);
     tacc_asm_state_free(state);
 }

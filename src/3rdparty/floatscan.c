@@ -198,7 +198,6 @@
 #include "floatscan.h"
 #include "soft_float.h"
 #include "soft_u64.h"
-#include "tasku_pp.h"
 
 #define DECIMAL_BUFFER_SIZE 2048
 #define DECBUF_LIMIT (DECIMAL_BUFFER_SIZE - 1)
@@ -206,7 +205,7 @@
 
 static int shgetc(struct tacc_file_iter *file) {
     char ch;
-    if (tacc_file_is_eof(file)) {
+    if (tacc_file_iter_is_eof(file)) {
         return -1;
     }
     ch = tacc_file_iter_consume_ch(file);

@@ -1,6 +1,7 @@
 #ifndef TACC_TARGET_ASM_H
 #define TACC_TARGET_ASM_H
 
+#include "file_iter.h"
 #include "taas.h"
 #include "util.h"
 
@@ -13,7 +14,7 @@ struct tacc_asm_target {
 struct tacc_asm_target *tacc_asm_target_new(void);
 tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
                                      struct tacc_asm_match_action *action,
-                                     struct tacc_asm_file_iter *iter,
+                                     struct tacc_file_iter *iter,
                                      struct tacc_asm_state *state);
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
                                        struct tacc_asm_state *state);

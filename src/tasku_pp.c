@@ -3,6 +3,7 @@
 #include "dynhash.h"
 #include "dynstring.h"
 #include "expr.h"
+#include "file_iter.h"
 #include "machine.h"
 #include "parse.h"
 #include "target/pp.h"
@@ -17,53 +18,6 @@
 #else
 #define TACC_PARAM_NOT_FOUND SIZE_MAX
 #endif
-
-void tacc_file_iter_free(struct tacc_file_iter *iter) {
-    if (iter->filename) {
-        tacc_free(iter->filename);
-    }
-    tacc_free(iter->orig);
-    tacc_free(iter);
-}
-
-/* iter: borrow, start: owning, end: owning */
-static void tacc_file_iter_init_str(struct tacc_file_iter *iter,
-                                    char *start,
-                                    char *end) {
-    iter->is_bol = 1;
-    iter->is_ws = 1;
-    iter->orig = start;
-    iter->src = start;
-    iter->end = end;
-    iter->filename = NULL;
-}
-
-/* iter: borrow, file: owning */
-void tacc_file_iter_init(struct tacc_file_iter *iter, struct tacc_file *file) {
-    tacc_file_iter_init_str(iter, file->src, file->src + file->len);
-    iter->filename = file->name;
-    tacc_free(file);
-}
-
-/* return: owning */
-struct tacc_file_iter *tacc_file_iter_new_file(struct tacc_file *file) {
-    struct tacc_file_iter *iter;
-
-    iter = tacc_malloc(sizeof(struct tacc_file_iter));
-    tacc_file_iter_init(iter, file);
-
-    return iter;
-}
-
-/* return: owning */
-struct tacc_file_iter *tacc_file_iter_new_str(char *start, char *end) {
-    struct tacc_file_iter *iter;
-
-    iter = tacc_malloc(sizeof(struct tacc_file_iter));
-    tacc_file_iter_init_str(iter, start, end);
-
-    return iter;
-}
 
 /* tok: borrow */
 void tacc_pp_tok_init(struct pp_tok *tok) {
@@ -375,111 +329,6 @@ char *tacc_pp_to_string(struct pp_tok *tok) {
     return "UNRECOGNIZED";
 }
 
-/* iter: borrow */
-static void tacc_file_iter_eat_splices(struct tacc_file_iter *iter) {
-    char ch;
-    char *src;
-
-    src = iter->src;
-    ch = *src;
-
-    if (ch == '\\') {
-        /* c99 5.1.1.2p2: a physical source file cannot end with a backslash */
-        ch = iter->src[1];
-        if (ch == '\n') {
-            iter->src = iter->src + 1;
-            iter->src = iter->src + 1;
-        }
-    }
-}
-
-/* return: borrow, iter: borrow */
-static char *tacc_file_iter_cur(struct tacc_file_iter *iter) {
-    tacc_file_iter_eat_splices(iter);
-    return iter->src;
-}
-
-/* iter: borrow */
-tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter) {
-    if (tacc_file_iter_cur(iter) == iter->end) {
-        return 1;
-    }
-    return 0;
-}
-
-/* iter: borrow */
-char tacc_file_iter_peek_ch(struct tacc_file_iter *iter) {
-    char *cur;
-
-    cur = tacc_file_iter_cur(iter);
-    tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof while peeking");
-    return *cur;
-}
-
-/* iter: borrow */
-char tacc_file_iter_consume_ch(struct tacc_file_iter *iter) {
-    char *cur;
-    char ch;
-
-    cur = tacc_file_iter_cur(iter);
-    tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "unexpected eof");
-    ch = *cur;
-
-    /*
-     * newline -> set bol flag, unset ws flag
-     * whitespace -> keep bol flag, set ws flag
-     * otherwise -> unset both
-     */
-    if (ch == '\n') {
-        iter->is_bol = 1;
-        iter->is_ws = 0;
-    } else if (ch == 9 || ch == 12 || ch == ' ') {
-        iter->is_ws = 1;
-    } else {
-        iter->is_ws = 0;
-        iter->is_bol = 0;
-    }
-
-    iter->src = iter->src + 1;
-    return ch;
-}
-
-/* iter: borrow */
-tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter, char accept) {
-    if (tacc_file_is_eof(iter)) {
-        return 0;
-    }
-    if (tacc_file_iter_peek_ch(iter) == accept) {
-        tacc_file_iter_consume_ch(iter);
-        return 1;
-    }
-    return 0;
-}
-
-/* iter: borrow */
-static void tacc_file_iter_eat_comment(struct tacc_file_iter *iter) {
-    char ch;
-
-    tacc_assert(ASSERT_DIAG,
-                tacc_file_iter_accept_ch(iter, '/'),
-                "error while scanning comment");
-    tacc_assert(ASSERT_DIAG,
-                tacc_file_iter_accept_ch(iter, '*'),
-                "error while scanning comment");
-
-    while (1) {
-        tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof in comment");
-        ch = tacc_file_iter_consume_ch(iter);
-        if (ch == '*') {
-            if (tacc_file_iter_accept_ch(iter, '/')) {
-                break;
-            }
-        }
-    }
-    /* per standard, replaced by single space */
-    iter->is_ws = 1;
-}
-
 static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
                                        struct pp_tok *tok) {
     char ch;
@@ -497,7 +346,8 @@ static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
     }
     tacc_dynstring_concat(tok->str, "/*");
     while (1) {
-        tacc_assert(ASSERT_DIAG, !tacc_file_is_eof(iter), "eof in comment");
+        tacc_assert(
+            ASSERT_DIAG, !tacc_file_iter_is_eof(iter), "eof in comment");
         ch = tacc_file_iter_consume_ch(iter);
         tacc_dynstring_push(tok->str, ch);
         if (ch == '*') {
@@ -506,26 +356,6 @@ static void tacc_file_iter_lex_comment(struct tacc_file_iter *iter,
                 break;
             }
         }
-    }
-    /* per standard, replaced by single space */
-    iter->is_ws = 1;
-}
-
-/* iter: borrow */
-static void tacc_file_iter_eat_new_comment(struct tacc_file_iter *iter) {
-    char ch;
-
-    tacc_assert(ASSERT_DIAG,
-                tacc_file_iter_accept_ch(iter, '/'),
-                "error while scanning new comment");
-    tacc_assert(ASSERT_DIAG,
-                tacc_file_iter_accept_ch(iter, '/'),
-                "error while scanning new comment");
-
-    ch = tacc_file_iter_peek_ch(iter);
-    while (ch != '\n') {
-        tacc_file_iter_consume_ch(iter);
-        ch = tacc_file_iter_peek_ch(iter);
     }
     /* per standard, replaced by single space */
     iter->is_ws = 1;
@@ -558,36 +388,6 @@ static void tacc_file_iter_lex_new_comment(struct tacc_file_iter *iter,
     iter->is_ws = 1;
 }
 
-/* iter: borrow */
-static void tacc_file_iter_eat_ws_no_newlines(struct tacc_file_iter *iter) {
-    char ch;
-    char *src;
-    while (1) {
-        if (tacc_file_iter_accept_ch(iter, ' ')) {
-            continue;
-        }
-        if (tacc_file_iter_accept_ch(iter, 9)) {
-            continue;
-        }
-        if ((iter->end - iter->src) >= 2) {
-            src = iter->src;
-            ch = *src;
-            if (ch == '/') {
-                ch = src[1];
-                if (ch == '*') {
-                    tacc_file_iter_eat_comment(iter);
-                    continue;
-                }
-                if (ch == '/') {
-                    tacc_file_iter_eat_new_comment(iter);
-                    continue;
-                }
-            }
-        }
-        break;
-    }
-}
-
 /* tok: borrow, str: borrow */
 static void tacc_pp_tok_assign_str(struct pp_tok *tok, char *str) {
     if (tok->str == NULL) {
@@ -605,7 +405,7 @@ static void tacc_file_iter_lex_all_ws(struct tacc_file_iter *iter,
     char *src;
 
     while (1) {
-        if (tacc_file_is_eof(iter)) {
+        if (tacc_file_iter_is_eof(iter)) {
             tok_out->kind = TOK_EOF;
             tacc_pp_tok_assign_str(tok_out, "");
             return;
@@ -856,7 +656,7 @@ static struct pp_tok *tacc_file_iter_lex_ppnum(struct tacc_file_iter *iter,
     tacc_dynstring_push(out_str, first);
 
     while (1) {
-        if (tacc_file_is_eof(iter)) {
+        if (tacc_file_iter_is_eof(iter)) {
             break;
         }
         ch = tacc_file_iter_peek_ch(iter);
@@ -1032,7 +832,7 @@ static struct pp_tok *tacc_file_iter_lex_ident(struct tacc_file_iter *iter,
     tacc_dynstring_push(out_str, first);
 
     while (1) {
-        if (tacc_file_is_eof(iter)) {
+        if (tacc_file_iter_is_eof(iter)) {
             break;
         }
         ch = tacc_file_iter_peek_ch(iter);
@@ -1093,7 +893,7 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     ret = tacc_pp_tok_new();
     if (ctx == LEX_SKIPPING) {
         while (1) {
-            if (tacc_file_is_eof(iter)) {
+            if (tacc_file_iter_is_eof(iter)) {
                 ret->kind = TOK_EOF;
                 return ret;
             }
@@ -1121,7 +921,7 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
             tacc_file_iter_accept_ch(iter, '#');
         }
     }
-    if (tacc_file_is_eof(iter)) {
+    if (tacc_file_iter_is_eof(iter)) {
         ret->kind = TOK_EOF;
         return ret;
     }
@@ -1148,7 +948,7 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
     ret->preceded_by_ws = iter->is_ws;
     ret->preceded_by_bol = iter->is_bol;
 
-    if (tacc_file_is_eof(iter)) {
+    if (tacc_file_iter_is_eof(iter)) {
         ret->kind = TOK_EOF;
         return ret;
     }
@@ -1313,7 +1113,7 @@ static struct pp_tok *tacc_file_iter_lex(struct tacc_file_iter *iter,
         kind = TOK_COMMA;
         break;
     case 'L':
-        if (!tacc_file_is_eof(iter)) {
+        if (!tacc_file_iter_is_eof(iter)) {
             if (tacc_file_iter_peek_ch(iter) == '\'') {
                 return tacc_file_iter_lex_wchar(iter, ret);
             }
@@ -1900,7 +1700,7 @@ static void tacc_tok_iter_handle_ifndef(struct tacc_tok_iter *first,
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #ifndef");
+    tacc_assert(ASSERT_DIAG, tacc_file_iter_is_eof(iter), "junk after #ifndef");
 
     tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for ifndef");
     if (!tacc_pp_macro_is_defined(first->state,
@@ -1933,7 +1733,7 @@ static void tacc_tok_iter_handle_ifdef(struct tacc_tok_iter *first,
     tok = tacc_file_iter_expect_ident(iter);
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #ifdef");
+    tacc_assert(ASSERT_DIAG, tacc_file_iter_is_eof(iter), "junk after #ifdef");
 
     tacc_assert(ASSERT_DIAG, tok->str != NULL, "need content for ifdef");
     if (tacc_pp_macro_is_defined(first->state,
@@ -1954,7 +1754,7 @@ static void tacc_tok_iter_handle_endif(struct tacc_tok_iter *first,
     struct tacc_tok_iter *last_iter;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #endif");
+    tacc_assert(ASSERT_DIAG, tacc_file_iter_is_eof(iter), "junk after #endif");
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -1977,7 +1777,7 @@ static void tacc_tok_iter_handle_else(struct tacc_tok_iter *first,
     struct tacc_tok_iter *last_iter;
 
     tacc_file_iter_eat_ws_no_newlines(iter);
-    tacc_assert(ASSERT_DIAG, tacc_file_is_eof(iter), "junk after #else");
+    tacc_assert(ASSERT_DIAG, tacc_file_iter_is_eof(iter), "junk after #else");
 
     last_iter = tacc_tok_iter_cur_iter(first);
 
@@ -2192,7 +1992,7 @@ static void tacc_tok_iter_handle_directive(struct tacc_tok_iter *first,
         tacc_file_iter_new_str(directive_str, directive_str + directive_len);
 
     tacc_file_iter_eat_ws_no_newlines(dir_scanner);
-    if (tacc_file_is_eof(dir_scanner) ||
+    if (tacc_file_iter_is_eof(dir_scanner) ||
         tacc_file_iter_accept_ch(dir_scanner, '\n')) {
         /* empty directive, skip */
         tacc_file_iter_free(dir_scanner);
@@ -2436,7 +2236,7 @@ static void tacc_tok_iter_join_pending(struct tacc_tok_iter *iter,
     new_tok->preceded_by_bol = tok->preceded_by_bol;
     tacc_file_iter_eat_ws_no_newlines(file_iter);
     tacc_assert(ASSERT_DIAG,
-                tacc_file_is_eof(file_iter),
+                tacc_file_iter_is_eof(file_iter),
                 "multiple tokens produced by joining: %s",
                 new_tok_str);
 

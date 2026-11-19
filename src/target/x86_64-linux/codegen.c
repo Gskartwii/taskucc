@@ -53,7 +53,7 @@ static char *tacc_target_register_as_64(enum tacc_target_register reg) {
     case REG_R15:
         return "%r15";
     default:
-        tacc_assert(ASSERT_ICE, 0, "invalid register");
+        tacc_assert(ASSERT_ICE, 0, "invalid register: %d", reg);
         return "INVALID-64";
     }
 }
@@ -89,7 +89,7 @@ static char *tacc_target_register_as_32(enum tacc_target_register reg) {
     case REG_R15:
         return "%r15d";
     default:
-        tacc_assert(ASSERT_ICE, 0, "invalid register");
+        tacc_assert(ASSERT_ICE, 0, "invalid register: %d", reg);
         return "INVALID-32";
     }
 }
@@ -129,7 +129,7 @@ static char *tacc_target_register_as_xmm(enum tacc_target_register_float reg) {
     case REGV_XMM15:
         return "%xmm15";
     default:
-        tacc_assert(ASSERT_ICE, 0, "invalid register");
+        tacc_assert(ASSERT_ICE, 0, "invalid register: %d", reg);
         return "INVALID-XMM";
     }
 }
@@ -165,7 +165,7 @@ static char *tacc_target_register_as_16(enum tacc_target_register reg) {
     case REG_R15:
         return "%r15w";
     default:
-        tacc_assert(ASSERT_ICE, 0, "invalid register");
+        tacc_assert(ASSERT_ICE, 0, "invalid register: %d", reg);
         return "INVALID-16";
     }
 }
@@ -201,7 +201,7 @@ static char *tacc_target_register_as_8(enum tacc_target_register reg) {
     case REG_R15:
         return "%r15b";
     default:
-        tacc_assert(ASSERT_ICE, 0, "invalid register");
+        tacc_assert(ASSERT_ICE, 0, "invalid register: %d", reg);
         return "INVALID-16";
     }
 }

@@ -3,6 +3,7 @@
 #include "soft_u64.h"
 #include "util.h"
 #include <stdio.h>
+#include <string.h>
 
 #define ZERO               \
     local_ok = 1;          \

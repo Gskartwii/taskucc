@@ -26,6 +26,7 @@ in {
     "parse.c"
     "format.c"
     "tasku_file.c"
+    "file_iter.c"
     "tasku_pp.c"
     "test.c"
     "taas.c"

@@ -95,6 +95,7 @@
     "decl.h"
     "parse.h"
     "format.h"
+    "file_iter.h"
     "tasku_pp.h"
     "compile.h"
     "testdata/floatscan_in.inc"

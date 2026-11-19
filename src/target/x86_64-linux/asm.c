@@ -191,7 +191,7 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
 
 tacc_bool tacc_target_asm_part_match(struct tacc_asm_statement *stmt,
                                      struct tacc_asm_match_action *action,
-                                     struct tacc_asm_file_iter *iter,
+                                     struct tacc_file_iter *iter,
                                      struct tacc_asm_state *state) {
     TACC_UNUSED(stmt);
     TACC_UNUSED(action);

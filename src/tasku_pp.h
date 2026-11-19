@@ -135,29 +135,6 @@ enum pp_ident_kind {
     ID_PRAGMA
 };
 
-struct tacc_file_iter {
-    /* owning */
-    char *orig;
-    /* borrow of orig */
-    char *src;
-    /* borrow of src */
-    char *end;
-    /* owning, possibly null */
-    char *filename;
-    tacc_bool is_bol;
-    tacc_bool is_ws;
-};
-
-/* return: owning */
-struct tacc_file_iter *tacc_file_iter_new_file(struct tacc_file *file);
-struct tacc_file_iter *tacc_file_iter_new_str(char *start, char *end);
-char tacc_file_iter_consume_ch(struct tacc_file_iter *iter);
-tacc_bool tacc_file_iter_accept_ch(struct tacc_file_iter *iter, char accept);
-char tacc_file_iter_peek_ch(struct tacc_file_iter *iter);
-tacc_bool tacc_file_is_eof(struct tacc_file_iter *iter);
-/* iter: owning */
-void tacc_file_iter_free(struct tacc_file_iter *iter);
-
 struct pp_tok {
     enum pp_tok_kind kind;
     enum pp_ident_kind ident_kind;

@@ -3,7 +3,7 @@
 
 #include "dynarray.h"
 #include "dynhash.h"
-#include "tasku_file.h"
+#include "file_iter.h"
 #include "util.h"
 #include <stdarg.h>
 #include <stdio.h>
@@ -131,30 +131,14 @@ struct tacc_asm_statement {
     struct tacc_asm_statement_part_list *parts;
 };
 
-struct tacc_asm_file_iter {
-    struct tacc_asm_target *target;
-
-    /* owning */
-    char *orig;
-    /* borrow of orig */
-    char *src;
-    /* borrow of src */
-    char *end;
-    /* owning, possibly null */
-    char *filename;
-};
-
 struct tacc_asm_state {
     FILE *out_file;
     struct tacc_asm_matcher *matcher;
 };
 
-void tacc_asm_file_iter_eat_ws_no_newlines(struct tacc_asm_file_iter *iter);
-tacc_bool tacc_asm_file_iter_accept_tok(struct tacc_asm_file_iter *iter,
-                                        const char *tok);
 tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                               struct tacc_asm_match_action *action,
-                              struct tacc_asm_file_iter *iter,
+                              struct tacc_file_iter *iter,
                               struct tacc_asm_state *state);
 uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index);
 struct tacc_asm_statement *
