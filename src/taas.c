@@ -1,6 +1,8 @@
 #include "taas.h"
+#include "3rdparty/intscan.h"
 #include "dynstring.h"
 #include "file_iter.h"
+#include "soft_u64.h"
 #include "target/asm.h"
 #include "util.h"
 
@@ -98,12 +100,18 @@ struct tacc_asm_candidates *tacc_asm_candidates_new(void) {
     return candidates;
 }
 
+static void tacc_asm_symbol_free(struct tacc_asm_symbol *symbol) {
+    tacc_dynstring_free(symbol->name);
+    tacc_free(symbol->offset);
+    tacc_free(symbol);
+}
+
 void tacc_asm_statement_part_free(struct tacc_asm_statement_part *part) {
     switch (part->kind) {
     case ASMPART_IMM32:
         break;
-    case ASMPART_IMM64:
-        tacc_free(part->extra.imm64);
+    case ASMPART_SYMBOL:
+        tacc_asm_symbol_free(part->extra.symbol);
         break;
     case ASMPART_SUB_ELEMENT:
         tacc_asm_statement_free(part->extra.sub_element);
@@ -128,9 +136,6 @@ void tacc_asm_match_action_free(struct tacc_asm_match_action *action) {
     case ASMACT_EXPR:
     case ASMACT_PUSH_IMM32:
     case ASMACT_EXPECT_LINESEP:
-        break;
-    case ASMACT_PUSH_IMM64:
-        tacc_free(action->extra.imm64);
         break;
     default:
         if (action->extra.target_data != NULL) {
@@ -275,36 +280,129 @@ tacc_bool tacc_file_iter_accept_tok(struct tacc_file_iter *iter,
     return 1;
 }
 
-tacc_bool tacc_asm_try_enum(struct tacc_file_iter *iter,
-                            const char **options,
-                            size_t num_options,
-                            uint32_t *chosen) {
-    size_t i;
-    char *pos;
-    char **option;
-
-    for (i = 0; i < num_options; i = i + 1) {
-        pos = (char *) options;
-        pos = pos + (sizeof(char *) * i);
-        option = (char **) pos;
-        if (tacc_file_iter_accept_tok(iter, *option)) {
-            *chosen = (uint32_t) i;
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
 static struct tacc_asm_statement *tacc_asm_match(struct tacc_file_iter *iter,
                                                  const char *key,
                                                  struct tacc_asm_state *state);
+
+static struct tacc_asm_symbol *
+tacc_asm_parse_number(struct tacc_file_iter *iter) {
+    uint32_t base;
+    struct tacc_u64 *num;
+    struct tacc_u64 *limit;
+    struct tacc_asm_symbol *symbol;
+
+    limit = tacc_u64_new();
+    limit->high = 0xFFFFFFFF;
+    limit->low = 0xFFFFFFFF;
+    num = tacc_u64_new();
+    base = 10;
+    if (tacc_file_iter_accept_ch(iter, '0')) {
+        base = 8;
+        if (tacc_file_iter_accept_ch(iter, 'x')) {
+            base = 16;
+        } else if (tacc_file_iter_accept_ch(iter, 'b')) {
+            base = 2;
+        } else {
+            /*
+             * back out to the include the zero, in case the zero is the only
+             * digit
+             */
+            iter->src = iter->src - 1;
+        }
+    }
+    intscan(iter, base, limit, num);
+
+    symbol = tacc_malloc(sizeof(struct tacc_asm_symbol));
+    symbol->name = NULL;
+    symbol->offset = num;
+
+    return symbol;
+}
+
+static struct tacc_asm_symbol *
+tacc_asm_parse_label_ref(struct tacc_file_iter *iter) {
+    struct tacc_string *name;
+    struct tacc_asm_symbol *symbol;
+
+    name = tacc_asm_try_parse_key(iter);
+    if (name == NULL) {
+        return NULL;
+    }
+    symbol = tacc_malloc(sizeof(struct tacc_asm_symbol));
+    symbol->name = name;
+    symbol->offset = tacc_u64_new();
+    tacc_u64_zero(symbol->offset);
+
+    return symbol;
+}
+
+static struct tacc_asm_symbol *
+tacc_asm_match_expr(struct tacc_file_iter *iter, struct tacc_asm_state *state);
+
+static struct tacc_asm_symbol *tacc_asm_match_unary(
+    struct tacc_file_iter *iter, struct tacc_asm_state *state) {
+    char *saved_src;
+    char next;
+    struct tacc_asm_symbol *out_symbol;
+
+    saved_src = iter->src;
+    tacc_file_iter_eat_ws_no_newlines(iter);
+    next = tacc_file_iter_peek_ch(iter);
+    if (tacc_file_iter_accept_ch(iter, '(')) {
+        out_symbol = tacc_asm_match_expr(iter, state);
+        if (out_symbol == NULL) {
+            iter->src = saved_src;
+            return NULL;
+        }
+        if (!tacc_file_iter_accept_ch(iter, ')')) {
+            tacc_asm_symbol_free(out_symbol);
+            iter->src = saved_src;
+            return NULL;
+        }
+        return out_symbol;
+    }
+    if (tacc_file_iter_accept_ch(iter, '-')) {
+        out_symbol = tacc_asm_match_unary(iter, state);
+        if (out_symbol == NULL) {
+            iter->src = saved_src;
+            return NULL;
+        }
+        tacc_assert(
+            ASSERT_DIAG, out_symbol->name != NULL, "unary negation of symbol");
+        tacc_u64_neg(out_symbol->offset, out_symbol->offset);
+        return out_symbol;
+    }
+    if (tacc_file_iter_accept_ch(iter, '~')) {
+        out_symbol = tacc_asm_match_unary(iter, state);
+        if (out_symbol == NULL) {
+            iter->src = saved_src;
+            return NULL;
+        }
+        tacc_assert(ASSERT_DIAG,
+                    out_symbol->name != NULL,
+                    "unary complementation of symbol");
+        out_symbol->offset->low = ~out_symbol->offset->low;
+        out_symbol->offset->high = ~out_symbol->offset->high;
+        return out_symbol;
+    }
+    if (next >= '0' && next <= '9') {
+        return tacc_asm_parse_number(iter);
+    }
+    return tacc_asm_parse_label_ref(iter);
+}
+
+static struct tacc_asm_symbol *
+tacc_asm_match_expr(struct tacc_file_iter *iter, struct tacc_asm_state *state) {
+    /* TODO: parse binary expressions */
+    return tacc_asm_match_unary(iter, state);
+}
 
 tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                               struct tacc_asm_match_action *action,
                               struct tacc_file_iter *iter,
                               struct tacc_asm_state *state) {
     struct tacc_asm_statement_part *part;
+    struct tacc_asm_symbol *symbol;
     char *end;
 
     switch (action->kind) {
@@ -316,17 +414,29 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
         }
         return 0;
     case ASMACT_EXPR:
-        tacc_assert(ASSERT_TODO, 0, "asm: match expression");
-        return 0;
+    case ASMACT_EXPR_OPTIONAL:
+        symbol = tacc_asm_match_expr(iter, state);
+        if (symbol == NULL) {
+            if (action->kind == ASMACT_EXPR_OPTIONAL) {
+                part = tacc_asm_statement_part_new();
+                part->kind = ASMPART_SYMBOL;
+                part->extra.symbol =
+                    tacc_malloc(sizeof(struct tacc_asm_symbol));
+                part->extra.symbol->name = NULL;
+                part->extra.symbol->offset = tacc_u64_new();
+                tacc_u64_zero(part->extra.symbol->offset);
+            } else {
+                return 0;
+            }
+        }
+        part = tacc_asm_statement_part_new();
+        part->kind = ASMPART_SYMBOL;
+        part->extra.symbol = symbol;
+        break;
     case ASMACT_PUSH_IMM32:
         part = tacc_asm_statement_part_new();
         part->kind = ASMPART_IMM32;
         part->extra.imm32 = action->extra.imm32;
-        break;
-    case ASMACT_PUSH_IMM64:
-        part = tacc_asm_statement_part_new();
-        part->kind = ASMPART_IMM64;
-        part->extra.imm64 = action->extra.imm64;
         break;
     case ASMACT_SUB_FORM:
         part = tacc_asm_statement_part_new();
@@ -491,6 +601,20 @@ void tacc_asm_vform(struct tacc_asm_matcher *matcher,
                 tacc_asm_match_action_list_push(cand->actions, action);
                 continue;
             }
+            if (template_ch == 'e') {
+                in_imm32 = va_arg(parts, uint32_t);
+                action = tacc_asm_match_action_new();
+                action->kind = ASMACT_EXPR_OPTIONAL;
+                action->extra.imm32 = in_imm32;
+                tacc_asm_match_action_list_push(cand->actions, action);
+                continue;
+            }
+            if (template_ch == 'E') {
+                action = tacc_asm_match_action_new();
+                action->kind = ASMACT_EXPR;
+                tacc_asm_match_action_list_push(cand->actions, action);
+                continue;
+            }
             if (template_ch == 's') {
                 in_str = va_arg(parts, void *);
                 action = tacc_asm_match_action_new();
@@ -596,7 +720,12 @@ void taas_assemble(struct tacc_file *in_file, FILE *out_file) {
 
     target = tacc_asm_target_new();
     iter = tacc_file_iter_new_file(in_file);
-    tacc_free(in_file);
+    iter->hash_comments = target->hash_comments;
+    iter->hash_comments_bol = target->hash_comments_bol;
+    iter->at_comments = target->at_comments;
+    iter->slash_2_comments = 0;
+    iter->permit_splice = 0;
+
     state = tacc_asm_state_new();
     tacc_target_asm_init_matchers(state->matcher);
     state->out_file = out_file;

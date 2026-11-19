@@ -11,8 +11,8 @@
 enum tacc_asm_match_action_kind {
     ASMACT_STRTOK,
     ASMACT_EXPR,
+    ASMACT_EXPR_OPTIONAL,
     ASMACT_PUSH_IMM32,
-    ASMACT_PUSH_IMM64,
     ASMACT_SUB_FORM,
     ASMACT_EXPECT_LINESEP,
     ASMACT_FIRST_TARGET_SPECIAL,
@@ -26,11 +26,8 @@ struct tacc_asm_match_action {
         /* STRTOK, SUB_FORM */
         const char *str_tok;
 
-        /* PUSH_IMM32 */
+        /* PUSH_IMM32, EXPR_OPTIONAL */
         uint32_t imm32;
-
-        /* PUSH_IMM64 */
-        struct tacc_u64 *imm64;
 
         /* TARGET_SPECIAL */
         struct tacc_target_asm_match_action *target_data;
@@ -100,9 +97,14 @@ struct tacc_asm_matcher {
 
 enum tacc_asm_statement_part_kind {
     ASMPART_IMM32,
-    ASMPART_IMM64,
     ASMPART_SUB_ELEMENT,
+    ASMPART_SYMBOL,
     ASMPART_TARGET,
+};
+
+struct tacc_asm_symbol {
+    struct tacc_string *name;
+    struct tacc_u64 *offset;
 };
 
 struct tacc_asm_statement_part {
@@ -112,6 +114,7 @@ struct tacc_asm_statement_part {
         uint32_t imm32;
         struct tacc_u64 *imm64;
         struct tacc_asm_statement *sub_element;
+        struct tacc_asm_symbol *symbol;
         struct tacc_target_asm_statement_part *target_data;
     } extra;
 };

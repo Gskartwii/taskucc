@@ -19,6 +19,22 @@ enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
 };
 
+enum tacc_target_asm_operand_form {
+    REG,
+
+    SIB_ABS,
+    SIB_ABS_INDEX,
+    SIB_PCREL,
+    SIB_PCREL_INDEX,
+    SIB_BASE,
+    SIB_BASE_INDEX,
+    SIB_ABS_INDEX_32,
+    SIB_PCREL_32,
+    SIB_PCREL_INDEX_32,
+    SIB_BASE_32,
+    SIB_BASE_INDEX_32,
+};
+
 enum tacc_target_asm_reg {
     ASM_REG_RAX,
     ASM_REG_RBX,
@@ -270,7 +286,8 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     for (i = 0; i < 20; i = i + 1) {
         tacc_asm_form(matcher,
                       "@reg8",
-                      "%% %s %d",
+                      "%% %d %s %d",
+                      REG,
                       tacc_target_asm_reg_names_8_all[i],
                       i);
 
@@ -278,13 +295,96 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
             continue;
         }
 
-        tacc_asm_form(
-            matcher, "@reg16", "%% %s %d", tacc_target_asm_reg_names_16[i], i);
-        tacc_asm_form(
-            matcher, "@reg32", "%% %s %d", tacc_target_asm_reg_names_32[i], i);
-        tacc_asm_form(
-            matcher, "@reg64", "%% %s %d", tacc_target_asm_reg_names_64[i], i);
+        tacc_asm_form(matcher,
+                      "@reg16",
+                      "%% %d %s %d",
+                      REG,
+                      tacc_target_asm_reg_names_16[i],
+                      i);
+        tacc_asm_form(matcher,
+                      "@reg32",
+                      "%% %d %s %d",
+                      REG,
+                      tacc_target_asm_reg_names_32[i],
+                      i);
+        tacc_asm_form(matcher,
+                      "@reg64",
+                      "%% %d %s %d",
+                      REG,
+                      tacc_target_asm_reg_names_64[i],
+                      i);
     }
+
+    tacc_asm_form(matcher, "@sib", "%d %e(%?)", SIB_BASE, 0, "@reg64");
+    tacc_asm_form(matcher, "@sib", "%d %e(%?)", SIB_BASE_32, 0, "@reg32");
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%?,%?) %d",
+                  SIB_BASE_INDEX,
+                  0,
+                  "@reg64",
+                  "@reg64",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%?,%?) %d",
+                  SIB_BASE_INDEX_32,
+                  0,
+                  "@reg32",
+                  "@reg32",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%?,%?,%e)",
+                  SIB_BASE_INDEX,
+                  0,
+                  "@reg64",
+                  "@reg64",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%?,%?,%e)",
+                  0,
+                  SIB_BASE_INDEX_32,
+                  "@reg64",
+                  "@reg64",
+                  1);
+    tacc_asm_form(matcher, "@sib", "%d %e(,%?,%e)", SIB_ABS_INDEX, 0, "@reg64");
+    tacc_asm_form(
+        matcher, "@sib", "%d %e(,%?,%e)", SIB_ABS_INDEX_32, 0, "@reg32");
+    tacc_asm_form(matcher, "@sib", "%d %e(%% rip)", SIB_PCREL, 0);
+    tacc_asm_form(matcher, "@sib", "%d %e(%% eip)", SIB_PCREL_32, 0);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%% rip,%?) %d",
+                  SIB_PCREL_INDEX,
+                  0,
+                  "@reg64",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%% eip,%?) %d",
+                  SIB_PCREL_INDEX_32,
+                  0,
+                  "@reg32",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%% rip,%?,%e)",
+                  SIB_PCREL_INDEX,
+                  0,
+                  "@reg64",
+                  1);
+    tacc_asm_form(matcher,
+                  "@sib",
+                  "%d %e(%% eip,%?,%e)",
+                  SIB_PCREL_INDEX_32,
+                  0,
+                  "@reg32",
+                  1);
+    tacc_asm_form(
+        matcher, "@sib", "%d %e(,%?,%e)", SIB_ABS_INDEX_32, 0, "@reg32", 1);
+    tacc_asm_form(matcher, "@sib", "%d %E", SIB_ABS);
 
     tacc_target_asm_form_bwlq(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
 }
