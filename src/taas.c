@@ -101,7 +101,9 @@ struct tacc_asm_candidates *tacc_asm_candidates_new(void) {
 }
 
 static void tacc_asm_symbol_free(struct tacc_asm_symbol *symbol) {
-    tacc_dynstring_free(symbol->name);
+    if (symbol->name != NULL) {
+        tacc_dynstring_free(symbol->name);
+    }
     tacc_free(symbol->offset);
     tacc_free(symbol);
 }
