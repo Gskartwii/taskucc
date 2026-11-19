@@ -20,26 +20,26 @@ enum tacc_target_asm_stmt {
 };
 
 enum tacc_target_asm_reg {
-    REG_RAX,
-    REG_RBX,
-    REG_RCX,
-    REG_RDX,
-    REG_RSP,
-    REG_RBP,
-    REG_RSI,
-    REG_RDI,
-    REG_R8,
-    REG_R9,
-    REG_R10,
-    REG_R11,
-    REG_R12,
-    REG_R13,
-    REG_R14,
-    REG_R15,
-    REG_AH,
-    REG_CH,
-    REG_DH,
-    REG_BH,
+    ASM_REG_RAX,
+    ASM_REG_RBX,
+    ASM_REG_RCX,
+    ASM_REG_RDX,
+    ASM_REG_RSP,
+    ASM_REG_RBP,
+    ASM_REG_RSI,
+    ASM_REG_RDI,
+    ASM_REG_R8,
+    ASM_REG_R9,
+    ASM_REG_R10,
+    ASM_REG_R11,
+    ASM_REG_R12,
+    ASM_REG_R13,
+    ASM_REG_R14,
+    ASM_REG_R15,
+    ASM_REG_AH,
+    ASM_REG_CH,
+    ASM_REG_DH,
+    ASM_REG_BH,
 };
 
 static const char *tacc_target_asm_reg_names_8_all[] = {
@@ -48,13 +48,13 @@ static const char *tacc_target_asm_reg_names_8_all[] = {
 };
 
 static tacc_bool tacc_target_asm_reg8_is_high(uint32_t reg_id) {
-    return reg_id >= REG_AH && reg_id <= REG_BH;
+    return reg_id >= ASM_REG_AH && reg_id <= ASM_REG_BH;
 }
 static tacc_bool tacc_target_asm_reg_needs_rex_r8(uint32_t reg_id) {
-    return (reg_id >= REG_RSP && reg_id <= REG_R15);
+    return (reg_id >= ASM_REG_RSP && reg_id <= ASM_REG_R15);
 }
 static tacc_bool tacc_target_asm_reg_needs_rex(uint32_t reg_id) {
-    return (reg_id >= REG_R8 && reg_id <= REG_R15);
+    return (reg_id >= ASM_REG_R8 && reg_id <= ASM_REG_R15);
 }
 
 static const char *tacc_target_asm_reg_names_16[] = {
@@ -134,7 +134,7 @@ static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
     if (width == 8) {
         if (tacc_target_asm_reg8_is_high(from)) {
             has_high = 1;
-            from = (from - REG_AH) + REG_RSP;
+            from = (from - ASM_REG_AH) + ASM_REG_RSP;
         } else if (tacc_target_asm_reg_needs_rex(from)) {
             rex = rex | 0x44;
         } else if (tacc_target_asm_reg_needs_rex_r8(from)) {
@@ -142,7 +142,7 @@ static void tacc_target_asm_process_modrm(struct tacc_asm_statement *stmt,
         }
         if (tacc_target_asm_reg8_is_high(to)) {
             has_high = 1;
-            to = (to - REG_AH) + REG_RSP;
+            to = (to - ASM_REG_AH) + ASM_REG_RSP;
         } else if (tacc_target_asm_reg_needs_rex(to)) {
             rex = rex | 0x41;
         } else if (tacc_target_asm_reg_needs_rex_r8(to)) {
