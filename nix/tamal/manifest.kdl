@@ -1,0 +1,17 @@
+// ┏┓╻+╻ ╱┏┳┓┏┓┏┳┓┏┓╻
+// ┃┃┃┃┗━┓╹┃╹┣┫┃┃┃┣┫┃   Read the manpage:
+// ╹┗┛╹╱ ╹ ╹ ╹╹╹ ╹╹╹┗┛  $ man nixtamal-manifest
+version "2.0.0"
+inputs {
+    nixpkgs {
+        archive {
+            url "https://channels.nixos.org/nixos-26.05/nixexprs.tar.zst"
+        }
+        hash algorithm=SHA-256
+        patches nixpkgs-fix-m2 nixpkgs-rr-enable32
+    }
+}
+patches {
+    nixpkgs-fix-m2 "https://github.com/Gskartwii/nixpkgs/commit/d230b5d3ea1a18bd5a271b68a90316021818e875.patch"
+    nixpkgs-rr-enable32 "https://github.com/NixOS/nixpkgs/commit/fbb4ad46da8cd6ab1da3a6b6994059fe6d178f97.patch"
+}

@@ -2,7 +2,10 @@
   localSystem ? "x86_64-unknown-linux-gnu",
   crossSystem ? "x86_64-unknown-linux-musl",
 }: let
-  pkgsImport = import (builtins.getFlake "github:Gskartwii/nixpkgs/nixpkgs-for-taskucc");
+  inputs = import ./nix/tamal/default.nix {
+    system = localSystem;
+  };
+  pkgsImport = import inputs.nixpkgs;
   pkgsBase = pkgsImport {
     inherit localSystem;
     crossSystem =

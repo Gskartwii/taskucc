@@ -1,8 +1,9 @@
-let
-  nixpkgs = import (builtins.getFlake "nixpkgs");
-  nixpkgsUnstable = import (builtins.getFlake "nixpkgs/nixos-unstable");
+{system ? builtins.currentSystem}: let
+  inputs = import ./nix/tamal/default.nix {
+    inherit system;
+  };
+  nixpkgs = import inputs.nixpkgs;
   pkgs = nixpkgs {};
-  pkgsUnstable = nixpkgsUnstable {};
   pkgsi686Cross = nixpkgs {crossSystem = "i686-unknown-linux-musl";};
   lib = pkgs.lib;
 in
@@ -15,7 +16,7 @@ in
       pkgsCross.riscv64-musl.buildPackages.gdb
       pkgsCross.aarch64-multiplatform.buildPackages.gdb
       pkgsi686Cross.buildPackages.gdb
-      pkgsUnstable.rr
+      rr
     ];
     env.KAK_EXTRA_CONFIG = pkgs.writeText "tasku-extra.kak" ''
       hook global WinSetOption filetype=(c|cpp) %{
