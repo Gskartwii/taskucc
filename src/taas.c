@@ -313,6 +313,7 @@ tacc_asm_parse_number(struct tacc_file_iter *iter) {
         }
     }
     intscan(iter, base, limit, num);
+    tacc_free(limit);
 
     symbol = tacc_malloc(sizeof(struct tacc_asm_symbol));
     symbol->name = NULL;
@@ -426,7 +427,9 @@ tacc_bool tacc_asm_part_match(struct tacc_asm_statement *stmt,
                     tacc_malloc(sizeof(struct tacc_asm_symbol));
                 part->extra.symbol->name = NULL;
                 part->extra.symbol->offset = tacc_u64_new();
-                tacc_u64_zero(part->extra.symbol->offset);
+                tacc_u64_from_u32(part->extra.symbol->offset,
+                                  action->extra.imm32);
+                break;
             } else {
                 return 0;
             }
@@ -675,6 +678,19 @@ uint32_t tacc_asm_stmt_get_i32(struct tacc_asm_statement *stmt, size_t index) {
                 index);
 
     return entry->content->extra.imm32;
+}
+
+struct tacc_asm_symbol *
+tacc_asm_stmt_get_symbol(struct tacc_asm_statement *stmt, size_t index) {
+    struct tacc_asm_statement_part_list_entry *entry;
+
+    entry = tacc_asm_statement_part_list_get(stmt->parts, index);
+    tacc_assert(ASSERT_ICE,
+                entry->content->kind == ASMPART_SYMBOL,
+                "didn't get symbol at %d",
+                index);
+
+    return entry->content->extra.symbol;
 }
 
 struct tacc_asm_statement *
