@@ -19,6 +19,7 @@ struct tacc_asm_target *tacc_asm_target_new(void) {
 
 enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
+    INSTR_MOV_IMM,
 };
 
 enum tacc_target_asm_operand_form {
@@ -220,6 +221,52 @@ static void tacc_target_asm_out32_le(struct tacc_asm_state *state,
     }
     tacc_assert(ASSERT_TODO, 0, "symbol relocations");
 }
+static void tacc_target_asm_out16_le(struct tacc_asm_state *state,
+                                     struct tacc_asm_symbol *symbol) {
+    if (symbol->name == NULL) {
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low >> 8));
+        return;
+    }
+    tacc_assert(ASSERT_TODO, 0, "symbol relocations");
+}
+static void tacc_target_asm_out64_le(struct tacc_asm_state *state,
+                                     struct tacc_asm_symbol *symbol) {
+    if (symbol->name == NULL) {
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low >> 8));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low >> 16));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low >> 24));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->high));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->high >> 8));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->high >> 16));
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->high >> 24));
+        return;
+    }
+    tacc_assert(ASSERT_TODO, 0, "symbol relocations");
+}
+static void tacc_target_asm_out_le(struct tacc_asm_state *state,
+                                   uint32_t width,
+                                   struct tacc_asm_symbol *symbol) {
+    switch (width) {
+    case 8:
+        tacc_assert(ASSERT_TODO, symbol->name == NULL, "symbol relocations");
+        tacc_asm_out8(state, (uint8_t) (symbol->offset->low));
+        break;
+    case 16:
+        tacc_target_asm_out16_le(state, symbol);
+        break;
+    case 32:
+        tacc_target_asm_out32_le(state, symbol);
+        break;
+    case 64:
+        tacc_target_asm_out64_le(state, symbol);
+        break;
+    default:
+        tacc_assert(ASSERT_ICE, 0, "bad width");
+        break;
+    }
+}
 
 static void tacc_target_asm_emit_sib_r(uint32_t width,
                                        struct tacc_asm_statement *sib_op,
@@ -247,7 +294,11 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
     is_addr_32 = 0;
     encode_sib = 1;
 
-    reg = tacc_asm_stmt_get_reg(reg_op);
+    if (reg_op != NULL) {
+        reg = tacc_asm_stmt_get_reg(reg_op);
+    } else {
+        reg = 0;
+    }
     sib_form = tacc_asm_stmt_get_i32(sib_op, 0);
     displacement = tacc_asm_stmt_get_symbol(sib_op, 1);
     if (displacement->name == NULL && tacc_u64_is_zero(displacement->offset)) {
@@ -358,16 +409,21 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
         if (tacc_target_asm_reg_needs_rex(reg)) {
             rex = rex | 0x44;
         }
-        op = base_op | 1;
+        op = base_op;
     }
 
     if (encode_sib) {
+        tacc_assert(ASSERT_DIAG,
+                    !tacc_target_asm_reg_needs_rex(rm),
+                    "cannot extend both rm and sib_base");
         if (tacc_target_asm_reg_needs_rex(sib_index)) {
             rex = rex | 0x42;
         }
         if (tacc_target_asm_reg_needs_rex(sib_base)) {
             rex = rex | 0x41;
         }
+    } else if (tacc_target_asm_reg_needs_rex(rm)) {
+        rex = rex | 0x41;
     }
 
     tacc_assert(ASSERT_DIAG,
@@ -436,6 +492,50 @@ static void tacc_target_asm_emit_modrm(struct tacc_asm_statement *stmt,
     }
 }
 
+static void tacc_target_asm_emit_mov_imm(struct tacc_asm_statement *stmt,
+                                         struct tacc_asm_state *state) {
+    struct tacc_asm_symbol *from_op;
+    struct tacc_asm_statement *to_op;
+    uint32_t width;
+    uint8_t rex;
+    enum tacc_target_asm_reg to_reg;
+
+    width = tacc_asm_stmt_get_i32(stmt, 1);
+    from_op = tacc_asm_stmt_get_symbol(stmt, 2);
+    to_op = tacc_asm_stmt_get_sub(stmt, 3);
+
+    rex = 0;
+    if (tacc_asm_stmt_is_reg(to_op)) {
+        to_reg = tacc_asm_stmt_get_reg(to_op);
+
+        if (width == 8) {
+            if (tacc_target_asm_reg8_is_high(to_reg)) {
+                to_reg = (to_reg - ASM_REG_AH) + ASM_REG_RSP;
+            } else if (tacc_target_asm_reg_needs_rex(to_reg)) {
+                rex = rex | 0x44;
+            } else if (tacc_target_asm_reg_needs_rex_r8(to_reg)) {
+                rex = rex | 0x40;
+            }
+        } else {
+            if (width == 16) {
+                tacc_asm_out8(state, 0x66);
+            } else if (width == 64) {
+                rex = 0x48;
+            }
+            if (tacc_target_asm_reg_needs_rex(to_reg)) {
+                rex = rex | 0x44;
+            }
+        }
+        if (rex != 0) {
+            tacc_asm_out8(state, rex);
+        }
+        tacc_asm_out8(state, (uint8_t) (0xB8 + (to_reg & 7)));
+        tacc_target_asm_out_le(state, width, from_op);
+        return;
+    }
+    tacc_target_asm_emit_sib_r(width, to_op, NULL, 0xC7, state);
+}
+
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
                                        struct tacc_asm_state *state) {
     uint32_t kind;
@@ -444,6 +544,9 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
     switch ((enum tacc_target_asm_stmt) kind) {
     case INSTR_MOV_REG:
         tacc_target_asm_emit_modrm(stmt, 0x88, state);
+        break;
+    case INSTR_MOV_IMM:
+        tacc_target_asm_emit_mov_imm(stmt, state);
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "I don't know this instruction...");
@@ -537,6 +640,40 @@ static void tacc_target_asm_form_bwlq_r_sib(struct tacc_asm_matcher *matcher,
         matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@sib");
     tacc_target_asm_form_2(
         matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@sib");
+}
+static void tacc_target_asm_form_bwlq_imm_r(struct tacc_asm_matcher *matcher,
+                                            uint32_t insn,
+                                            const char *key,
+                                            const char *key_b,
+                                            const char *key_w,
+                                            const char *key_l,
+                                            const char *key_q) {
+    tacc_target_asm_form_2(
+        matcher, key_b, key, "%d %d $ %E, %?", insn, 8, "@reg8");
+    tacc_target_asm_form_2(
+        matcher, key_w, key, "%d %d $ %E, %?", insn, 16, "@reg16");
+    tacc_target_asm_form_2(
+        matcher, key_l, key, "%d %d $ %E, %?", insn, 32, "@reg32");
+    tacc_target_asm_form_2(
+        matcher, key_q, key, "%d %d $ %E, %?", insn, 64, "@reg64");
+}
+static void tacc_target_asm_form_bwlq_imm_sib(struct tacc_asm_matcher *matcher,
+                                              uint32_t insn,
+                                              const char *key,
+                                              const char *key_b,
+                                              const char *key_w,
+                                              const char *key_l,
+                                              const char *key_q) {
+    TACC_UNUSED(key);
+    /*
+     * don't make use of non-suffixed form the instr; GNU assembly doesn't allow
+     * that because it's ambiguous
+     */
+
+    tacc_asm_form(matcher, key_b, "%d %d $ %E, %?", insn, 8, "@sib");
+    tacc_asm_form(matcher, key_w, "%d %d $ %E, %?", insn, 16, "@sib");
+    tacc_asm_form(matcher, key_l, "%d %d $ %E, %?", insn, 32, "@sib");
+    tacc_asm_form(matcher, key_q, "%d %d $ %E, %?", insn, 64, "@sib");
 }
 static void tacc_target_asm_form_bwlq_sib_r(struct tacc_asm_matcher *matcher,
                                             uint32_t insn,
@@ -640,4 +777,6 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
     tacc_target_asm_form_bwlq_rr(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
     tacc_target_asm_form_bwlq_r_sib(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
     tacc_target_asm_form_bwlq_sib_r(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_imm_r(matcher, INSTR_MOV_IMM, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_imm_sib(matcher, INSTR_MOV_IMM, GEN_BWLQS("mov"));
 }
