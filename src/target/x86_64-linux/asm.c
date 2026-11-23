@@ -20,6 +20,16 @@ struct tacc_asm_target *tacc_asm_target_new(void) {
 enum tacc_target_asm_stmt {
     INSTR_MOV_REG,
     INSTR_MOV_IMM,
+    INSTR_LEA,
+};
+
+enum tacc_target_asm_width {
+    ASM_WIDTH_B = 0x8,
+    ASM_WIDTH_W = 0x10,
+    ASM_WIDTH_L = 0x20,
+    ASM_WIDTH_Q = 0x40,
+    ASM_WIDTH_BWLQ = 0x78,
+    ASM_WIDTH_WLQ = 0x70,
 };
 
 enum tacc_target_asm_operand_form {
@@ -269,7 +279,7 @@ static void tacc_target_asm_out_le(struct tacc_asm_state *state,
 }
 
 static void tacc_target_asm_emit_sib_r(uint32_t width,
-                                       struct tacc_asm_statement *sib_op,
+                                       struct tacc_asm_statement *rm_op,
                                        struct tacc_asm_statement *reg_op,
                                        uint8_t base_op,
                                        struct tacc_asm_state *state) {
@@ -299,8 +309,8 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
     } else {
         reg = 0;
     }
-    sib_form = tacc_asm_stmt_get_i32(sib_op, 0);
-    displacement = tacc_asm_stmt_get_symbol(sib_op, 1);
+    sib_form = tacc_asm_stmt_get_i32(rm_op, 0);
+    displacement = tacc_asm_stmt_get_symbol(rm_op, 1);
     if (displacement->name == NULL && tacc_u64_is_zero(displacement->offset)) {
         is_zero_disp = 1;
     } else {
@@ -324,10 +334,10 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
         rm = ASM_REG_RSP;
         sib_base = ASM_REG_RBP;
         sib_index =
-            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(sib_op, 2));
+            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(rm_op, 2));
         tacc_assert(
             ASSERT_DIAG, sib_index != ASM_REG_RSP, "cannot use rsp as index");
-        sib_scale = tacc_asm_stmt_get_symbol(sib_op, 3);
+        sib_scale = tacc_asm_stmt_get_symbol(rm_op, 3);
         break;
 
     case SIB_PCREL_32:
@@ -343,7 +353,7 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
         is_addr_32 = 1;
         /* fallthrough */
     case SIB_BASE:
-        rm = (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(sib_op, 2));
+        rm = (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(rm_op, 2));
         if (rm == ASM_REG_RBP || rm == ASM_REG_R13 || !is_zero_disp) {
             mod = 2;
         } else if (is_zero_disp) {
@@ -373,12 +383,12 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
         }
         rm = ASM_REG_RSP;
         sib_base =
-            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(sib_op, 2));
+            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(rm_op, 2));
         sib_index =
-            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(sib_op, 3));
+            (uint8_t) tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(rm_op, 3));
         tacc_assert(
             ASSERT_DIAG, sib_index != ASM_REG_RSP, "cannot use rsp as index");
-        sib_scale = tacc_asm_stmt_get_symbol(sib_op, 4);
+        sib_scale = tacc_asm_stmt_get_symbol(rm_op, 4);
         break;
     default:
         tacc_assert(ASSERT_ICE, 0, "form_reg as sib operand");
@@ -498,6 +508,7 @@ static void tacc_target_asm_emit_mov_imm(struct tacc_asm_statement *stmt,
     struct tacc_asm_statement *to_op;
     uint32_t width;
     uint8_t rex;
+    uint8_t op;
     enum tacc_target_asm_reg to_reg;
 
     width = tacc_asm_stmt_get_i32(stmt, 1);
@@ -516,6 +527,7 @@ static void tacc_target_asm_emit_mov_imm(struct tacc_asm_statement *stmt,
             } else if (tacc_target_asm_reg_needs_rex_r8(to_reg)) {
                 rex = rex | 0x40;
             }
+            op = 0xB0;
         } else {
             if (width == 16) {
                 tacc_asm_out8(state, 0x66);
@@ -525,15 +537,16 @@ static void tacc_target_asm_emit_mov_imm(struct tacc_asm_statement *stmt,
             if (tacc_target_asm_reg_needs_rex(to_reg)) {
                 rex = rex | 0x44;
             }
+            op = 0xB8;
         }
         if (rex != 0) {
             tacc_asm_out8(state, rex);
         }
-        tacc_asm_out8(state, (uint8_t) (0xB8 + (to_reg & 7)));
+        tacc_asm_out8(state, (uint8_t) (op + (to_reg & 7)));
         tacc_target_asm_out_le(state, width, from_op);
         return;
     }
-    tacc_target_asm_emit_sib_r(width, to_op, NULL, 0xC7, state);
+    tacc_target_asm_emit_sib_r(width, to_op, NULL, 0xC6, state);
 }
 
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
@@ -544,6 +557,13 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
     switch ((enum tacc_target_asm_stmt) kind) {
     case INSTR_MOV_REG:
         tacc_target_asm_emit_modrm(stmt, 0x88, state);
+        break;
+    case INSTR_LEA:
+        tacc_target_asm_emit_sib_r(tacc_asm_stmt_get_i32(stmt, 1),
+                                   tacc_asm_stmt_get_sub(stmt, 2),
+                                   tacc_asm_stmt_get_sub(stmt, 3),
+                                   0x8D,
+                                   state);
         break;
     case INSTR_MOV_IMM:
         tacc_target_asm_emit_mov_imm(stmt, state);
@@ -611,54 +631,130 @@ static void tacc_target_asm_form_2(struct tacc_asm_matcher *matcher,
 
 static void tacc_target_asm_form_bwlq_rr(struct tacc_asm_matcher *matcher,
                                          uint32_t insn,
+                                         uint32_t width,
                                          const char *key,
                                          const char *key_b,
                                          const char *key_w,
                                          const char *key_l,
                                          const char *key_q) {
-    tacc_target_asm_form_2(
-        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@reg8", "@reg8");
-    tacc_target_asm_form_2(
-        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@reg16", "@reg16");
-    tacc_target_asm_form_2(
-        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@reg32");
-    tacc_target_asm_form_2(
-        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@reg64");
+    if ((width & ASM_WIDTH_B) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_b,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_B,
+                               "@reg8",
+                               "@reg8");
+    }
+    if ((width & ASM_WIDTH_W) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_w,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_W,
+                               "@reg16",
+                               "@reg16");
+    }
+    if ((width & ASM_WIDTH_L) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_l,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_L,
+                               "@reg32",
+                               "@reg32");
+    }
+    if ((width & ASM_WIDTH_Q) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_q,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_Q,
+                               "@reg64",
+                               "@reg64");
+    }
 }
 static void tacc_target_asm_form_bwlq_r_sib(struct tacc_asm_matcher *matcher,
                                             uint32_t insn,
+                                            uint32_t width,
                                             const char *key,
                                             const char *key_b,
                                             const char *key_w,
                                             const char *key_l,
                                             const char *key_q) {
-    tacc_target_asm_form_2(
-        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@reg8", "@sib");
-    tacc_target_asm_form_2(
-        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@reg16", "@sib");
-    tacc_target_asm_form_2(
-        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@reg32", "@sib");
-    tacc_target_asm_form_2(
-        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@reg64", "@sib");
+    if ((width & ASM_WIDTH_B) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_b,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_B,
+                               "@reg8",
+                               "@sib");
+    }
+    if ((width & ASM_WIDTH_W) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_w,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_W,
+                               "@reg16",
+                               "@sib");
+    }
+    if ((width & ASM_WIDTH_L) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_l,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_L,
+                               "@reg32",
+                               "@sib");
+    }
+    if ((width & ASM_WIDTH_Q) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_q,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_Q,
+                               "@reg64",
+                               "@sib");
+    }
 }
 static void tacc_target_asm_form_bwlq_imm_r(struct tacc_asm_matcher *matcher,
                                             uint32_t insn,
+                                            uint32_t width,
                                             const char *key,
                                             const char *key_b,
                                             const char *key_w,
                                             const char *key_l,
                                             const char *key_q) {
-    tacc_target_asm_form_2(
-        matcher, key_b, key, "%d %d $ %E, %?", insn, 8, "@reg8");
-    tacc_target_asm_form_2(
-        matcher, key_w, key, "%d %d $ %E, %?", insn, 16, "@reg16");
-    tacc_target_asm_form_2(
-        matcher, key_l, key, "%d %d $ %E, %?", insn, 32, "@reg32");
-    tacc_target_asm_form_2(
-        matcher, key_q, key, "%d %d $ %E, %?", insn, 64, "@reg64");
+    if ((width & ASM_WIDTH_B) != 0) {
+        tacc_target_asm_form_2(
+            matcher, key_b, key, "%d %d $ %E, %?", insn, ASM_WIDTH_B, "@reg8");
+    }
+    if ((width & ASM_WIDTH_W) != 0) {
+        tacc_target_asm_form_2(
+            matcher, key_w, key, "%d %d $ %E, %?", insn, ASM_WIDTH_W, "@reg16");
+    }
+    if ((width & ASM_WIDTH_L) != 0) {
+        tacc_target_asm_form_2(
+            matcher, key_l, key, "%d %d $ %E, %?", insn, ASM_WIDTH_L, "@reg32");
+    }
+    if ((width & ASM_WIDTH_Q) != 0) {
+        tacc_target_asm_form_2(
+            matcher, key_q, key, "%d %d $ %E, %?", insn, ASM_WIDTH_Q, "@reg64");
+    }
 }
 static void tacc_target_asm_form_bwlq_imm_sib(struct tacc_asm_matcher *matcher,
                                               uint32_t insn,
+                                              uint32_t width,
                                               const char *key,
                                               const char *key_b,
                                               const char *key_w,
@@ -670,26 +766,71 @@ static void tacc_target_asm_form_bwlq_imm_sib(struct tacc_asm_matcher *matcher,
      * that because it's ambiguous
      */
 
-    tacc_asm_form(matcher, key_b, "%d %d $ %E, %?", insn, 8, "@sib");
-    tacc_asm_form(matcher, key_w, "%d %d $ %E, %?", insn, 16, "@sib");
-    tacc_asm_form(matcher, key_l, "%d %d $ %E, %?", insn, 32, "@sib");
-    tacc_asm_form(matcher, key_q, "%d %d $ %E, %?", insn, 64, "@sib");
+    if ((width & ASM_WIDTH_B) != 0) {
+        tacc_asm_form(
+            matcher, key_b, "%d %d $ %E, %?", insn, ASM_WIDTH_B, "@sib");
+    }
+    if ((width & ASM_WIDTH_W) != 0) {
+        tacc_asm_form(
+            matcher, key_w, "%d %d $ %E, %?", insn, ASM_WIDTH_W, "@sib");
+    }
+    if ((width & ASM_WIDTH_L) != 0) {
+        tacc_asm_form(
+            matcher, key_l, "%d %d $ %E, %?", insn, ASM_WIDTH_L, "@sib");
+    }
+    if ((width & ASM_WIDTH_Q) != 0) {
+        tacc_asm_form(
+            matcher, key_q, "%d %d $ %E, %?", insn, ASM_WIDTH_Q, "@sib");
+    }
 }
 static void tacc_target_asm_form_bwlq_sib_r(struct tacc_asm_matcher *matcher,
                                             uint32_t insn,
+                                            uint32_t width,
                                             const char *key,
                                             const char *key_b,
                                             const char *key_w,
                                             const char *key_l,
                                             const char *key_q) {
-    tacc_target_asm_form_2(
-        matcher, key_b, key, "%d %d %?, %?", insn, 8, "@sib", "@reg8");
-    tacc_target_asm_form_2(
-        matcher, key_w, key, "%d %d %?, %?", insn, 16, "@sib", "@reg16");
-    tacc_target_asm_form_2(
-        matcher, key_l, key, "%d %d %?, %?", insn, 32, "@sib", "@reg32");
-    tacc_target_asm_form_2(
-        matcher, key_q, key, "%d %d %?, %?", insn, 64, "@sib", "@reg64");
+    if ((width & ASM_WIDTH_B) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_b,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_B,
+                               "@sib",
+                               "@reg8");
+    }
+    if ((width & ASM_WIDTH_W) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_w,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_W,
+                               "@sib",
+                               "@reg16");
+    }
+    if ((width & ASM_WIDTH_L) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_l,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_L,
+                               "@sib",
+                               "@reg32");
+    }
+    if ((width & ASM_WIDTH_Q) != 0) {
+        tacc_target_asm_form_2(matcher,
+                               key_q,
+                               key,
+                               "%d %d %?, %?",
+                               insn,
+                               ASM_WIDTH_Q,
+                               "@sib",
+                               "@reg64");
+    }
 }
 
 #define GEN_BWLQS(base_name)                                              \
@@ -774,9 +915,17 @@ void tacc_target_asm_init_matchers(struct tacc_asm_matcher *matcher) {
         matcher, "@sib", "%d %e(,%?,%e)", SIB_ABS_INDEX_32, 0, "@reg32", 1);
     tacc_asm_form(matcher, "@sib", "%d %E", SIB_ABS);
 
-    tacc_target_asm_form_bwlq_rr(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
-    tacc_target_asm_form_bwlq_r_sib(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
-    tacc_target_asm_form_bwlq_sib_r(matcher, INSTR_MOV_REG, GEN_BWLQS("mov"));
-    tacc_target_asm_form_bwlq_imm_r(matcher, INSTR_MOV_IMM, GEN_BWLQS("mov"));
-    tacc_target_asm_form_bwlq_imm_sib(matcher, INSTR_MOV_IMM, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_rr(
+        matcher, INSTR_MOV_REG, ASM_WIDTH_BWLQ, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_r_sib(
+        matcher, INSTR_MOV_REG, ASM_WIDTH_BWLQ, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_sib_r(
+        matcher, INSTR_MOV_REG, ASM_WIDTH_BWLQ, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_imm_r(
+        matcher, INSTR_MOV_IMM, ASM_WIDTH_BWLQ, GEN_BWLQS("mov"));
+    tacc_target_asm_form_bwlq_imm_sib(
+        matcher, INSTR_MOV_IMM, ASM_WIDTH_BWLQ, GEN_BWLQS("mov"));
+
+    tacc_target_asm_form_bwlq_sib_r(
+        matcher, INSTR_LEA, ASM_WIDTH_WLQ, GEN_BWLQS("lea"));
 }
