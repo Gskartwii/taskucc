@@ -280,7 +280,7 @@ static void tacc_target_asm_out_le(struct tacc_asm_state *state,
 
 static void tacc_target_asm_emit_sib_r(uint32_t width,
                                        struct tacc_asm_statement *rm_op,
-                                       struct tacc_asm_statement *reg_op,
+                                       uint32_t reg_field,
                                        uint8_t base_op,
                                        struct tacc_asm_state *state) {
     uint32_t reg;
@@ -304,11 +304,7 @@ static void tacc_target_asm_emit_sib_r(uint32_t width,
     is_addr_32 = 0;
     encode_sib = 1;
 
-    if (reg_op != NULL) {
-        reg = tacc_asm_stmt_get_reg(reg_op);
-    } else {
-        reg = 0;
-    }
+    reg = reg_field;
     sib_form = tacc_asm_stmt_get_i32(rm_op, 0);
     displacement = tacc_asm_stmt_get_symbol(rm_op, 1);
     if (displacement->name == NULL && tacc_u64_is_zero(displacement->offset)) {
@@ -494,9 +490,11 @@ static void tacc_target_asm_emit_modrm(struct tacc_asm_statement *stmt,
     if (tacc_asm_stmt_is_reg(from_op) && tacc_asm_stmt_is_reg(to_op)) {
         tacc_target_asm_emit_rr(width, from_op, to_op, base_op, state);
     } else if (tacc_asm_stmt_is_sib(from_op)) {
-        tacc_target_asm_emit_sib_r(width, from_op, to_op, base_op | 2, state);
+        tacc_target_asm_emit_sib_r(
+            width, from_op, tacc_asm_stmt_get_reg(to_op), base_op | 2, state);
     } else if (tacc_asm_stmt_is_sib(to_op)) {
-        tacc_target_asm_emit_sib_r(width, to_op, from_op, base_op, state);
+        tacc_target_asm_emit_sib_r(
+            width, to_op, tacc_asm_stmt_get_reg(from_op), base_op, state);
     } else {
         tacc_assert(ASSERT_ICE, 0, "I don't know this kind of modrm");
     }
@@ -546,7 +544,7 @@ static void tacc_target_asm_emit_mov_imm(struct tacc_asm_statement *stmt,
         tacc_target_asm_out_le(state, width, from_op);
         return;
     }
-    tacc_target_asm_emit_sib_r(width, to_op, NULL, 0xC6, state);
+    tacc_target_asm_emit_sib_r(width, to_op, 0, 0xC6, state);
 }
 
 void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
@@ -559,11 +557,12 @@ void tacc_target_asm_process_statement(struct tacc_asm_statement *stmt,
         tacc_target_asm_emit_modrm(stmt, 0x88, state);
         break;
     case INSTR_LEA:
-        tacc_target_asm_emit_sib_r(tacc_asm_stmt_get_i32(stmt, 1),
-                                   tacc_asm_stmt_get_sub(stmt, 2),
-                                   tacc_asm_stmt_get_sub(stmt, 3),
-                                   0x8D,
-                                   state);
+        tacc_target_asm_emit_sib_r(
+            tacc_asm_stmt_get_i32(stmt, 1),
+            tacc_asm_stmt_get_sub(stmt, 2),
+            tacc_asm_stmt_get_reg(tacc_asm_stmt_get_sub(stmt, 3)),
+            0x8D,
+            state);
         break;
     case INSTR_MOV_IMM:
         tacc_target_asm_emit_mov_imm(stmt, state);
