@@ -189,7 +189,12 @@ struct tacc_string *tacc_asm_try_parse_key(struct tacc_file_iter *iter) {
     while (1) {
         ch_ptr = iter->src;
         ch = *ch_ptr;
-        if (ch == '.' || ch == '$' || tacc_is_labelic(ch)) {
+        if (ch == '.' || tacc_is_labelic(ch)) {
+            iter->src = iter->src + 1;
+            continue;
+        }
+        /* for now, don't permit $ at start of identifier */
+        if (ch_ptr != start && ch == '$') {
             iter->src = iter->src + 1;
             continue;
         }
